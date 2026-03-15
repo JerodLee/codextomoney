@@ -3,6 +3,11 @@ name: momentum-telegram-bot
 on:
   schedule:
     - cron: "*/5 * * * *"
+  push:
+    branches:
+      - main
+    paths-ignore:
+      - "state/**"
   workflow_dispatch:
 
 permissions:
