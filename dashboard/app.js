@@ -575,10 +575,43 @@ function renderModelLab(state) {
   const latestRun = (state.run_history || []).slice(-1)[0] || {};
   const diag = latestRun.model_diagnostics || state.meta?.last_model_diagnostics || null;
   const rows = Array.isArray(diag?.items) ? diag.items : [];
+  const rec = latestRun.model_recommendation || state.meta?.last_model_recommendation || null;
+  const recRows = Array.isArray(rec?.recommendations) ? rec.recommendations : [];
+  const latestModelMetrics = latestRun.model_metrics || {};
+
+  if (!rows.length && recRows.length) {
+    for (const r of recRows.slice(0, 6)) {
+      const active = Array.isArray(r?.active_models) ? r.active_models : [];
+      const activeMid = String(active[0] || "");
+      const mm = activeMid ? (latestModelMetrics[activeMid] || null) : null;
+      const wr = Number(mm?.win_rate);
+      const ar = Number(mm?.avg_return);
+      const n = Number(mm?.count || 0);
+      const perfTxt = mm
+        ? `n=${n} | win=${Number.isFinite(wr) ? fmtPct(wr) : "-"} | avg=${Number.isFinite(ar) ? fmtPct(ar) : "-"}`
+        : `fit_edge=${fmtNum(Number(r?.fit_edge_vs_base || 0), 3)}`;
+      const fit = Number(r?.fit_edge_vs_base);
+      const issueTxt = Number.isFinite(fit)
+        ? `시장적합 우위: fit_edge_vs_base ${fit >= 0 ? "+" : ""}${fmtNum(fit, 3)}`
+        : "시장적합 기반 제안";
+      const proposalTxt = `진단 데이터 누적 후 상세 원인 분석 갱신. 우선 ${modelLabel(String(r?.suggested_model || "-"))} 병행 검토`;
+      const nextMid = String(r?.suggested_model || "-");
+      const tr = document.createElement("tr");
+      tr.innerHTML = `
+        <td class="mono">${modelLabel(activeMid || nextMid)}</td>
+        <td>${perfTxt}</td>
+        <td>${issueTxt}</td>
+        <td>${proposalTxt}</td>
+        <td class="mono">${nextMid}</td>
+      `;
+      body.appendChild(tr);
+    }
+    return;
+  }
 
   if (!rows.length) {
     const tr = document.createElement("tr");
-    tr.innerHTML = `<td colspan="5" class="muted">저성과 원인 진단 데이터가 아직 없습니다.</td>`;
+    tr.innerHTML = `<td colspan="5" class="muted">저성과 원인 진단 데이터가 아직 없습니다. (다음 실행에서 누적 후 표시)</td>`;
     body.appendChild(tr);
     return;
   }
