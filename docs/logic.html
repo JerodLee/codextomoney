@@ -113,6 +113,22 @@
         <li>출력: LONG/SHORT별 유력 모델과 근거(fit edge, 과거 승률, 표본)를 ModelHint로 텔레그램/대시보드에 표시합니다.</li>
       </ul>
     </section>
+
+    <section class="card logic-card">
+      <h3>9) 손익비(R:R) 정의</h3>
+      <ul class="timeline">
+        <li>방향 정의: LONG은 +1, SHORT는 -1 방향 계수를 사용합니다.</li>
+        <li>변동성 입력: <code>vol24 = clamp((|b_rate24h| + |g_rate24h|)/2, 0.5, 25.0)</code></li>
+        <li>손절폭(%): <code>stop_pct = clamp(0.45 + vol24*0.08, 0.45, 2.80)</code></li>
+        <li>기본 손익비 배수: <code>rr_base = clamp(1.10 + score*1.50, 1.10, 2.60)</code></li>
+        <li>목표폭(%): <code>target_pct = stop_pct * rr_base</code></li>
+        <li>진입 오프셋(%): <code>entry_offset_pct = clamp(0.10 + vol24*0.02, 0.10, 0.80)</code></li>
+        <li>진입 추천가: <code>entry_reco = now_price * (1 - direction*entry_offset_pct/100)</code></li>
+        <li>시점 손익비(<code>rr_now</code>): 현재가 기준 <code>|target-now| / |now-stop|</code></li>
+        <li>진입 손익비(<code>rr_entry</code>): 추천 진입가 기준 <code>|target-entry| / |entry-stop|</code></li>
+        <li>표시 기준: 대시보드에는 <code>시점가(KRW/USDT)</code>, <code>시점 손익비</code>, <code>진입 추천가(KRW/USDT)</code>, <code>진입 손익비</code>를 함께 표기합니다.</li>
+      </ul>
+    </section>
   </main>
 
   <nav class="mobile-nav" aria-label="하단 메뉴">
