@@ -56,6 +56,7 @@ class BitgetTicker:
 @dataclass
 class Candidate:
     symbol: str
+    side: str
     score: float
     b_rate24h: float
     b_krw_value24h: float
@@ -127,7 +128,7 @@ def parse_bitget(payload: dict) -> Dict[str, BitgetTicker]:
     return out
 
 
-def score_candidate(
+def score_long_candidate(
     b: BithumbTicker,
     g: BitgetTicker,
     min_b_krw: float,
@@ -162,46 +163,101 @@ def score_candidate(
     return round(score, 4)
 
 
+def score_short_candidate(
+    b: BithumbTicker,
+    g: BitgetTicker,
+    min_b_krw: float,
+    min_g_usdt: float,
+) -> float:
+    # Stronger downside on Bitget gets a higher short score.
+    g_drop = max(0.0, min(-g.change24h_pct, 50.0))
+    b_drop = max(0.0, min(-b.rate24h, 50.0))
+    g_drop_score = g_drop / 50.0
+    b_drop_score = b_drop / 50.0
+
+    b_liq_score = math.log10(1.0 + (b.krw_value24h / max(min_b_krw, 1.0))) / math.log10(
+        11.0
+    )
+    g_liq_score = math.log10(1.0 + (g.usdt_volume / max(min_g_usdt, 1.0))) / math.log10(
+        11.0
+    )
+
+    # Positive funding favors short setups; very negative funding can signal crowded shorts.
+    funding_bonus = 0.0
+    if g.funding_rate > 0:
+        funding_bonus = min(0.06, g.funding_rate * 80.0)
+    funding_penalty = 0.0
+    if g.funding_rate < -0.001:
+        funding_penalty = min(0.20, (-g.funding_rate - 0.001) * 40.0)
+
+    score = (
+        0.52 * g_drop_score
+        + 0.16 * b_drop_score
+        + 0.16 * max(0.0, min(1.0, b_liq_score))
+        + 0.16 * max(0.0, min(1.0, g_liq_score))
+        + funding_bonus
+        - funding_penalty
+    )
+    return round(score, 4)
+
+
 def build_candidates(
     bithumb: Dict[str, BithumbTicker],
     bitget: Dict[str, BitgetTicker],
     min_bithumb_rate: float,
     min_bitget_rate: float,
+    min_bitget_short_rate: float,
     min_bithumb_krw: float,
     min_bitget_usdt: float,
+    include_short: bool = True,
 ) -> List[Candidate]:
     candidates: List[Candidate] = []
     for symbol, b in bithumb.items():
         g = bitget.get(symbol)
         if not g:
             continue
-        if b.rate24h < min_bithumb_rate:
-            continue
-        if g.change24h_pct < min_bitget_rate:
-            continue
         if b.krw_value24h < min_bithumb_krw:
             continue
         if g.usdt_volume < min_bitget_usdt:
             continue
 
-        candidates.append(
-            Candidate(
-                symbol=symbol,
-                score=score_candidate(b, g, min_bithumb_krw, min_bitget_usdt),
-                b_rate24h=b.rate24h,
-                b_krw_value24h=b.krw_value24h,
-                b_close_krw=b.close_krw,
-                g_change24h_pct=g.change24h_pct,
-                g_usdt_volume=g.usdt_volume,
-                g_funding_rate=g.funding_rate,
-                g_symbol=g.symbol,
-                g_last_price=g.last_price,
+        if b.rate24h >= min_bithumb_rate and g.change24h_pct >= min_bitget_rate:
+            candidates.append(
+                Candidate(
+                    symbol=symbol,
+                    side="LONG",
+                    score=score_long_candidate(b, g, min_bithumb_krw, min_bitget_usdt),
+                    b_rate24h=b.rate24h,
+                    b_krw_value24h=b.krw_value24h,
+                    b_close_krw=b.close_krw,
+                    g_change24h_pct=g.change24h_pct,
+                    g_usdt_volume=g.usdt_volume,
+                    g_funding_rate=g.funding_rate,
+                    g_symbol=g.symbol,
+                    g_last_price=g.last_price,
+                )
             )
-        )
+
+        if include_short and g.change24h_pct <= -abs(min_bitget_short_rate):
+            candidates.append(
+                Candidate(
+                    symbol=symbol,
+                    side="SHORT",
+                    score=score_short_candidate(b, g, min_bithumb_krw, min_bitget_usdt),
+                    b_rate24h=b.rate24h,
+                    b_krw_value24h=b.krw_value24h,
+                    b_close_krw=b.close_krw,
+                    g_change24h_pct=g.change24h_pct,
+                    g_usdt_volume=g.usdt_volume,
+                    g_funding_rate=g.funding_rate,
+                    g_symbol=g.symbol,
+                    g_last_price=g.last_price,
+                )
+            )
 
     return sorted(
         candidates,
-        key=lambda x: (x.score, x.b_rate24h, x.g_change24h_pct),
+        key=lambda x: (x.score, abs(x.g_change24h_pct), abs(x.b_rate24h)),
         reverse=True,
     )
 
@@ -214,7 +270,10 @@ def apply_overheat_filter(
     filtered: List[Candidate] = []
     removed = 0
     for c in candidates:
-        if c.b_rate24h >= max_overheat_rate or c.g_change24h_pct >= max_overheat_rate:
+        if (
+            abs(c.b_rate24h) >= max_overheat_rate
+            or abs(c.g_change24h_pct) >= max_overheat_rate
+        ):
             removed += 1
             continue
         filtered.append(c)
@@ -229,7 +288,7 @@ def apply_conservative_filter(
     filtered: List[Candidate] = []
     removed = 0
     for c in candidates:
-        if c.b_rate24h > max_rate or c.g_change24h_pct > max_rate:
+        if abs(c.b_rate24h) > max_rate or abs(c.g_change24h_pct) > max_rate:
             removed += 1
             continue
         if abs(c.g_funding_rate) > max_abs_funding:
@@ -296,11 +355,11 @@ def print_table(rows: Iterable[Candidate], top: int) -> None:
         return
 
     print(
-        "rank symbol score  b_rate24h  b_24h_value     g_rate24h  g_24h_vol      funding"
+        "rank symbol side   score  b_rate24h  b_24h_value     g_rate24h  g_24h_vol      funding"
     )
     for i, c in enumerate(selected, start=1):
         print(
-            f"{i:>4} {c.symbol:<6} {c.score:>5.3f} "
+            f"{i:>4} {c.symbol:<6} {c.side:<5} {c.score:>5.3f} "
             f"{c.b_rate24h:>8.2f}%  {human_k_rw(c.b_krw_value24h):>12}  "
             f"{c.g_change24h_pct:>8.2f}%  {human_usdt(c.g_usdt_volume):>11}  "
             f"{c.g_funding_rate:>8.5f}"
@@ -323,6 +382,12 @@ def parse_args() -> argparse.Namespace:
         type=float,
         default=1.0,
         help="Min Bitget 24h change percent",
+    )
+    p.add_argument(
+        "--min-bitget-short-rate",
+        type=float,
+        default=1.0,
+        help="Min absolute downside on Bitget 24h change percent for SHORT candidates",
     )
     p.add_argument(
         "--min-bithumb-value",
@@ -408,6 +473,11 @@ def parse_args() -> argparse.Namespace:
         default=0,
         help="Max symbols to check for orderbook status (0 means no limit)",
     )
+    p.add_argument(
+        "--long-only",
+        action="store_true",
+        help="Disable SHORT candidate generation",
+    )
 
     p.add_argument(
         "--watch",
@@ -451,8 +521,10 @@ def run_once(args: argparse.Namespace, cycle: int) -> int:
         bitget=bitget,
         min_bithumb_rate=args.min_bithumb_rate,
         min_bitget_rate=args.min_bitget_rate,
+        min_bitget_short_rate=args.min_bitget_short_rate,
         min_bithumb_krw=min_bithumb_value,
         min_bitget_usdt=min_bitget_volume,
+        include_short=not args.long_only,
     )
     initial_count = len(candidates)
 
@@ -485,7 +557,8 @@ def run_once(args: argparse.Namespace, cycle: int) -> int:
         f"Overheat cut: {args.max_overheat_rate:.2f}%"
     )
     print(
-        f"Base filters: b_rate>={args.min_bithumb_rate}%, g_rate>={args.min_bitget_rate}%, "
+        f"Base filters: b_rate>={args.min_bithumb_rate}%, g_long>={args.min_bitget_rate}%, "
+        f"g_short<=-{args.min_bitget_short_rate}%, "
         f"b_value>={min_bithumb_value:,.0f} KRW, g_vol>={min_bitget_volume:,.0f} USDT"
     )
     print(

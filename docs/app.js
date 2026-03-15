@@ -31,6 +31,10 @@ function fmtTime(ts) {
   return d.toLocaleString("ko-KR", { hour12: false });
 }
 
+function sideOf(row) {
+  return String(row?.side || "LONG").toUpperCase() === "SHORT" ? "SHORT" : "LONG";
+}
+
 function winRate(rows) {
   if (!rows.length) return null;
   const wins = rows.filter((r) => Boolean(r.win)).length;
@@ -67,7 +71,8 @@ function candidateStateUrls(owner, repo, branch) {
   return [raw, "../state/bot_state.json", "/state/bot_state.json", "./state/bot_state.json"];
 }
 
-function buildSvgLine(svgEl, points) {
+function buildSvgLine(svgEl, points, stroke = "#0e8a7b", dot = "#ff9e57") {
+  if (!svgEl) return;
   const w = 900;
   const h = 240;
   if (!points.length) {
@@ -87,8 +92,8 @@ function buildSvgLine(svgEl, points) {
   svgEl.innerHTML = `
     <rect x="0" y="0" width="${w}" height="${h}" fill="none"></rect>
     <line x1="0" y1="${h - 12}" x2="${w}" y2="${h - 12}" stroke="#d7e0e4" />
-    <path d="${path}" fill="none" stroke="#0e8a7b" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"></path>
-    <circle cx="${xy[xy.length - 1].x.toFixed(2)}" cy="${xy[xy.length - 1].y.toFixed(2)}" r="4.8" fill="#ff9e57"></circle>
+    <path d="${path}" fill="none" stroke="${stroke}" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"></path>
+    <circle cx="${xy[xy.length - 1].x.toFixed(2)}" cy="${xy[xy.length - 1].y.toFixed(2)}" r="4.8" fill="${dot}"></circle>
   `;
 }
 
@@ -113,17 +118,19 @@ function renderPicks(state) {
 
   if (!picks.length) {
     const tr = document.createElement("tr");
-    tr.innerHTML = `<td colspan="6" class="muted">추천 이력이 아직 없습니다.</td>`;
+    tr.innerHTML = `<td colspan="7" class="muted">추천 이력이 아직 없습니다.</td>`;
     body.appendChild(tr);
     return;
   }
 
   for (const p of picks) {
+    const side = sideOf(p);
     const status = resultIds.has(p.id) ? "평가완료" : "대기";
     const tr = document.createElement("tr");
     tr.innerHTML = `
       <td>${fmtTime(p.created_at)}</td>
       <td class="mono">${p.symbol}</td>
+      <td class="mono">${side}</td>
       <td>${fmtNum(p.score, 3)}</td>
       <td>${fmtNum(p.b_rate24h, 2)}%</td>
       <td>${fmtNum(p.g_rate24h, 2)}%</td>
@@ -142,18 +149,20 @@ function renderEvaluations(results) {
 
   if (!rows.length) {
     const tr = document.createElement("tr");
-    tr.innerHTML = `<td colspan="4" class="muted">검증 데이터가 아직 없습니다.</td>`;
+    tr.innerHTML = `<td colspan="5" class="muted">검증 데이터가 아직 없습니다.</td>`;
     body.appendChild(tr);
     return;
   }
 
   for (const r of rows) {
+    const side = sideOf(r);
     const ret = Number(r.return_blended || 0);
     const klass = ret >= 0 ? "good" : "bad";
     const tr = document.createElement("tr");
     tr.innerHTML = `
       <td>${fmtTime(r.evaluated_at)}</td>
       <td class="mono">${r.symbol}</td>
+      <td class="mono">${side}</td>
       <td class="${klass}">${fmtPct(ret)}</td>
       <td class="${r.win ? "good" : "bad"}">${r.win ? "승" : "패"}</td>
     `;
@@ -240,6 +249,42 @@ function renderTrend(state) {
     : "추이 데이터가 아직 없습니다.";
 }
 
+function buildCumulativeSidePoints(results, side) {
+  const filtered = [...results]
+    .filter((r) => r && r.evaluated_at && sideOf(r) === side)
+    .sort((a, b) => new Date(a.evaluated_at) - new Date(b.evaluated_at));
+  let wins = 0;
+  return filtered.map((r, idx) => {
+    if (r.win) wins += 1;
+    return { x: r.evaluated_at, y: wins / (idx + 1) };
+  }).slice(-120);
+}
+
+function renderSideTrends(results) {
+  const longEl = $("trendLongChart");
+  const shortEl = $("trendShortChart");
+  if (!longEl || !shortEl) return;
+
+  const longPoints = buildCumulativeSidePoints(results, "LONG");
+  const shortPoints = buildCumulativeSidePoints(results, "SHORT");
+
+  buildSvgLine(longEl, longPoints, "#0e8a7b", "#ff9e57");
+  buildSvgLine(shortEl, shortPoints, "#2f6bff", "#7f9bff");
+
+  const longMeta = $("trendLongMeta");
+  const shortMeta = $("trendShortMeta");
+  if (longMeta) {
+    longMeta.textContent = longPoints.length
+      ? `LONG 검증 ${longPoints.length}건(누적 승률)`
+      : "LONG 검증 데이터가 아직 없습니다.";
+  }
+  if (shortMeta) {
+    shortMeta.textContent = shortPoints.length
+      ? `SHORT 검증 ${shortPoints.length}건(누적 승률)`
+      : "SHORT 검증 데이터가 아직 없습니다.";
+  }
+}
+
 function renderKpis(state, results) {
   const runHistory = state.run_history || [];
   const latestRun = runHistory[runHistory.length - 1];
@@ -273,6 +318,7 @@ async function loadAndRender() {
     const results = state.results || [];
     renderKpis(state, results);
     renderTrend(state);
+    renderSideTrends(results);
     renderRules(state.dynamic_config || {});
     renderPicks(state);
     renderEvaluations(results);

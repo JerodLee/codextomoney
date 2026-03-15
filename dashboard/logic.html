@@ -29,7 +29,8 @@
         <p>빗썸 KRW 현물과 비트겟 USDT-M 선물의 공통 심볼만 대상으로 시작합니다.</p>
         <div class="chip-list">
           <span class="chip">빗썸 24h 등락률 ≥ 1.0%</span>
-          <span class="chip">비트겟 24h 등락률 ≥ 1.0%</span>
+          <span class="chip">비트겟 LONG 기준: 24h ≥ 1.0%</span>
+          <span class="chip">비트겟 SHORT 기준: 24h ≤ -1.0%</span>
           <span class="chip">빗썸 거래대금 ≥ 20억 KRW</span>
           <span class="chip">비트겟 거래량 ≥ 1,000만 USDT</span>
         </div>
@@ -50,9 +51,10 @@
     <section class="logic-grid">
       <article class="card logic-card">
         <h3>3) 스코어링 및 추천</h3>
-        <p>필터를 통과한 종목을 점수화해 상위 종목을 텔레그램으로 전달합니다.</p>
+        <p>필터를 통과한 종목을 LONG/SHORT로 점수화해 상위 종목을 텔레그램으로 전달합니다.</p>
         <ul class="timeline">
-          <li>기본 추천 메시지는 <strong>종목 + 스코어</strong>만 간결하게 전송</li>
+          <li>추천 메시지에 <strong>LONG/SHORT</strong> 방향을 함께 표시</li>
+          <li>SHORT는 비트겟 하락 모멘텀을 기준으로 우선 선별</li>
           <li>실행마다 새 후보를 계산하고 상위 N개를 추천</li>
           <li>추천 시점 가격(진입가)을 저장해 이후 성과를 추적</li>
         </ul>
@@ -60,10 +62,11 @@
 
       <article class="card logic-card">
         <h3>4) 성과 검증</h3>
-        <p>추천 후 기본 15분 경과 시점에 수익률을 계산하고 승/패를 기록합니다.</p>
+        <p>추천 후 기본 15분 경과 시점에 방향(LONG/SHORT)을 반영한 수익률을 계산합니다.</p>
         <ul class="timeline">
-          <li>빗썸/비트겟 각 수익률 계산</li>
-          <li>사용 가능한 값의 평균(블렌디드 수익률)으로 최종 판단</li>
+          <li>LONG: 기존과 동일하게 빗썸/비트겟 수익률을 반영</li>
+          <li>SHORT: 비트겟 수익률을 우선 반전(하락 시 +수익)해 판단</li>
+          <li>최종 블렌디드 수익률로 승/패 기록</li>
           <li>블렌디드 수익률이 0보다 크면 승(Win), 아니면 패(Lose)</li>
         </ul>
       </article>

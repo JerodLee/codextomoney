@@ -50,6 +50,7 @@ DASHBOARD_URL = os.getenv(
 DEFAULT_DYNAMIC_CONFIG: Dict[str, float] = {
     "min_bithumb_rate": 1.0,
     "min_bitget_rate": 1.0,
+    "min_bitget_short_rate": 1.0,
     "min_bithumb_value": 2_000_000_000,
     "min_bitget_volume": 10_000_000,
     "max_overheat_rate": 40.0,
@@ -148,8 +149,10 @@ def compute_candidates(
         bitget=bitget,
         min_bithumb_rate=cfg["min_bithumb_rate"],
         min_bitget_rate=cfg["min_bitget_rate"],
+        min_bitget_short_rate=cfg["min_bitget_short_rate"],
         min_bithumb_krw=cfg["min_bithumb_value"],
         min_bitget_usdt=cfg["min_bitget_volume"],
+        include_short=True,
     )
     base_universe = len(candidates)
     candidates, removed_overheat = apply_overheat_filter(
@@ -184,8 +187,9 @@ def make_recommendations(
     for c in candidates[:top_n]:
         out.append(
             {
-                "id": f"{c.symbol}-{int(run_ts.timestamp())}",
+                "id": f"{c.symbol}-{c.side}-{int(run_ts.timestamp())}",
                 "symbol": c.symbol,
+                "side": c.side,
                 "created_at": iso_z(run_ts),
                 "horizon_min": horizon_min,
                 "entry_bithumb_price": c.b_close_krw,
@@ -202,6 +206,39 @@ def make_recommendations(
     return out
 
 
+def pick_side(p: Dict[str, Any]) -> str:
+    side = str(p.get("side", "LONG")).upper()
+    return "SHORT" if side == "SHORT" else "LONG"
+
+
+def trade_return_from_market_return(
+    market_return: float | None,
+    side: str,
+) -> float | None:
+    if market_return is None:
+        return None
+    return -market_return if side == "SHORT" else market_return
+
+
+def blend_returns(
+    side: str,
+    b_ret: float | None,
+    g_ret: float | None,
+) -> Tuple[float, int]:
+    # Short recommendations are Bitget-first by design.
+    if side == "SHORT":
+        if g_ret is not None:
+            return g_ret, 1
+        if b_ret is not None:
+            return b_ret, 1
+        return 0.0, 0
+
+    vals = [x for x in (b_ret, g_ret) if x is not None]
+    if not vals:
+        return 0.0, 0
+    return sum(vals) / len(vals), len(vals)
+
+
 def evaluate_pending(
     pending: List[Dict[str, Any]],
     bithumb: Dict[str, Any],
@@ -214,6 +251,7 @@ def evaluate_pending(
     for p in pending:
         created = parse_iso(p["created_at"])
         horizon = int(p.get("horizon_min", 30))
+        side = pick_side(p)
         if now < created + timedelta(minutes=horizon):
             still_pending.append(p)
             continue
@@ -222,29 +260,28 @@ def evaluate_pending(
         b_now = bithumb.get(symbol)
         g_now = bitget.get(symbol)
 
-        b_ret = None
-        g_ret = None
+        b_market_ret = None
+        g_market_ret = None
         if b_now and p.get("entry_bithumb_price", 0) > 0:
-            b_ret = (b_now.close_krw - p["entry_bithumb_price"]) / p["entry_bithumb_price"]
+            b_market_ret = (b_now.close_krw - p["entry_bithumb_price"]) / p["entry_bithumb_price"]
         if g_now and p.get("entry_bitget_price", 0) > 0:
-            g_ret = (g_now.last_price - p["entry_bitget_price"]) / p["entry_bitget_price"]
+            g_market_ret = (g_now.last_price - p["entry_bitget_price"]) / p["entry_bitget_price"]
+
+        b_ret = trade_return_from_market_return(b_market_ret, side)
+        g_ret = trade_return_from_market_return(g_market_ret, side)
 
         if b_ret is None and g_ret is None:
             # Keep one extra horizon for temporary API mismatch.
             if now < created + timedelta(minutes=horizon * 2):
                 still_pending.append(p)
                 continue
-            blended = 0.0
-            available = 0
-        else:
-            vals = [x for x in (b_ret, g_ret) if x is not None]
-            blended = sum(vals) / len(vals)
-            available = len(vals)
+        blended, available = blend_returns(side, b_ret, g_ret)
 
         finalized.append(
             {
                 "id": p["id"],
                 "symbol": symbol,
+                "side": side,
                 "created_at": p["created_at"],
                 "evaluated_at": iso_z(now),
                 "horizon_min": horizon,
@@ -314,6 +351,7 @@ def auto_calibrate(
         new_cfg["min_bitget_volume"] = max(5_000_000, old_g * 0.90)
         new_cfg["min_bithumb_rate"] = max(0.5, new_cfg["min_bithumb_rate"] - 0.2)
         new_cfg["min_bitget_rate"] = max(0.5, new_cfg["min_bitget_rate"] - 0.2)
+        new_cfg["min_bitget_short_rate"] = max(0.5, new_cfg["min_bitget_short_rate"] - 0.2)
         notes.append(
             "Low-candidate adjustment: loosened liquidity and momentum floors slightly."
         )
@@ -348,6 +386,7 @@ def auto_calibrate(
     for k in (
         "min_bithumb_rate",
         "min_bitget_rate",
+        "min_bitget_short_rate",
         "max_overheat_rate",
         "conservative_max_rate",
         "conservative_max_abs_funding",
@@ -376,7 +415,8 @@ def format_money_u(v: float) -> str:
 
 
 def format_pick_line(index: int, p: Dict[str, Any]) -> str:
-    return f"{index}) {p['symbol']} | score {p['score']:.3f}"
+    side = pick_side(p)
+    return f"{index}) {p['symbol']} | {side} | score {p['score']:.3f}"
 
 
 def evaluate_live_return(
@@ -384,19 +424,23 @@ def evaluate_live_return(
     bithumb: Dict[str, Any],
     bitget: Dict[str, Any],
 ) -> Tuple[float | None, float | None, float | None]:
+    side = pick_side(p)
     symbol = p["symbol"]
     b_now = bithumb.get(symbol)
     g_now = bitget.get(symbol)
 
-    b_ret = None
-    g_ret = None
+    b_market_ret = None
+    g_market_ret = None
     if b_now and p.get("entry_bithumb_price", 0) > 0:
-        b_ret = (b_now.close_krw - p["entry_bithumb_price"]) / p["entry_bithumb_price"]
+        b_market_ret = (b_now.close_krw - p["entry_bithumb_price"]) / p["entry_bithumb_price"]
     if g_now and p.get("entry_bitget_price", 0) > 0:
-        g_ret = (g_now.last_price - p["entry_bitget_price"]) / p["entry_bitget_price"]
+        g_market_ret = (g_now.last_price - p["entry_bitget_price"]) / p["entry_bitget_price"]
 
-    vals = [x for x in (b_ret, g_ret) if x is not None]
-    blended = (sum(vals) / len(vals)) if vals else None
+    b_ret = trade_return_from_market_return(b_market_ret, side)
+    g_ret = trade_return_from_market_return(g_market_ret, side)
+    blended, _ = blend_returns(side, b_ret, g_ret)
+    if b_ret is None and g_ret is None:
+        return b_ret, g_ret, None
     return b_ret, g_ret, blended
 
 
@@ -421,6 +465,7 @@ def detect_loss_alerts(
                 {
                     "id": p["id"],
                     "symbol": p["symbol"],
+                    "side": pick_side(p),
                     "created_at": p["created_at"],
                     "horizon_min": int(p.get("horizon_min", 15)),
                     "live_return_blended": blended,
@@ -436,7 +481,9 @@ def make_loss_alert_message(run_ts: datetime, alerts: List[Dict[str, Any]]) -> s
     lines = [f"손실 경고 | {ts_kst}"]
     lines.append("추천 종목이 음수 수익으로 전환되었습니다.")
     for i, a in enumerate(alerts, start=1):
-        lines.append(f"{i}) {a['symbol']} | 수익률 {format_pct(a['live_return_blended'])}")
+        lines.append(
+            f"{i}) {a['symbol']} | {a.get('side', 'LONG')} | 수익률 {format_pct(a['live_return_blended'])}"
+        )
     lines.append(f"대시보드: {DASHBOARD_URL}")
     return "\n".join(lines)
 
@@ -456,7 +503,7 @@ def make_message(
     if message_style == "compact":
         lines.append(f"Momentum Scan | {ts_kst}")
         lines.append(
-            f"Rules: overheat<{cfg['max_overheat_rate']:.0f}% | bVal>={format_money_k(cfg['min_bithumb_value'])} | gVol>={format_money_u(cfg['min_bitget_volume'])}"
+            f"Rules: overheat<{cfg['max_overheat_rate']:.0f}% | gLong>={cfg['min_bitget_rate']:.1f}% | gShort<=-{cfg['min_bitget_short_rate']:.1f}% | bVal>={format_money_k(cfg['min_bithumb_value'])} | gVol>={format_money_u(cfg['min_bitget_volume'])}"
         )
         if picks:
             lines.append("Picks:")
@@ -475,7 +522,7 @@ def make_message(
     lines.append(f"Momentum Scan | {ts_kst}")
     lines.append("Market: Bithumb Spot + Bitget USDT-M")
     lines.append(
-        f"Filters: overheat<{cfg['max_overheat_rate']:.2f}%, bValue>={format_money_k(cfg['min_bithumb_value'])}, gVol>={format_money_u(cfg['min_bitget_volume'])}"
+        f"Filters: overheat<{cfg['max_overheat_rate']:.2f}%, gLong>={cfg['min_bitget_rate']:.2f}%, gShort<=-{cfg['min_bitget_short_rate']:.2f}%, bValue>={format_money_k(cfg['min_bithumb_value'])}, gVol>={format_money_u(cfg['min_bitget_volume'])}"
     )
     lines.append(
         f"Candidates: base={filter_stats['base_universe']}, removed(overheat={filter_stats['removed_overheat']}, conservative={filter_stats['removed_conservative']}, orderable={filter_stats['removed_orderable']})"
