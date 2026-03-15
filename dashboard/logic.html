@@ -38,6 +38,7 @@
           <span class="chip">롱: 빗썸/비트겟 24h 상승률 기준</span>
           <span class="chip">숏: 비트겟 24h 하락률 + 펀딩 조건</span>
           <span class="chip">유동성 바닥: 빗썸 거래대금 + 비트겟 거래량</span>
+          <span class="chip">출력 수량: top=3, SHORT 최소 1개(후보 존재 시)</span>
         </div>
       </article>
 
@@ -49,6 +50,7 @@
           <span class="chip">보수 상한</span>
           <span class="chip">절대 펀딩 상한</span>
           <span class="chip">빗썸 주문 가능 여부</span>
+          <span class="chip">손실 경고 종목 쿨다운 차단</span>
         </div>
       </article>
     </section>
@@ -68,6 +70,8 @@
         <ul class="timeline">
           <li>추천 시점의 진입가를 저장</li>
           <li>horizon 경과 후 blended 수익률 평가</li>
+          <li>SHORT는 비트겟 수익률을 우선 평가(없을 때만 빗썸 대체)</li>
+          <li>양 거래소 데이터가 모두 비면 horizon 1회 추가 유예 후 확정</li>
           <li>모델별 count/win_rate/avg/median을 별도 집계</li>
         </ul>
       </article>
@@ -79,7 +83,8 @@
         <ul class="timeline">
           <li>저성과 시 보수적으로 필터 강화</li>
           <li>후보 고갈 시 완만하게 필터 완화</li>
-          <li>보정 악화 시 롤백 + 쿨다운</li>
+          <li>보정 악화 시 롤백 + 6시간 쿨다운</li>
+          <li>롤백 조건: 최근 보정 이후 승률 델타가 -5.0%p 이하</li>
         </ul>
       </article>
 
@@ -97,6 +102,8 @@
     <section class="card logic-card">
       <h3>7) 시장 상관도 해석 기준</h3>
       <ul class="timeline">
+        <li>시장 지표는 <code>24h/12h/6h/1h/15m/5m/1m</code> 다중 타임프레임 변화율을 사용합니다.</li>
+        <li>시장 쏠림(regime)은 <code>btc/eth/single-alt/alt-broad/balanced</code>로 분류합니다.</li>
         <li><strong>시장/BTC/ETH 추천상관</strong>은 추천방향(LONG=+1, SHORT=-1)과 시장 변화(1h 우선, 없으면 24h)의 상관계수입니다.</li>
         <li>따라서 ETH 추천상관은 <strong>ETH vs ETH 자기상관</strong>이 아니라, <strong>추천 방향과 ETH 장세의 정합성</strong>을 뜻합니다.</li>
         <li>예: ETH 추천상관이 -0.17이면 최근 추천 방향이 ETH 장세와 약하게 반대로 움직였다는 의미입니다.</li>
@@ -107,7 +114,7 @@
     <section class="card logic-card">
       <h3>8) 누적 저성과 시 모델 추천</h3>
       <ul class="timeline">
-        <li>트리거: 최근 검증 표본이 충분하고(기본 24건), 승률 또는 평균 수익률이 기준보다 낮을 때.</li>
+        <li>트리거: 최근 검증 표본 24건 이상 + 승률 <code>48%</code> 또는 평균수익률 <code>-0.10%</code>.</li>
         <li>시장 적합도: 현재 후보군에 대해 모델별 점수(상위 평균)를 계산해 시장 적합도를 산출합니다.</li>
         <li>과거 성과: 모델별 win_rate/avg_return/count를 신뢰도 가중으로 반영합니다.</li>
         <li>출력: LONG/SHORT별 유력 모델과 근거(fit edge, 과거 승률, 표본)를 ModelHint로 텔레그램/대시보드에 표시합니다.</li>
@@ -127,6 +134,42 @@
         <li>시점 손익비(<code>rr_now</code>): 현재가 기준 <code>|target-now| / |now-stop|</code></li>
         <li>진입 손익비(<code>rr_entry</code>): 추천 진입가 기준 <code>|target-entry| / |entry-stop|</code></li>
         <li>표시 기준: 대시보드에는 <code>시점가(KRW/USDT)</code>, <code>시점 손익비</code>, <code>진입 추천가(KRW/USDT)</code>, <code>진입 손익비</code>를 함께 표기합니다.</li>
+      </ul>
+    </section>
+
+    <section class="card logic-card">
+      <h3>10) 손실 경고와 재추천 차단</h3>
+      <ul class="timeline">
+        <li>보유 중인 pending 추천을 먼저 실시간 재평가하고 손실 경고를 탐지합니다.</li>
+        <li>경고 기준: <code>live_return_blended &lt; loss_alert_threshold</code> (기본 0.0, 손실 전환 시).</li>
+        <li>경고가 난 심볼은 <code>loss_cooldowns</code>에 등록되어 기본 60분 동안 후보군에서 제외됩니다.</li>
+        <li>손실 탐지는 추천 전/후 2회 수행되어, 경고 직후 같은 심볼 재추천을 최대한 방지합니다.</li>
+      </ul>
+    </section>
+
+    <section class="card logic-card">
+      <h3>11) 실행 주기와 즉시성</h3>
+      <ul class="timeline">
+        <li>정기 추천 스캔: GitHub Actions cron 기준 5분마다 1회 실행.</li>
+        <li>손실 워치독: 각 스캔 직후 <code>--alerts-only --watch --interval-sec 15 --cycles 14</code>로 약 3.5분 감시.</li>
+        <li>워치독 모드에서는 신규 추천 없이 손실 경고/검증만 수행해 알림 지연을 줄입니다.</li>
+      </ul>
+    </section>
+
+    <section class="card logic-card">
+      <h3>12) 텔레그램 출력 규칙(컴팩트)</h3>
+      <ul class="timeline">
+        <li>추천 라인: <code>심볼 | LONG/SHORT | score | funding | OI</code> 형식으로 전송합니다.</li>
+        <li>손실 발생 시 별도 경고 메시지(종목/방향/실시간 손익률)를 추가 전송합니다.</li>
+        <li>쿨다운으로 제외된 종목 수는 <code>Risk block</code> 라인으로 함께 안내합니다.</li>
+      </ul>
+    </section>
+
+    <section class="card logic-card">
+      <h3>13) 문서 동기화 원칙</h3>
+      <ul class="timeline">
+        <li>추천/검증/보정/알림 로직 변경 시 본 페이지(<code>docs/logic.html</code>)를 같은 커밋에서 동시 업데이트합니다.</li>
+        <li>대시보드 노출용 문서(<code>dashboard/logic.html</code>)도 동일 내용으로 동기화합니다.</li>
       </ul>
     </section>
   </main>
