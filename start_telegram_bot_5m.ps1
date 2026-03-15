@@ -15,4 +15,4 @@ if (-not (Test-Path $scriptPath)) {
 }
 
 Write-Host "Starting Telegram momentum bot (5m interval, Ctrl+C to stop)..."
-python $scriptPath --watch --interval-sec 300 --state-file (Join-Path $PSScriptRoot "state\bot_state.json") --history-file (Join-Path $PSScriptRoot "state\eval_history.jsonl")
+python $scriptPath --watch --interval-sec 300 --horizon-min 15 --message-style compact --state-file (Join-Path $PSScriptRoot "state\bot_state.json") --history-file (Join-Path $PSScriptRoot "state\eval_history.jsonl")

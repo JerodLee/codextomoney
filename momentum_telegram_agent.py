@@ -5,7 +5,7 @@ Telegram delivery + auto-validation + auto-calibration runner.
 This script:
 1) scans Bithumb spot + Bitget USDT-M momentum candidates
 2) sends top picks to Telegram
-3) validates past picks after a horizon (default 30m)
+3) validates past picks after a horizon (default 15m)
 4) auto-tunes filters based on rolling outcomes
 5) persists state for next runs
 """
@@ -361,6 +361,14 @@ def format_money_u(v: float) -> str:
     return f"{v:,.0f} USDT"
 
 
+def format_pick_line(index: int, p: Dict[str, Any]) -> str:
+    return (
+        f"{index}) {p['symbol']} | score {p['score']:.3f} | "
+        f"b24h {p['b_rate24h']:.2f}% | g24h {p['g_rate24h']:.2f}% | "
+        f"bVal {format_money_k(p['b_value24h'])} | gVol {format_money_u(p['g_volume24h'])}"
+    )
+
+
 def make_message(
     run_ts: datetime,
     picks: List[Dict[str, Any]],
@@ -369,9 +377,28 @@ def make_message(
     cfg: Dict[str, float],
     new_results_count: int,
     calibrate_notes: List[str],
+    message_style: str,
 ) -> str:
     ts_kst = run_ts.astimezone(KST).strftime("%Y-%m-%d %H:%M:%S KST")
     lines: List[str] = []
+    if message_style == "compact":
+        lines.append(f"Momentum Scan | {ts_kst}")
+        lines.append(
+            f"Rules: overheat<{cfg['max_overheat_rate']:.0f}% | bVal>={format_money_k(cfg['min_bithumb_value'])} | gVol>={format_money_u(cfg['min_bitget_volume'])}"
+        )
+        if picks:
+            lines.append("Picks:")
+            for i, p in enumerate(picks, start=1):
+                lines.append(format_pick_line(i, p))
+        else:
+            lines.append("Picks: no symbols matched current rules")
+        lines.append(
+            f"Validation({int(metrics['count'])}): win {format_pct(metrics['win_rate'])} | avg {format_pct(metrics['avg_return'])} | med {format_pct(metrics['median_return'])} | new {new_results_count}"
+        )
+        if calibrate_notes:
+            lines.append("Tune: " + "; ".join(calibrate_notes))
+        return "\n".join(lines)
+
     lines.append(f"Momentum Scan | {ts_kst}")
     lines.append("Market: Bithumb Spot + Bitget USDT-M")
     lines.append(
@@ -380,16 +407,12 @@ def make_message(
     lines.append(
         f"Candidates: base={filter_stats['base_universe']}, removed(overheat={filter_stats['removed_overheat']}, conservative={filter_stats['removed_conservative']}, orderable={filter_stats['removed_orderable']})"
     )
-
     if picks:
         lines.append("Top picks:")
         for i, p in enumerate(picks, start=1):
-            lines.append(
-                f"{i}) {p['symbol']} | score {p['score']:.3f} | b24h {p['b_rate24h']:.2f}% | g24h {p['g_rate24h']:.2f}% | bVal {format_money_k(p['b_value24h'])} | gVol {format_money_u(p['g_volume24h'])}"
-            )
+            lines.append(format_pick_line(i, p))
     else:
         lines.append("Top picks: no symbols matched current rules")
-
     lines.append(
         f"Validation(last {int(metrics['count'])}): winRate {format_pct(metrics['win_rate'])}, avg {format_pct(metrics['avg_return'])}, median {format_pct(metrics['median_return'])}, newly evaluated {new_results_count}"
     )
@@ -504,6 +527,7 @@ def run_cycle(args: argparse.Namespace, state: Dict[str, Any]) -> int:
         cfg=state["dynamic_config"],
         new_results_count=len(finalized),
         calibrate_notes=calibrate_notes,
+        message_style=args.message_style,
     )
 
     print(msg)
@@ -532,8 +556,13 @@ def parse_args() -> argparse.Namespace:
     p.add_argument("--state-file", default="state/bot_state.json")
     p.add_argument("--history-file", default="state/eval_history.jsonl")
     p.add_argument("--top", type=int, default=3)
-    p.add_argument("--horizon-min", type=int, default=30)
+    p.add_argument("--horizon-min", type=int, default=15)
     p.add_argument("--metric-window", type=int, default=120)
+    p.add_argument(
+        "--message-style",
+        choices=("compact", "detailed"),
+        default="compact",
+    )
     p.add_argument("--dry-run", action="store_true")
     p.add_argument("--watch", action="store_true")
     p.add_argument("--interval-sec", type=int, default=300)

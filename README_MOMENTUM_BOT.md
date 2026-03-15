@@ -3,7 +3,7 @@
 This bot automates:
 
 1. Momentum picks (Top 3)
-2. Post-pick validation after N minutes (default: 30)
+2. Post-pick validation after N minutes (default: 15)
 3. Auto-calibration from rolling performance
 4. Telegram delivery
 
@@ -95,7 +95,8 @@ Calibration:
 ```bash
 python momentum_telegram_agent.py \
   --top 3 \
-  --horizon-min 30 \
+  --horizon-min 15 \
+  --message-style compact \
   --metric-window 120 \
   --watch \
   --interval-sec 300
