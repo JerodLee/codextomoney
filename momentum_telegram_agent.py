@@ -17,6 +17,7 @@ import json
 import os
 import statistics
 import time
+import urllib.error
 import urllib.parse
 import urllib.request
 from datetime import datetime, timedelta, timezone
@@ -398,20 +399,40 @@ def make_message(
     return "\n".join(lines)
 
 
-def send_telegram(token: str, chat_id: str, text: str) -> None:
-    url = f"https://api.telegram.org/bot{token}/sendMessage"
-    payload = {
-        "chat_id": chat_id,
-        "text": text,
-        "disable_web_page_preview": True,
-    }
+def telegram_api_post(token: str, method: str, payload: Dict[str, Any]) -> Dict[str, Any]:
+    url = f"https://api.telegram.org/bot{token}/{method}"
     data = urllib.parse.urlencode(payload).encode("utf-8")
     req = urllib.request.Request(url, data=data, method="POST")
-    with urllib.request.urlopen(req, timeout=20) as resp:
-        body = resp.read().decode("utf-8")
+    try:
+        with urllib.request.urlopen(req, timeout=20) as resp:
+            body = resp.read().decode("utf-8")
+    except urllib.error.HTTPError as exc:
+        detail = ""
+        try:
+            detail = exc.read().decode("utf-8")
+        except Exception:  # noqa: BLE001
+            detail = ""
+        raise RuntimeError(
+            f"Telegram API HTTP {exc.code} on {method}. body={detail or '(empty)'}"
+        ) from exc
     result = json.loads(body)
     if not result.get("ok"):
-        raise RuntimeError(f"Telegram send failed: {result}")
+        raise RuntimeError(f"Telegram API error on {method}: {result}")
+    return result
+
+
+def send_telegram(token: str, chat_id: str, text: str) -> None:
+    # Preflight makes invalid token failures explicit in CI logs.
+    telegram_api_post(token=token, method="getMe", payload={})
+    telegram_api_post(
+        token=token,
+        method="sendMessage",
+        payload={
+            "chat_id": chat_id,
+            "text": text,
+            "disable_web_page_preview": True,
+        },
+    )
 
 
 def run_cycle(args: argparse.Namespace, state: Dict[str, Any]) -> int:
