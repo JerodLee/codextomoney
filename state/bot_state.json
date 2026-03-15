@@ -49,8 +49,52 @@
       "plan_target_pct": 0.6855,
       "rr_now": 1.29185,
       "rr_entry": 1.962744,
-      "last_live_checked_at": "2026-03-15T18:55:47.961935+00:00",
-      "last_live_return_blended": 0.0
+      "last_live_checked_at": "2026-03-15T19:03:05.638398+00:00",
+      "last_live_return_blended": 0.0011446012972147832
+    },
+    {
+      "id": "ADA-LONG-momentum_long_v1-1773601169",
+      "symbol": "ADA",
+      "side": "LONG",
+      "model_id": "momentum_long_v1",
+      "model_name": "롱 모멘텀 v1",
+      "created_at": "2026-03-15T18:59:29.005647+00:00",
+      "horizon_min": 15,
+      "entry_bithumb_price": 387.0,
+      "entry_bitget_price": 0.2624,
+      "score": 0.1281,
+      "base_score": 0.1281,
+      "model_score_delta": 0.0,
+      "b_rate24h": 0.78,
+      "g_rate24h": 1.352,
+      "b_value24h": 2996612759.798142,
+      "g_volume24h": 13058602.3361,
+      "g_funding_rate": 0.0001,
+      "g_open_interest": 140660113.0,
+      "g_symbol": "ADAUSDT",
+      "market_sign_market": 1,
+      "market_sign_btc": 1,
+      "market_sign_eth": 1,
+      "market_change_market_1h": 0.43397276553396313,
+      "market_change_market_24h": 1.5996700851974823,
+      "market_change_btc_1h": -0.498503457738686,
+      "market_change_btc_24h": 1.0210000000000001,
+      "market_change_eth_1h": -0.31543187209492896,
+      "market_change_eth_24h": 1.087,
+      "market_regime": "balanced",
+      "market_top_alt_symbol": "SOL",
+      "market_trend_market": "neutral",
+      "market_trend_btc": "neutral",
+      "market_trend_eth": "neutral",
+      "entry_reco_bithumb_price": 386.5304916,
+      "entry_reco_bitget_price": 0.26208166,
+      "entry_reco_offset_pct": 0.1213,
+      "plan_stop_pct": 0.5353,
+      "plan_target_pct": 0.6917,
+      "rr_now": 1.29215,
+      "rr_entry": 1.963915,
+      "last_live_checked_at": "2026-03-15T19:03:05.638398+00:00",
+      "last_live_return_blended": 0.0005716463414633516
     }
   ],
   "results": [
@@ -1695,12 +1739,10 @@
   "meta": {
     "no_candidate_streak": 0,
     "last_calibrated_at": "2026-03-15T16:27:58.153678+00:00",
-    "last_run_at": "2026-03-15T18:55:47.961935+00:00",
+    "last_run_at": "2026-03-15T19:03:05.638398+00:00",
     "calibration_cooldown_until": "2026-03-15T22:27:58.153678+00:00",
     "last_rollback_event_id": "cal-1773588239",
     "loss_cooldowns": {
-      "THE": "2026-03-15T19:02:29.102980+00:00",
-      "TRUMP": "2026-03-15T19:02:29.102980+00:00",
       "XRP": "2026-03-15T19:14:40.396334+00:00",
       "FET": "2026-03-15T19:22:40.615515+00:00",
       "RESOLV": "2026-03-15T19:26:44.673505+00:00",
@@ -1724,7 +1766,7 @@
         "avg_return_floor": -0.001
       },
       "market_context": {
-        "market_trend": "up",
+        "market_trend": "neutral",
         "btc_trend": "neutral",
         "eth_trend": "neutral",
         "regime": "balanced",
@@ -1740,17 +1782,75 @@
             "momentum_long_v1"
           ],
           "candidate_count": 1,
-          "fit_top_avg": 0.1454,
-          "fit_edge_vs_base": 0.0175,
-          "fit_edge_vs_next": 0.0175,
+          "fit_top_avg": 0.139,
+          "fit_edge_vs_base": 0.0109,
+          "fit_edge_vs_next": 0.0109,
           "hist_count": 0,
           "hist_win_rate": 0.0,
           "hist_avg_return": 0.0
         }
       ],
-      "summary": "LONG->롱 모멘텀 v2(시장보강)(enable, fitΔbase +0.018, hist 0.0%/0.00%, n=0)"
+      "summary": "LONG->롱 모멘텀 v2(시장보강)(enable, fitΔbase +0.011, hist 0.0%/0.00%, n=0)"
     },
-    "last_alert_watch_at": "2026-03-15T18:55:47.961935+00:00"
+    "last_alert_watch_at": "2026-03-15T19:03:05.638398+00:00",
+    "last_model_diagnostics": {
+      "triggered": true,
+      "items": [
+        {
+          "model_id": "momentum_short_v1",
+          "model_label": "숏 모멘텀 v1",
+          "side": "SHORT",
+          "count": 26,
+          "win_rate": 0.38461538461538464,
+          "avg_return": -0.0027439335750480847,
+          "next_model_id": "momentum_short_v2",
+          "next_model_label": "숏 모멘텀 v2(시장보강)",
+          "issues": [
+            {
+              "dimension": "alignment",
+              "bucket": "neutral-market",
+              "count": 26,
+              "win_rate": 0.38461538461538464,
+              "avg_return": -0.0027439335750480847
+            },
+            {
+              "dimension": "funding",
+              "bucket": "neutral-funding",
+              "count": 26,
+              "win_rate": 0.38461538461538464,
+              "avg_return": -0.0027439335750480847
+            },
+            {
+              "dimension": "momentum",
+              "bucket": "low-momentum",
+              "count": 26,
+              "win_rate": 0.38461538461538464,
+              "avg_return": -0.0027439335750480847
+            },
+            {
+              "dimension": "open_interest",
+              "bucket": "high-oi",
+              "count": 25,
+              "win_rate": 0.4,
+              "avg_return": -0.0025794400292739822
+            }
+          ],
+          "proposals": [
+            "중립장 구간 전용 게이트를 분리합니다.",
+            "funding 중립 구간의 노이즈 필터를 강화합니다.",
+            "최소 모멘텀 바닥값을 상향해 약한 추세를 제외합니다.",
+            "고 OI 과밀 구간에서 추격 진입 패널티를 강화합니다."
+          ],
+          "summary": "alignment:neutral-market(n=26, win=38.5%) | funding:neutral-funding(n=26, win=38.5%)"
+        }
+      ],
+      "gate": {
+        "min_count": 24,
+        "win_rate_floor": 0.48,
+        "avg_return_floor": -0.001,
+        "min_bucket_count": 8
+      }
+    }
   },
   "recommendation_history": [
     {
@@ -3845,6 +3945,50 @@
       "rr_now": 1.29185,
       "rr_entry": 1.962744,
       "last_live_checked_at": "2026-03-15T18:52:09.675687+00:00",
+      "last_live_return_blended": 0.0
+    },
+    {
+      "id": "ADA-LONG-momentum_long_v1-1773601169",
+      "symbol": "ADA",
+      "side": "LONG",
+      "model_id": "momentum_long_v1",
+      "model_name": "롱 모멘텀 v1",
+      "created_at": "2026-03-15T18:59:29.005647+00:00",
+      "horizon_min": 15,
+      "entry_bithumb_price": 387.0,
+      "entry_bitget_price": 0.2624,
+      "score": 0.1281,
+      "base_score": 0.1281,
+      "model_score_delta": 0.0,
+      "b_rate24h": 0.78,
+      "g_rate24h": 1.352,
+      "b_value24h": 2996612759.798142,
+      "g_volume24h": 13058602.3361,
+      "g_funding_rate": 0.0001,
+      "g_open_interest": 140660113.0,
+      "g_symbol": "ADAUSDT",
+      "market_sign_market": 1,
+      "market_sign_btc": 1,
+      "market_sign_eth": 1,
+      "market_change_market_1h": 0.43397276553396313,
+      "market_change_market_24h": 1.5996700851974823,
+      "market_change_btc_1h": -0.498503457738686,
+      "market_change_btc_24h": 1.0210000000000001,
+      "market_change_eth_1h": -0.31543187209492896,
+      "market_change_eth_24h": 1.087,
+      "market_regime": "balanced",
+      "market_top_alt_symbol": "SOL",
+      "market_trend_market": "neutral",
+      "market_trend_btc": "neutral",
+      "market_trend_eth": "neutral",
+      "entry_reco_bithumb_price": 386.5304916,
+      "entry_reco_bitget_price": 0.26208166,
+      "entry_reco_offset_pct": 0.1213,
+      "plan_stop_pct": 0.5353,
+      "plan_target_pct": 0.6917,
+      "rr_now": 1.29215,
+      "rr_entry": 1.963915,
+      "last_live_checked_at": "2026-03-15T18:59:29.005647+00:00",
       "last_live_return_blended": 0.0
     }
   ],
@@ -8072,6 +8216,267 @@
         ],
         "summary": "LONG->롱 모멘텀 v2(시장보강)(enable, fitΔbase +0.018, hist 0.0%/0.00%, n=0)"
       }
+    },
+    {
+      "run_at": "2026-03-15T18:59:29.005647+00:00",
+      "picks_count": 1,
+      "pending_count": 2,
+      "results_count": 79,
+      "new_results_count": 0,
+      "metrics": {
+        "count": 79,
+        "win_rate": 0.45569620253164556,
+        "avg_return": -0.0001182541799633837,
+        "median_return": -0.00020888612883188578
+      },
+      "filter_stats": {
+        "base_universe": 5,
+        "removed_loss_cooldown": 9,
+        "removed_overheat": 1,
+        "removed_conservative": 3,
+        "removed_orderable": 0,
+        "orderbook_checked": 1
+      },
+      "config": {
+        "min_bithumb_rate": 0.5,
+        "min_bitget_rate": 0.5,
+        "min_bitget_short_rate": 0.5,
+        "short_max_bithumb_rate": 4.5,
+        "short_min_funding_rate": -0.0008,
+        "min_bithumb_value": 1458000000.0,
+        "min_bitget_volume": 7290000.0,
+        "max_overheat_rate": 40.0,
+        "conservative_max_rate": 20.0,
+        "conservative_max_abs_funding": 0.0005
+      },
+      "model_registry": {
+        "momentum_long_v1": {
+          "enabled": true,
+          "side": "LONG"
+        },
+        "momentum_short_v1": {
+          "enabled": true,
+          "side": "SHORT"
+        },
+        "momentum_long_v2": {
+          "enabled": false,
+          "side": "LONG"
+        },
+        "momentum_short_v2": {
+          "enabled": true,
+          "side": "SHORT"
+        }
+      },
+      "active_models": [
+        "momentum_long_v1",
+        "momentum_short_v1",
+        "momentum_short_v2"
+      ],
+      "calibrated": false,
+      "calibration_notes": [
+        "Calibration cooldown active: tuning is paused for 6 hours after rollback."
+      ],
+      "model_governance_notes": [],
+      "loss_alert_count": 0,
+      "loss_cooldown_symbols": 10,
+      "market_indicators": {
+        "market": {
+          "change24h": 1.5996700851974823,
+          "changes": {
+            "24h": 1.5996700851974823,
+            "12h": null,
+            "6h": null,
+            "1h": 0.43397276553396313,
+            "15m": -0.07320083958369805,
+            "5m": 0.017456966425566378,
+            "1m": 0.0034909057601284488
+          },
+          "sign": 0,
+          "trend": "neutral"
+        },
+        "btc": {
+          "change24h": 1.0210000000000001,
+          "changes": {
+            "24h": 1.0210000000000001,
+            "12h": null,
+            "6h": null,
+            "1h": -0.498503457738686,
+            "15m": -0.3580831989287603,
+            "5m": -0.0439100447233054,
+            "1m": -0.008785094975971575
+          },
+          "sign": 0,
+          "trend": "neutral"
+        },
+        "eth": {
+          "change24h": 1.087,
+          "changes": {
+            "24h": 1.087,
+            "12h": null,
+            "6h": null,
+            "1h": -0.31543187209492896,
+            "15m": -0.38343923644256206,
+            "5m": 0.013342855230424888,
+            "1m": 0.0026682862256377504
+          },
+          "sign": 0,
+          "trend": "neutral"
+        },
+        "concentration": {
+          "regime": "balanced",
+          "btc_share": 0.4236388692242223,
+          "eth_share": 0.2360248436061406,
+          "alt_share": 0.34033628716963704,
+          "top_alt_symbol": "SOL",
+          "top_alt_share": 0.0402809000810158
+        }
+      },
+      "market_alignment_now": {
+        "market": {
+          "value": null,
+          "relation": "neutral-market",
+          "sample": 0
+        },
+        "btc": {
+          "value": null,
+          "relation": "neutral-market",
+          "sample": 0
+        },
+        "eth": {
+          "value": null,
+          "relation": "neutral-market",
+          "sample": 0
+        }
+      },
+      "market_alignment_history": {
+        "market": {
+          "correlation": 0.4041958960959549,
+          "relation": "proportional",
+          "sample": 56
+        },
+        "btc": {
+          "correlation": 0.21906809482547432,
+          "relation": "proportional",
+          "sample": 56
+        },
+        "eth": {
+          "correlation": 0.2114574250432182,
+          "relation": "proportional",
+          "sample": 56
+        }
+      },
+      "model_metrics": {
+        "momentum_long_v1": {
+          "count": 53,
+          "win_rate": 0.49056603773584906,
+          "avg_return": 0.0011698149572479794,
+          "median_return": -0.00010443798552887037,
+          "label": "롱 모멘텀 v1"
+        },
+        "momentum_short_v1": {
+          "count": 26,
+          "win_rate": 0.38461538461538464,
+          "avg_return": -0.0027439335750480847,
+          "median_return": -0.0019742396305353254,
+          "label": "숏 모멘텀 v1"
+        }
+      },
+      "model_recommendation": {
+        "triggered": true,
+        "underperformance": true,
+        "gate": {
+          "count": 79,
+          "win_rate": 0.45569620253164556,
+          "avg_return": -0.0001182541799633837,
+          "min_count": 24,
+          "win_rate_floor": 0.48,
+          "avg_return_floor": -0.001
+        },
+        "market_context": {
+          "market_trend": "neutral",
+          "btc_trend": "neutral",
+          "eth_trend": "neutral",
+          "regime": "balanced",
+          "top_alt_symbol": "SOL"
+        },
+        "recommendations": [
+          {
+            "side": "LONG",
+            "suggested_model": "momentum_long_v2",
+            "suggested_label": "롱 모멘텀 v2(시장보강)",
+            "action": "enable",
+            "active_models": [
+              "momentum_long_v1"
+            ],
+            "candidate_count": 1,
+            "fit_top_avg": 0.139,
+            "fit_edge_vs_base": 0.0109,
+            "fit_edge_vs_next": 0.0109,
+            "hist_count": 0,
+            "hist_win_rate": 0.0,
+            "hist_avg_return": 0.0
+          }
+        ],
+        "summary": "LONG->롱 모멘텀 v2(시장보강)(enable, fitΔbase +0.011, hist 0.0%/0.00%, n=0)"
+      },
+      "model_diagnostics": {
+        "triggered": true,
+        "items": [
+          {
+            "model_id": "momentum_short_v1",
+            "model_label": "숏 모멘텀 v1",
+            "side": "SHORT",
+            "count": 26,
+            "win_rate": 0.38461538461538464,
+            "avg_return": -0.0027439335750480847,
+            "next_model_id": "momentum_short_v2",
+            "next_model_label": "숏 모멘텀 v2(시장보강)",
+            "issues": [
+              {
+                "dimension": "alignment",
+                "bucket": "neutral-market",
+                "count": 26,
+                "win_rate": 0.38461538461538464,
+                "avg_return": -0.0027439335750480847
+              },
+              {
+                "dimension": "funding",
+                "bucket": "neutral-funding",
+                "count": 26,
+                "win_rate": 0.38461538461538464,
+                "avg_return": -0.0027439335750480847
+              },
+              {
+                "dimension": "momentum",
+                "bucket": "low-momentum",
+                "count": 26,
+                "win_rate": 0.38461538461538464,
+                "avg_return": -0.0027439335750480847
+              },
+              {
+                "dimension": "open_interest",
+                "bucket": "high-oi",
+                "count": 25,
+                "win_rate": 0.4,
+                "avg_return": -0.0025794400292739822
+              }
+            ],
+            "proposals": [
+              "중립장 구간 전용 게이트를 분리합니다.",
+              "funding 중립 구간의 노이즈 필터를 강화합니다.",
+              "최소 모멘텀 바닥값을 상향해 약한 추세를 제외합니다.",
+              "고 OI 과밀 구간에서 추격 진입 패널티를 강화합니다."
+            ],
+            "summary": "alignment:neutral-market(n=26, win=38.5%) | funding:neutral-funding(n=26, win=38.5%)"
+          }
+        ],
+        "gate": {
+          "min_count": 24,
+          "win_rate_floor": 0.48,
+          "avg_return_floor": -0.001,
+          "min_bucket_count": 8
+        }
+      }
     }
   ],
   "calibration_events": [
@@ -8697,6 +9102,23 @@
         "alt_share": 0.3411027265309431,
         "top_alt_symbol": "SOL",
         "top_alt_share": 0.04018354632388499
+      }
+    },
+    {
+      "at": "2026-03-15T18:59:29.005647+00:00",
+      "prices": {
+        "market": 30759.396101348895,
+        "btc": 71349.1,
+        "eth": 2098.57,
+        "alt": 111.15300531425245
+      },
+      "concentration": {
+        "regime": "balanced",
+        "btc_share": 0.4236388692242223,
+        "eth_share": 0.2360248436061406,
+        "alt_share": 0.34033628716963704,
+        "top_alt_symbol": "SOL",
+        "top_alt_share": 0.0402809000810158
       }
     }
   ],
