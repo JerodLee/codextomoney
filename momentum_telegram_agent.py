@@ -74,10 +74,27 @@ TIMEFRAME_MINUTES: List[Tuple[str, int]] = [
 ]
 MODEL_LONG_ID = "momentum_long_v1"
 MODEL_SHORT_ID = "momentum_short_v1"
+MODEL_LONG_V2_ID = "momentum_long_v2"
+MODEL_SHORT_V2_ID = "momentum_short_v2"
 MODEL_NAMES = {
     MODEL_LONG_ID: "롱 모멘텀 v1",
     MODEL_SHORT_ID: "숏 모멘텀 v1",
+    MODEL_LONG_V2_ID: "롱 모멘텀 v2(시장보강)",
+    MODEL_SHORT_V2_ID: "숏 모멘텀 v2(시장보강)",
 }
+DEFAULT_MODEL_REGISTRY: Dict[str, Dict[str, Any]] = {
+    MODEL_LONG_ID: {"enabled": True, "side": "LONG"},
+    MODEL_SHORT_ID: {"enabled": True, "side": "SHORT"},
+    MODEL_LONG_V2_ID: {"enabled": False, "side": "LONG"},
+    MODEL_SHORT_V2_ID: {"enabled": False, "side": "SHORT"},
+}
+MODEL_EVOLUTION_PATH: Dict[str, List[str]] = {
+    "LONG": [MODEL_LONG_ID, MODEL_LONG_V2_ID],
+    "SHORT": [MODEL_SHORT_ID, MODEL_SHORT_V2_ID],
+}
+MODEL_EXPANSION_MIN_COUNT = 24
+MODEL_EXPANSION_WIN_RATE_FLOOR = 0.45
+MODEL_EXPANSION_COOLDOWN_HOURS = 6
 
 
 def utc_now() -> datetime:
@@ -102,6 +119,70 @@ def model_id_from_side(side: str) -> str:
 
 def model_name_from_id(model_id: str) -> str:
     return MODEL_NAMES.get(model_id, model_id)
+
+
+def sanitize_model_registry(raw: Dict[str, Any] | None) -> Dict[str, Dict[str, Any]]:
+    out: Dict[str, Dict[str, Any]] = {}
+    base = raw or {}
+    for mid, spec in DEFAULT_MODEL_REGISTRY.items():
+        row = dict(spec)
+        src = base.get(mid, {})
+        if isinstance(src, dict):
+            row["enabled"] = bool(src.get("enabled", row["enabled"]))
+            row["side"] = str(src.get("side", row["side"])).upper()
+        out[mid] = row
+    for mid, src in base.items():
+        if mid in out or not isinstance(src, dict):
+            continue
+        side = str(src.get("side", "LONG")).upper()
+        if side not in {"LONG", "SHORT"}:
+            side = "LONG"
+        out[mid] = {"enabled": bool(src.get("enabled", False)), "side": side}
+    return out
+
+
+def active_model_ids(registry: Dict[str, Dict[str, Any]], side: str) -> List[str]:
+    s = str(side).upper()
+    out: List[str] = []
+    for mid, spec in registry.items():
+        if not bool(spec.get("enabled", False)):
+            continue
+        if str(spec.get("side", "")).upper() != s:
+            continue
+        out.append(mid)
+    return out
+
+
+def active_models(registry: Dict[str, Dict[str, Any]]) -> List[str]:
+    out: List[str] = []
+    for mid, spec in registry.items():
+        if bool(spec.get("enabled", False)):
+            out.append(mid)
+    return out
+
+
+def model_side_from_id(model_id: str) -> str:
+    mid = str(model_id or "").strip()
+    spec = DEFAULT_MODEL_REGISTRY.get(mid, {})
+    side = str(spec.get("side", "")).upper()
+    if side in {"LONG", "SHORT"}:
+        return side
+    if "SHORT" in mid.upper():
+        return "SHORT"
+    return "LONG"
+
+
+def safe_float(v: Any) -> float | None:
+    if v is None:
+        return None
+    try:
+        return float(v)
+    except Exception:  # noqa: BLE001
+        return None
+
+
+def clamp(v: float, lo: float, hi: float) -> float:
+    return max(lo, min(hi, v))
 
 
 def sanitize_dynamic_config(cfg: Dict[str, float]) -> Dict[str, float]:
@@ -129,18 +210,22 @@ def sanitize_dynamic_config(cfg: Dict[str, float]) -> Dict[str, float]:
 def load_state(path: Path) -> Dict[str, Any]:
     if not path.exists():
         return {
-            "version": 2,
+            "version": 3,
             "dynamic_config": dict(DEFAULT_DYNAMIC_CONFIG),
+            "model_registry": sanitize_model_registry(DEFAULT_MODEL_REGISTRY),
             "pending": [],
             "results": [],
             "recommendation_history": [],
             "run_history": [],
             "market_series": [],
             "calibration_events": [],
+            "model_governance_events": [],
             "meta": {
                 "no_candidate_streak": 0,
                 "last_calibrated_at": None,
                 "last_run_at": None,
+                "last_model_governance_at": None,
+                "model_governance_cooldown_until": None,
             },
         }
     with path.open("r", encoding="utf-8") as f:
@@ -164,6 +249,9 @@ def load_state(path: Path) -> Dict[str, Any]:
     data.setdefault("run_history", [])
     data.setdefault("market_series", [])
     data.setdefault("calibration_events", [])
+    data.setdefault("model_governance_events", [])
+    data.setdefault("model_registry", sanitize_model_registry(DEFAULT_MODEL_REGISTRY))
+    data["model_registry"] = sanitize_model_registry(data.get("model_registry"))
     data.setdefault("meta", {})
     data["meta"].setdefault("no_candidate_streak", 0)
     data["meta"].setdefault("last_calibrated_at", None)
@@ -171,7 +259,9 @@ def load_state(path: Path) -> Dict[str, Any]:
     data["meta"].setdefault("calibration_cooldown_until", None)
     data["meta"].setdefault("last_rollback_event_id", None)
     data["meta"].setdefault("loss_cooldowns", {})
-    data.setdefault("version", 2)
+    data["meta"].setdefault("last_model_governance_at", None)
+    data["meta"].setdefault("model_governance_cooldown_until", None)
+    data.setdefault("version", 3)
     return data
 
 
@@ -502,30 +592,287 @@ def compute_candidates(
     }
 
 
+def _weighted_change(
+    market_indicators: Dict[str, Dict[str, Any]],
+    key: str,
+    weights: List[Tuple[str, float]],
+) -> float | None:
+    row = market_indicators.get(key, {}) or {}
+    changes = row.get("changes", {}) or {}
+    total = 0.0
+    total_w = 0.0
+    for tf, w in weights:
+        val = safe_float(changes.get(tf))
+        if val is None:
+            continue
+        total += val * float(w)
+        total_w += float(w)
+    if total_w <= 0:
+        return None
+    return total / total_w
+
+
+def score_candidate_for_model(
+    c: Any,
+    model_id: str,
+    market_indicators: Dict[str, Dict[str, Any]],
+) -> float:
+    base = float(getattr(c, "score", 0.0) or 0.0)
+    if model_id in {MODEL_LONG_ID, MODEL_SHORT_ID}:
+        return round(base, 4)
+
+    side = model_side_from_id(model_id)
+    direction = -1.0 if side == "SHORT" else 1.0
+
+    fast_weights = [("1h", 0.35), ("15m", 0.25), ("5m", 0.20), ("1m", 0.20)]
+    swing_weights = [("24h", 0.35), ("12h", 0.25), ("6h", 0.20), ("1h", 0.20)]
+    market_fast = _weighted_change(market_indicators, "market", fast_weights)
+    market_swing = _weighted_change(market_indicators, "market", swing_weights)
+    btc_fast = _weighted_change(market_indicators, "btc", fast_weights)
+    eth_fast = _weighted_change(market_indicators, "eth", fast_weights)
+
+    signal = 0.0
+    parts = [
+        (market_fast, 0.45, 2.5),
+        (market_swing, 0.30, 4.0),
+        (btc_fast, 0.15, 2.0),
+        (eth_fast, 0.10, 2.0),
+    ]
+    for raw, weight, scale in parts:
+        if raw is None:
+            continue
+        signal += float(weight) * clamp(raw / scale, -1.0, 1.0)
+    signal *= direction
+    adjust = 0.10 * signal
+
+    funding = safe_float(getattr(c, "g_funding_rate", None)) or 0.0
+    if side == "LONG":
+        if funding < 0:
+            adjust += min(0.04, (-funding) * 30.0)
+        elif funding > 0.0008:
+            adjust -= min(0.06, (funding - 0.0008) * 45.0)
+    else:
+        if funding > 0:
+            adjust += min(0.04, funding * 30.0)
+        elif funding < -0.0008:
+            adjust -= min(0.06, ((-funding) - 0.0008) * 45.0)
+
+    oi = safe_float(getattr(c, "g_open_interest", None))
+    change24h = safe_float(getattr(c, "g_change24h_pct", None)) or 0.0
+    if oi is not None and oi > 0:
+        oi_score = clamp(math.log10(1.0 + oi) / 7.0, 0.0, 1.0)
+        dir_momo = direction * clamp(change24h / 15.0, -1.0, 1.0)
+        adjust += 0.03 * oi_score * dir_momo
+
+    concentration = market_indicators.get("concentration", {}) or {}
+    regime = str(concentration.get("regime", "balanced"))
+    symbol = str(getattr(c, "symbol", "")).upper()
+    top_alt = str(concentration.get("top_alt_symbol", "")).upper()
+    if regime == "btc":
+        if symbol == "BTC":
+            adjust += 0.02
+        elif symbol not in {"ETH"}:
+            adjust -= 0.01
+    elif regime == "eth":
+        if symbol == "ETH":
+            adjust += 0.02
+    elif regime == "single-alt" and top_alt:
+        if symbol == top_alt:
+            adjust += 0.03
+        elif symbol not in {"BTC", "ETH"}:
+            adjust -= 0.005
+
+    return round(base + clamp(adjust, -0.20, 0.20), 4)
+
+
+def maybe_expand_models(
+    state: Dict[str, Any],
+    model_metrics: Dict[str, Dict[str, float | int]],
+    now: datetime,
+    min_count: int = MODEL_EXPANSION_MIN_COUNT,
+    win_rate_floor: float = MODEL_EXPANSION_WIN_RATE_FLOOR,
+    cooldown_hours: int = MODEL_EXPANSION_COOLDOWN_HOURS,
+) -> List[str]:
+    notes: List[str] = []
+    state.setdefault("model_governance_events", [])
+    state["model_registry"] = sanitize_model_registry(state.get("model_registry"))
+    registry = state["model_registry"]
+
+    meta = state.setdefault("meta", {})
+    cooldown_raw = meta.get("model_governance_cooldown_until")
+    if cooldown_raw:
+        try:
+            if now < parse_iso(str(cooldown_raw)):
+                return notes
+        except Exception:  # noqa: BLE001
+            pass
+
+    changed = False
+    for side, chain in MODEL_EVOLUTION_PATH.items():
+        if len(chain) < 2:
+            continue
+        for idx in range(len(chain) - 1):
+            current_mid = chain[idx]
+            next_mid = chain[idx + 1]
+            if not bool(registry.get(current_mid, {}).get("enabled", False)):
+                continue
+            if bool(registry.get(next_mid, {}).get("enabled", False)):
+                continue
+            m = model_metrics.get(current_mid, {}) or {}
+            count = int(m.get("count", 0) or 0)
+            win_rate = float(m.get("win_rate", 0.0) or 0.0)
+            if count < max(1, int(min_count)) or win_rate >= float(win_rate_floor):
+                continue
+            registry.setdefault(next_mid, {"enabled": False, "side": side})
+            registry[next_mid]["enabled"] = True
+            registry[next_mid]["side"] = side
+            note = (
+                f"Model expansion: {model_name_from_id(current_mid)} win {win_rate * 100:.2f}% "
+                f"({count} eval) < {win_rate_floor * 100:.1f}% -> {model_name_from_id(next_mid)} enabled."
+            )
+            notes.append(note)
+            state["model_governance_events"].append(
+                {
+                    "id": f"model-expand-{current_mid}-{next_mid}-{int(now.timestamp())}",
+                    "at": iso_z(now),
+                    "side": side,
+                    "from_model": current_mid,
+                    "to_model": next_mid,
+                    "from_count": count,
+                    "from_win_rate": win_rate,
+                    "floor": float(win_rate_floor),
+                    "note": note,
+                }
+            )
+            changed = True
+            break
+
+    if changed:
+        meta["last_model_governance_at"] = iso_z(now)
+        meta["model_governance_cooldown_until"] = iso_z(
+            now + timedelta(hours=max(1, int(cooldown_hours)))
+        )
+    state["model_governance_events"] = state["model_governance_events"][-500:]
+    state["model_registry"] = registry
+    return notes
+
+
 def make_recommendations(
     candidates: List[Any],
     top_n: int,
     min_short_picks: int,
+    model_registry: Dict[str, Dict[str, Any]],
     market_indicators: Dict[str, Dict[str, Any]],
     run_ts: datetime,
     horizon_min: int,
 ) -> List[Dict[str, Any]]:
-    selected: List[Any] = []
+    selected: List[Dict[str, Any]] = []
     top_n = max(0, int(top_n))
     min_short_picks = max(0, int(min_short_picks))
-    if top_n > 0:
-        shorts = [
-            c for c in candidates if str(getattr(c, "side", "LONG")).upper() == "SHORT"
-        ]
-        forced = shorts[: min(min_short_picks, top_n)]
-        selected.extend(forced)
-        remain = top_n - len(selected)
-        if remain > 0:
-            rest = [c for c in candidates if c not in selected]
-            selected.extend(rest[:remain])
-        selected = sorted(
-            selected,
-            key=lambda x: (x.score, abs(x.g_change24h_pct), abs(x.b_rate24h)),
+    if top_n > 0 and candidates:
+        registry = sanitize_model_registry(model_registry)
+        all_rows: List[Dict[str, Any]] = []
+        per_model: Dict[str, List[Dict[str, Any]]] = {}
+        for c in candidates:
+            side = str(getattr(c, "side", "LONG")).upper()
+            mids = active_model_ids(registry, side)
+            if not mids:
+                mids = [model_id_from_side(side)]
+            for mid in mids:
+                scored = score_candidate_for_model(
+                    c=c,
+                    model_id=mid,
+                    market_indicators=market_indicators,
+                )
+                row = {"candidate": c, "model_id": mid, "score": scored}
+                all_rows.append(row)
+                per_model.setdefault(mid, []).append(row)
+
+        for rows in per_model.values():
+            rows.sort(
+                key=lambda x: (
+                    float(x["score"]),
+                    abs(float(getattr(x["candidate"], "g_change24h_pct", 0.0) or 0.0)),
+                    abs(float(getattr(x["candidate"], "b_rate24h", 0.0) or 0.0)),
+                ),
+                reverse=True,
+            )
+        all_rows.sort(
+            key=lambda x: (
+                float(x["score"]),
+                abs(float(getattr(x["candidate"], "g_change24h_pct", 0.0) or 0.0)),
+                abs(float(getattr(x["candidate"], "b_rate24h", 0.0) or 0.0)),
+            ),
+            reverse=True,
+        )
+
+        used: set[Tuple[str, str]] = set()
+
+        def add_row(row: Dict[str, Any]) -> bool:
+            c = row["candidate"]
+            key = (
+                str(getattr(c, "symbol", "")).upper(),
+                str(getattr(c, "side", "LONG")).upper(),
+            )
+            if key in used:
+                return False
+            used.add(key)
+            selected.append(row)
+            return True
+
+        ordered_models: List[str] = []
+        for side in ("LONG", "SHORT"):
+            active = set(active_model_ids(registry, side))
+            path = MODEL_EVOLUTION_PATH.get(side, [])
+            ordered_models.extend([mid for mid in path if mid in active])
+            for mid in sorted(active):
+                if mid not in ordered_models:
+                    ordered_models.append(mid)
+        seed_rows: List[Dict[str, Any]] = []
+        for mid in ordered_models:
+            ranked = per_model.get(mid, [])
+            if ranked:
+                seed_rows.append(ranked[0])
+        seed_rows.sort(
+            key=lambda x: (
+                float(x["score"]),
+                abs(float(getattr(x["candidate"], "g_change24h_pct", 0.0) or 0.0)),
+                abs(float(getattr(x["candidate"], "b_rate24h", 0.0) or 0.0)),
+            ),
+            reverse=True,
+        )
+        for row in seed_rows:
+            if len(selected) >= top_n:
+                break
+            add_row(row)
+
+        short_count = sum(
+            1
+            for row in selected
+            if str(getattr(row["candidate"], "side", "LONG")).upper() == "SHORT"
+        )
+        if short_count < min_short_picks:
+            for row in all_rows:
+                if len(selected) >= top_n:
+                    break
+                if str(getattr(row["candidate"], "side", "LONG")).upper() != "SHORT":
+                    continue
+                if add_row(row):
+                    short_count += 1
+                if short_count >= min_short_picks:
+                    break
+
+        for row in all_rows:
+            if len(selected) >= top_n:
+                break
+            add_row(row)
+
+        selected.sort(
+            key=lambda x: (
+                float(x["score"]),
+                abs(float(getattr(x["candidate"], "g_change24h_pct", 0.0) or 0.0)),
+                abs(float(getattr(x["candidate"], "b_rate24h", 0.0) or 0.0)),
+            ),
             reverse=True,
         )
 
@@ -533,11 +880,14 @@ def make_recommendations(
     market_changes = market_indicators.get("market", {}).get("changes", {}) or {}
     btc_changes = market_indicators.get("btc", {}).get("changes", {}) or {}
     eth_changes = market_indicators.get("eth", {}).get("changes", {}) or {}
-    for c in selected:
-        mid = model_id_from_side(c.side)
+    for row in selected:
+        c = row["candidate"]
+        mid = str(row["model_id"])
+        score = float(row["score"])
+        base_score = float(getattr(c, "score", 0.0) or 0.0)
         out.append(
             {
-                "id": f"{c.symbol}-{c.side}-{int(run_ts.timestamp())}",
+                "id": f"{c.symbol}-{c.side}-{mid}-{int(run_ts.timestamp())}",
                 "symbol": c.symbol,
                 "side": c.side,
                 "model_id": mid,
@@ -546,7 +896,9 @@ def make_recommendations(
                 "horizon_min": horizon_min,
                 "entry_bithumb_price": c.b_close_krw,
                 "entry_bitget_price": c.g_last_price,
-                "score": c.score,
+                "score": score,
+                "base_score": base_score,
+                "model_score_delta": score - base_score,
                 "b_rate24h": c.b_rate24h,
                 "g_rate24h": c.g_change24h_pct,
                 "b_value24h": c.b_krw_value24h,
@@ -1217,6 +1569,7 @@ def make_message(
     cfg: Dict[str, float],
     new_results_count: int,
     calibrate_notes: List[str],
+    model_governance_notes: List[str],
     message_style: str,
 ) -> str:
     ts_kst = run_ts.astimezone(KST).strftime("%Y-%m-%d %H:%M:%S KST")
@@ -1239,6 +1592,8 @@ def make_message(
             lines.append(f"Risk block: cooldown filtered {int(filter_stats['removed_loss_cooldown'])} symbols")
         if calibrate_notes:
             lines.append("Tune: " + "; ".join(calibrate_notes))
+        if model_governance_notes:
+            lines.append("ModelOps: " + "; ".join(model_governance_notes))
         lines.append(f"Dashboard: {DASHBOARD_URL}")
         return "\n".join(lines)
 
@@ -1262,6 +1617,9 @@ def make_message(
     if calibrate_notes:
         lines.append("Auto-calibration:")
         lines.extend(f"- {n}" for n in calibrate_notes)
+    if model_governance_notes:
+        lines.append("Model governance:")
+        lines.extend(f"- {n}" for n in model_governance_notes)
     lines.append(f"Dashboard: {DASHBOARD_URL}")
     return "\n".join(lines)
 
@@ -1306,6 +1664,15 @@ def run_cycle(args: argparse.Namespace, state: Dict[str, Any]) -> int:
     run_ts = utc_now()
     cfg = dict(state["dynamic_config"])
     pre_cfg = dict(state["dynamic_config"])
+    state["model_registry"] = sanitize_model_registry(state.get("model_registry"))
+    model_governance_notes = maybe_expand_models(
+        state=state,
+        model_metrics=compute_model_metrics(
+            state.get("results", []),
+            window=max(120, args.metric_window * 2),
+        ),
+        now=run_ts,
+    )
 
     try:
         bithumb, bitget, _ = fetch_market_snapshot()
@@ -1357,6 +1724,7 @@ def run_cycle(args: argparse.Namespace, state: Dict[str, Any]) -> int:
         candidates=candidates,
         top_n=args.top,
         min_short_picks=args.min_short_picks,
+        model_registry=state["model_registry"],
         market_indicators=market_indicators,
         run_ts=run_ts,
         horizon_min=args.horizon_min,
@@ -1496,6 +1864,7 @@ def run_cycle(args: argparse.Namespace, state: Dict[str, Any]) -> int:
         cfg=state["dynamic_config"],
         new_results_count=len(finalized),
         calibrate_notes=calibrate_notes,
+        model_governance_notes=model_governance_notes,
         message_style=args.message_style,
     )
 
@@ -1533,8 +1902,11 @@ def run_cycle(args: argparse.Namespace, state: Dict[str, Any]) -> int:
             "metrics": dict(metrics),
             "filter_stats": dict(filter_stats),
             "config": dict(state["dynamic_config"]),
+            "model_registry": dict(state.get("model_registry", {})),
+            "active_models": active_models(state.get("model_registry", {})),
             "calibrated": calibrated,
             "calibration_notes": calibrate_notes,
+            "model_governance_notes": model_governance_notes,
             "loss_alert_count": len(loss_alerts),
             "loss_cooldown_symbols": len(state["meta"].get("loss_cooldowns", {})),
             "market_indicators": market_indicators,

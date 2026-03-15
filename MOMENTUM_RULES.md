@@ -49,6 +49,22 @@ Final output:
 - Top N picks (default `top=3`)
 - Telegram message style default: `compact`
 
+### 1.5 Candidate Model Set (current)
+
+- `momentum_long_v1`: base long score
+- `momentum_short_v1`: base short score
+- `momentum_long_v2`: long v1 + market context adjustment
+- `momentum_short_v2`: short v1 + market context adjustment
+
+v2 adjustment uses:
+
+- market/BTC/ETH multi-timeframe trend (`24h, 12h, 6h, 1h, 15m, 5m, 1m`)
+- funding-rate crowding penalty/bonus by side
+- open-interest participation signal
+- concentration regime (`btc`, `eth`, `single-alt`, `alt-broad`, `balanced`)
+
+Only active models in `state.model_registry` are used for recommendation scoring.
+
 ## 2) Performance Validation Logic
 
 ### 2.1 Entry Tracking
@@ -78,6 +94,15 @@ At recommendation time, store per pick:
 
 On recent window (default `120` evaluations):
 
+- win rate
+- average blended return
+- median blended return
+
+### 2.5 Model-Level Metrics
+
+On recent model window (default `max(120, metric_window*2)`), each model tracks:
+
+- count
 - win rate
 - average blended return
 - median blended return
@@ -129,6 +154,25 @@ After calibration:
 
 - rate-like thresholds are rounded to 0.01 step
 - liquidity thresholds are kept as integer-like float values
+
+### 3.6 Model Governance (auto model expansion)
+
+Before each cycle, model governance checks model-level metrics.
+
+- expansion trigger:
+  - current model evaluated count `>= 24`
+  - and model win rate `< 45%`
+  - and next model in chain is disabled
+- chain:
+  - LONG: `momentum_long_v1 -> momentum_long_v2`
+  - SHORT: `momentum_short_v1 -> momentum_short_v2`
+- cooldown:
+  - after expansion, governance waits 6 hours before next expansion check action
+
+Each expansion is recorded in:
+
+- `state.model_governance_events`
+- latest `run_history[*].model_governance_notes`
 
 ## 4) State and Persistence
 

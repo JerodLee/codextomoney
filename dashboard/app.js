@@ -83,6 +83,8 @@ function modelLabel(modelId) {
   const map = {
     momentum_long_v1: "롱 모멘텀 v1",
     momentum_short_v1: "숏 모멘텀 v1",
+    momentum_long_v2: "롱 모멘텀 v2(시장보강)",
+    momentum_short_v2: "숏 모멘텀 v2(시장보강)",
   };
   return map[modelId] || modelId || "-";
 }
