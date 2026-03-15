@@ -55,6 +55,8 @@
         <article class="card kpi"><p class="k">평가 대기</p><p id="kPending" class="v">-</p></article>
         <article class="card kpi"><p class="k">구간 승률</p><p id="kWinRate" class="v">-</p></article>
         <article class="card kpi"><p class="k">구간 평균 수익률</p><p id="kAvgReturn" class="v">-</p></article>
+        <article class="card kpi"><p class="k">LONG 승률</p><p id="kLongWinRate" class="v">-</p></article>
+        <article class="card kpi"><p class="k">SHORT 승률</p><p id="kShortWinRate" class="v">-</p></article>
         <article class="card kpi"><p class="k">운영 모델</p><p id="kActiveModels" class="v">-</p></article>
         <article class="card kpi"><p class="k">최근 보정 효과</p><p id="kUplift" class="v">-</p></article>
       </section>
@@ -82,6 +84,29 @@
 
       <section class="card compact-card">
         <div class="card-head">
+          <h2>LONG/SHORT 승률 추이</h2>
+          <p class="muted">누적 승률</p>
+        </div>
+        <section class="split">
+          <article>
+            <div class="card-head">
+              <h2>LONG 승률 추이</h2>
+              <p class="muted" id="trendLongMeta">-</p>
+            </div>
+            <svg id="trendLongChart" viewBox="0 0 900 240" preserveAspectRatio="none"></svg>
+          </article>
+          <article>
+            <div class="card-head">
+              <h2>SHORT 승률 추이</h2>
+              <p class="muted" id="trendShortMeta">-</p>
+            </div>
+            <svg id="trendShortChart" viewBox="0 0 900 240" preserveAspectRatio="none"></svg>
+          </article>
+        </section>
+      </section>
+
+      <section class="card compact-card">
+        <div class="card-head">
           <h2>모델별 성과</h2>
           <p class="muted">최근 window 기준</p>
         </div>
@@ -100,49 +125,33 @@
       <section class="card compact-card">
         <div class="card-head">
           <h2>시장 인디케이터</h2>
-          <p class="muted">전체/BTC/ETH 추세와 상관</p>
+          <p class="muted">전체/BTC/ETH 추세와 추천방향 상관</p>
         </div>
         <div class="table-wrap">
           <table class="tbl">
             <thead>
-              <tr><th>구분</th><th>24h</th><th>12h</th><th>6h</th><th>1h</th><th>15m</th><th>5m</th><th>1m</th><th>추세</th><th>현재 관계</th><th>역사 상관</th><th>표본</th></tr>
+              <tr><th>구분</th><th>24h</th><th>12h</th><th>6h</th><th>1h</th><th>15m</th><th>5m</th><th>1m</th><th>추세</th><th>현재 관계</th><th>추천상관(최근)</th><th>표본(n)</th></tr>
             </thead>
             <tbody id="marketBody"></tbody>
           </table>
         </div>
+        <p class="muted">추천상관은 추천방향(LONG=+1, SHORT=-1)과 시장 변화(1h 우선, 없으면 24h)의 상관계수입니다.</p>
         <p id="concentrationText" class="muted">쏠림: -</p>
       </section>
 
       <section class="card compact-card">
         <div class="card-head">
           <h2>종목별 시장 상관도</h2>
-          <p class="muted">표본 큰 순으로 상위 표시</p>
+          <p class="muted">표본 큰 순으로 상위 표시 (표본이 작으면 신뢰도 낮음)</p>
         </div>
         <div class="table-wrap">
           <table class="tbl">
             <thead>
-              <tr><th>종목</th><th>현재 관계(시장/BTC/ETH)</th><th>시장 상관</th><th>BTC 상관</th><th>ETH 상관</th><th>표본(시장/BTC/ETH)</th></tr>
+              <tr><th>종목</th><th>현재 관계(시장/BTC/ETH)</th><th>시장 추천상관</th><th>BTC 추천상관</th><th>ETH 추천상관</th><th>표본(n:시장/BTC/ETH)</th></tr>
             </thead>
             <tbody id="symbolCorrBody"></tbody>
           </table>
         </div>
-      </section>
-
-      <section class="split">
-        <article class="card compact-card">
-          <div class="card-head">
-            <h2>LONG 승률 추이</h2>
-            <p class="muted" id="trendLongMeta">-</p>
-          </div>
-          <svg id="trendLongChart" viewBox="0 0 900 240" preserveAspectRatio="none"></svg>
-        </article>
-        <article class="card compact-card">
-          <div class="card-head">
-            <h2>SHORT 승률 추이</h2>
-            <p class="muted" id="trendShortMeta">-</p>
-          </div>
-          <svg id="trendShortChart" viewBox="0 0 900 240" preserveAspectRatio="none"></svg>
-        </article>
       </section>
     </section>
 
@@ -201,6 +210,6 @@
   </nav>
 
   <script src="./pwa.js?v=20260316-1"></script>
-  <script src="./app.js?v=20260316-8"></script>
+  <script src="./app.js?v=20260316-9"></script>
 </body>
 </html>

@@ -553,14 +553,16 @@ function renderSideTrends(results) {
 
   const longMeta = $("trendLongMeta");
   const shortMeta = $("trendShortMeta");
+  const longLatest = longPoints.length ? Number(longPoints[longPoints.length - 1].y) : null;
+  const shortLatest = shortPoints.length ? Number(shortPoints[shortPoints.length - 1].y) : null;
   if (longMeta) {
     longMeta.textContent = longPoints.length
-      ? `LONG 검증 ${longPoints.length}건(누적 승률)`
+      ? `LONG 승률 ${fmtPct(longLatest)} · 검증 ${longPoints.length}건`
       : "LONG 검증 데이터가 아직 없습니다.";
   }
   if (shortMeta) {
     shortMeta.textContent = shortPoints.length
-      ? `SHORT 검증 ${shortPoints.length}건(누적 승률)`
+      ? `SHORT 승률 ${fmtPct(shortLatest)} · 검증 ${shortPoints.length}건`
       : "SHORT 검증 데이터가 아직 없습니다.";
   }
 }
@@ -570,6 +572,8 @@ function renderKpis(state, results) {
   const latestRun = runHistory[runHistory.length - 1];
   const rollingMetrics = latestRun?.metrics || null;
   const activeModelsEl = $("kActiveModels");
+  const longWinEl = $("kLongWinRate");
+  const shortWinEl = $("kShortWinRate");
 
   $("kLastRun").textContent = fmtTime(state.meta?.last_run_at);
   $("kPending").textContent = String((state.pending || []).length);
@@ -585,6 +589,21 @@ function renderKpis(state, results) {
     const ar = avgReturn(recent);
     $("kWinRate").textContent = wr == null ? "-" : fmtPct(wr);
     $("kAvgReturn").textContent = ar == null ? "-" : fmtPct(ar);
+  }
+
+  if (longWinEl || shortWinEl) {
+    const longRows = (results || []).filter((r) => sideOf(r) === "LONG");
+    const shortRows = (results || []).filter((r) => sideOf(r) === "SHORT");
+    const longWr = winRate(longRows);
+    const shortWr = winRate(shortRows);
+    if (longWinEl) {
+      longWinEl.textContent = longWr == null ? "-" : fmtPct(longWr);
+      longWinEl.className = `v ${longWr == null ? "" : longWr >= 0.5 ? "good" : "bad"}`;
+    }
+    if (shortWinEl) {
+      shortWinEl.textContent = shortWr == null ? "-" : fmtPct(shortWr);
+      shortWinEl.className = `v ${shortWr == null ? "" : shortWr >= 0.5 ? "good" : "bad"}`;
+    }
   }
 }
 
