@@ -109,6 +109,26 @@ On recent model window (default `max(120, metric_window*2)`), each model tracks:
 - average blended return
 - median blended return
 
+### 2.6 Missed-Move Audit (false-negative scan)
+
+To analyze missed pumps/dumps, the runner now tracks non-picked symbols too:
+
+- scope:
+  - liquid symbols only (`b_value >= min_bithumb_value` and `g_volume >= min_bitget_volume`)
+  - both sides (`LONG`, `SHORT`) except already-picked rows
+- reject-reason tags:
+  - `long_b_rate`, `long_g_rate`, `short_g_rate`, `short_b_rate`, `short_funding`
+  - `loss_cooldown`, `overheat`, `conservative_rate`, `conservative_funding`
+  - `orderable_or_check_cap`, `rank_cut`, `unknown`
+- evaluation:
+  - same multi-horizon cadence (`5,15,30,60`)
+  - missed threshold by horizon:
+    - `5m: 1.5%`, `15m: 2.5%`, `30m: 3.5%`, `60m: 5.0%`
+  - if side-adjusted blended return `>= threshold`, it is counted as a missed move
+- outputs:
+  - per-run summary (`missed_audit`) is saved in `run_history`
+  - compact Telegram line includes `MissedAudit: eval/missed/top reasons`
+
 ## 3) Auto-Calibration Rules
 
 ### 3.1 Trigger Conditions

@@ -102,6 +102,12 @@ MODEL_RECOMMEND_AVG_RETURN_FLOOR = -0.001
 MODEL_DIAG_MIN_COUNT = 24
 MODEL_DIAG_MIN_BUCKET = 8
 DEFAULT_EVAL_HORIZONS = [5, 15, 30, 60]
+MISSED_MOVE_THRESHOLDS = {
+    5: 0.015,
+    15: 0.025,
+    30: 0.035,
+    60: 0.050,
+}
 
 
 def utc_now() -> datetime:
@@ -277,6 +283,8 @@ def load_state(path: Path) -> Dict[str, Any]:
             "model_registry": sanitize_model_registry(DEFAULT_MODEL_REGISTRY),
             "pending": [],
             "results": [],
+            "missed_queue": [],
+            "missed_results": [],
             "recommendation_history": [],
             "run_history": [],
             "market_series": [],
@@ -309,6 +317,8 @@ def load_state(path: Path) -> Dict[str, Any]:
         )
     data.setdefault("pending", [])
     data.setdefault("results", [])
+    data.setdefault("missed_queue", [])
+    data.setdefault("missed_results", [])
     data.setdefault("recommendation_history", [])
     data.setdefault("run_history", [])
     data.setdefault("market_series", [])
@@ -726,8 +736,8 @@ def compute_candidates(
     blocked_symbols: set[str] | None = None,
     orderblock_timeout_sec: int = 6,
     max_orderblock_checks: int = 20,
-) -> Tuple[List[Any], Dict[str, int]]:
-    candidates = build_candidates(
+) -> Tuple[List[Any], Dict[str, int], Dict[str, set[Tuple[str, str]]]]:
+    base_candidates = build_candidates(
         bithumb=bithumb,
         bitget=bitget,
         min_bithumb_rate=cfg["min_bithumb_rate"],
@@ -739,6 +749,14 @@ def compute_candidates(
         min_bitget_usdt=cfg["min_bitget_volume"],
         include_short=True,
     )
+
+    def key_of(x: Any) -> Tuple[str, str]:
+        return (
+            str(getattr(x, "symbol", "")).upper(),
+            str(getattr(x, "side", "LONG")).upper(),
+        )
+
+    candidates = list(base_candidates)
     blocked = {str(x).upper() for x in (blocked_symbols or set()) if str(x).strip()}
     removed_loss_cooldown = 0
     if blocked:
@@ -750,34 +768,52 @@ def compute_candidates(
             kept.append(c)
         candidates = kept
     base_universe = len(candidates)
+    stage_after_blocked = set(key_of(c) for c in candidates)
+
     candidates, removed_overheat = apply_overheat_filter(
         candidates, cfg["max_overheat_rate"]
     )
+    stage_after_overheat = set(key_of(c) for c in candidates)
+
     candidates, removed_conservative = apply_conservative_filter(
         candidates,
         max_rate=cfg["conservative_max_rate"],
         max_abs_funding=cfg["conservative_max_abs_funding"],
     )
+    stage_after_conservative = set(key_of(c) for c in candidates)
+
     candidates, orderbook_checked, removed_orderable = apply_bithumb_orderable_filter(
         candidates,
         timeout_sec=orderbook_timeout_sec,
         max_checks=max_orderbook_checks,
     )
+    stage_final = set(key_of(c) for c in candidates)
+
     ob_stats = enrich_candidates_with_orderblock(
         candidates=candidates,
         timeout_sec=orderblock_timeout_sec,
         max_checks=max_orderblock_checks,
     )
-    return candidates, {
-        "base_universe": base_universe,
-        "removed_loss_cooldown": removed_loss_cooldown,
-        "removed_overheat": removed_overheat,
-        "removed_conservative": removed_conservative,
-        "removed_orderable": removed_orderable,
-        "orderbook_checked": orderbook_checked,
-        "orderblock_checked": int(ob_stats.get("orderblock_checked", 0)),
-        "orderblock_assigned": int(ob_stats.get("orderblock_assigned", 0)),
-    }
+    return (
+        candidates,
+        {
+            "base_universe": base_universe,
+            "removed_loss_cooldown": removed_loss_cooldown,
+            "removed_overheat": removed_overheat,
+            "removed_conservative": removed_conservative,
+            "removed_orderable": removed_orderable,
+            "orderbook_checked": orderbook_checked,
+            "orderblock_checked": int(ob_stats.get("orderblock_checked", 0)),
+            "orderblock_assigned": int(ob_stats.get("orderblock_assigned", 0)),
+        },
+        {
+            "base": set(key_of(c) for c in base_candidates),
+            "after_blocked": stage_after_blocked,
+            "after_overheat": stage_after_overheat,
+            "after_conservative": stage_after_conservative,
+            "final": stage_final,
+        },
+    )
 
 
 def _weighted_change(
@@ -1791,6 +1827,254 @@ def evaluate_pending(
     return still_pending, finalized
 
 
+def missed_threshold_for_horizon(horizon_min: int) -> float:
+    h = max(1, int(horizon_min))
+    if h in MISSED_MOVE_THRESHOLDS:
+        return float(MISSED_MOVE_THRESHOLDS[h])
+    # Fallback: use nearest configured horizon.
+    keys = sorted(MISSED_MOVE_THRESHOLDS.keys())
+    nearest = min(keys, key=lambda x: abs(int(x) - h))
+    return float(MISSED_MOVE_THRESHOLDS[nearest])
+
+
+def build_missed_watch_rows(
+    bithumb: Dict[str, Any],
+    bitget: Dict[str, Any],
+    cfg: Dict[str, float],
+    blocked_symbols: set[str],
+    stage_diag: Dict[str, set[Tuple[str, str]]],
+    picks: List[Dict[str, Any]],
+    run_ts: datetime,
+    eval_horizons_min: List[int],
+) -> List[Dict[str, Any]]:
+    picked = {
+        (str(p.get("symbol", "")).upper(), str(p.get("side", "LONG")).upper())
+        for p in picks
+        if str(p.get("symbol", "")).strip()
+    }
+    blocked = {str(x).upper() for x in blocked_symbols if str(x).strip()}
+    after_blocked = set(stage_diag.get("after_blocked", set()))
+    after_overheat = set(stage_diag.get("after_overheat", set()))
+    after_conservative = set(stage_diag.get("after_conservative", set()))
+    final_keys = set(stage_diag.get("final", set()))
+
+    horizons = sorted(set(int(x) for x in eval_horizons_min if int(x) > 0))
+    if not horizons:
+        horizons = list(DEFAULT_EVAL_HORIZONS)
+    created_iso = iso_z(run_ts)
+    created_tag = int(run_ts.timestamp())
+
+    rows: List[Dict[str, Any]] = []
+    symbols = sorted(set(bithumb.keys()) & set(bitget.keys()))
+    for sym in symbols:
+        b = bithumb.get(sym)
+        g = bitget.get(sym)
+        if b is None or g is None:
+            continue
+        b_val = safe_float(getattr(b, "krw_value24h", None)) or 0.0
+        g_vol = safe_float(getattr(g, "usdt_volume", None)) or 0.0
+        # Keep audit focused on tradable-liquidity symbols.
+        if b_val < float(cfg["min_bithumb_value"]) or g_vol < float(cfg["min_bitget_volume"]):
+            continue
+
+        b_rate = safe_float(getattr(b, "rate24h", None)) or 0.0
+        b_px = safe_float(getattr(b, "close_krw", None))
+        g_rate = safe_float(getattr(g, "change24h_pct", None)) or 0.0
+        g_px = safe_float(getattr(g, "last_price", None))
+        g_funding = safe_float(getattr(g, "funding_rate", None)) or 0.0
+        g_oi = safe_float(getattr(g, "holding_amount", None))
+
+        for side in ("LONG", "SHORT"):
+            key = (str(sym).upper(), side)
+            if key in picked:
+                continue
+
+            reasons: List[str] = []
+            if side == "LONG":
+                if b_rate < float(cfg["min_bithumb_rate"]):
+                    reasons.append("long_b_rate")
+                if g_rate < float(cfg["min_bitget_rate"]):
+                    reasons.append("long_g_rate")
+            else:
+                if g_rate > -abs(float(cfg["min_bitget_short_rate"])):
+                    reasons.append("short_g_rate")
+                if b_rate > float(cfg["short_max_bithumb_rate"]):
+                    reasons.append("short_b_rate")
+                if g_funding < float(cfg["short_min_funding_rate"]):
+                    reasons.append("short_funding")
+
+            if not reasons:
+                if sym in blocked:
+                    reasons.append("loss_cooldown")
+                elif key in after_blocked and key not in after_overheat:
+                    reasons.append("overheat")
+                elif key in after_overheat and key not in after_conservative:
+                    if (
+                        abs(b_rate) > float(cfg["conservative_max_rate"])
+                        or abs(g_rate) > float(cfg["conservative_max_rate"])
+                    ):
+                        reasons.append("conservative_rate")
+                    elif abs(g_funding) > float(cfg["conservative_max_abs_funding"]):
+                        reasons.append("conservative_funding")
+                    else:
+                        reasons.append("conservative")
+                elif key in after_conservative and key not in final_keys:
+                    reasons.append("orderable_or_check_cap")
+                elif key in final_keys:
+                    reasons.append("rank_cut")
+                else:
+                    reasons.append("unknown")
+
+            rows.append(
+                {
+                    "id": f"miss-{sym}-{side}-{created_tag}",
+                    "symbol": str(sym).upper(),
+                    "side": side,
+                    "created_at": created_iso,
+                    "eval_horizons_min": list(horizons),
+                    "evaluated_horizons": [],
+                    "entry_bithumb_price": b_px,
+                    "entry_bitget_price": g_px,
+                    "b_rate24h": b_rate,
+                    "g_rate24h": g_rate,
+                    "g_funding_rate": g_funding,
+                    "g_open_interest": g_oi,
+                    "reject_reasons": reasons,
+                    "primary_reason": reasons[0] if reasons else "unknown",
+                }
+            )
+    return rows
+
+
+def evaluate_missed_queue(
+    queue: List[Dict[str, Any]],
+    bithumb: Dict[str, Any],
+    bitget: Dict[str, Any],
+    now: datetime,
+) -> Tuple[List[Dict[str, Any]], List[Dict[str, Any]]]:
+    still_pending: List[Dict[str, Any]] = []
+    finalized: List[Dict[str, Any]] = []
+
+    for p in queue:
+        try:
+            created = parse_iso(str(p["created_at"]))
+        except Exception:  # noqa: BLE001
+            continue
+        side = pick_side(p)
+        horizons = parse_pick_eval_horizons(p)
+        if not horizons:
+            continue
+        max_horizon = max(horizons)
+        done_raw = p.get("evaluated_horizons")
+        done_set: set[int] = set()
+        if isinstance(done_raw, list):
+            for x in done_raw:
+                try:
+                    done_set.add(int(x))
+                except Exception:  # noqa: BLE001
+                    continue
+
+        pending_horizons = [h for h in horizons if h not in done_set]
+        if not pending_horizons:
+            continue
+        due_horizons = [
+            h
+            for h in pending_horizons
+            if now >= created + timedelta(minutes=int(h))
+        ]
+        if not due_horizons:
+            still_pending.append(p)
+            continue
+
+        symbol = str(p.get("symbol", "")).upper()
+        b_now = bithumb.get(symbol)
+        g_now = bitget.get(symbol)
+
+        b_market_ret = None
+        g_market_ret = None
+        b_entry = safe_float(p.get("entry_bithumb_price"))
+        g_entry = safe_float(p.get("entry_bitget_price"))
+        if b_now and b_entry is not None and b_entry > 0:
+            b_market_ret = (b_now.close_krw - b_entry) / b_entry
+        if g_now and g_entry is not None and g_entry > 0:
+            g_market_ret = (g_now.last_price - g_entry) / g_entry
+
+        b_ret = trade_return_from_market_return(b_market_ret, side)
+        g_ret = trade_return_from_market_return(g_market_ret, side)
+        if b_ret is None and g_ret is None:
+            if now < created + timedelta(minutes=max_horizon * 2):
+                still_pending.append(p)
+                continue
+        blended, available = blend_returns(side, b_ret, g_ret)
+        now_iso = iso_z(now)
+        for horizon in sorted(set(int(h) for h in due_horizons)):
+            threshold = missed_threshold_for_horizon(horizon)
+            finalized.append(
+                {
+                    "id": f"{p.get('id', 'miss')}@{horizon}m",
+                    "watch_id": p.get("id"),
+                    "symbol": symbol,
+                    "side": side,
+                    "created_at": p.get("created_at"),
+                    "evaluated_at": now_iso,
+                    "horizon_min": int(horizon),
+                    "entry_bithumb_price": p.get("entry_bithumb_price"),
+                    "entry_bitget_price": p.get("entry_bitget_price"),
+                    "exit_bithumb_price": b_now.close_krw if b_now else None,
+                    "exit_bitget_price": g_now.last_price if g_now else None,
+                    "return_bithumb": b_ret,
+                    "return_bitget": g_ret,
+                    "return_blended": blended,
+                    "available_legs": available,
+                    "missed_threshold": threshold,
+                    "missed": blended >= threshold,
+                    "primary_reason": p.get("primary_reason"),
+                    "reject_reasons": p.get("reject_reasons", []),
+                    "b_rate24h": p.get("b_rate24h"),
+                    "g_rate24h": p.get("g_rate24h"),
+                    "g_funding_rate": p.get("g_funding_rate"),
+                    "g_open_interest": p.get("g_open_interest"),
+                }
+            )
+            done_set.add(int(horizon))
+
+        p["evaluated_horizons"] = sorted(done_set)
+        if len(done_set) < len(horizons):
+            still_pending.append(p)
+
+    return still_pending, finalized
+
+
+def summarize_missed_evaluations(rows: List[Dict[str, Any]]) -> Dict[str, Any]:
+    out: Dict[str, Any] = {
+        "evaluated": len(rows),
+        "missed": 0,
+        "top_reasons": [],
+        "samples": [],
+    }
+    flagged = [r for r in rows if bool(r.get("missed"))]
+    out["missed"] = len(flagged)
+    if not flagged:
+        return out
+    bucket: Dict[str, int] = {}
+    for r in flagged:
+        reason = str(r.get("primary_reason", "unknown"))
+        bucket[reason] = bucket.get(reason, 0) + 1
+    top = sorted(bucket.items(), key=lambda x: x[1], reverse=True)
+    out["top_reasons"] = [{"reason": k, "count": v} for k, v in top[:4]]
+
+    samples: List[str] = []
+    for r in flagged[:3]:
+        sym = str(r.get("symbol", "-"))
+        side = str(r.get("side", "-")).upper()
+        h = int(safe_float(r.get("horizon_min")) or 0)
+        ret = float(safe_float(r.get("return_blended")) or 0.0)
+        reason = str(r.get("primary_reason", "unknown"))
+        samples.append(f"{sym}:{side}@{h}m {ret * 100:.2f}% ({reason})")
+    out["samples"] = samples
+    return out
+
+
 def compute_metrics(results: List[Dict[str, Any]], window: int = 120) -> Dict[str, float]:
     recent = results[-window:]
     if not recent:
@@ -2382,6 +2666,7 @@ def make_message(
     model_governance_notes: List[str],
     model_recommendation: Dict[str, Any] | None,
     model_diagnostics: Dict[str, Any] | None,
+    missed_summary: Dict[str, Any] | None,
     message_style: str,
 ) -> str:
     ts_kst = run_ts.astimezone(KST).strftime("%Y-%m-%d %H:%M:%S KST")
@@ -2400,6 +2685,17 @@ def make_message(
         lines.append(
             f"Validation({int(metrics['count'])}): win {format_pct(metrics['win_rate'])} | avg {format_pct(metrics['avg_return'])} | med {format_pct(metrics['median_return'])} | new {new_results_count}"
         )
+        if missed_summary and int(missed_summary.get("evaluated", 0) or 0) > 0:
+            top_reasons = missed_summary.get("top_reasons", []) or []
+            top_txt = ", ".join(
+                f"{str(x.get('reason', 'unknown'))}={int(x.get('count', 0) or 0)}"
+                for x in top_reasons[:2]
+            )
+            if not top_txt:
+                top_txt = "none"
+            lines.append(
+                f"MissedAudit: eval {int(missed_summary.get('evaluated', 0) or 0)} | missed {int(missed_summary.get('missed', 0) or 0)} | top {top_txt}"
+            )
         if int(filter_stats.get("removed_loss_cooldown", 0)) > 0:
             lines.append(f"Risk block: cooldown filtered {int(filter_stats['removed_loss_cooldown'])} symbols")
         ob_checked = int(filter_stats.get("orderblock_checked", 0) or 0)
@@ -2440,6 +2736,19 @@ def make_message(
     lines.append(
         f"Validation(last {int(metrics['count'])}): winRate {format_pct(metrics['win_rate'])}, avg {format_pct(metrics['avg_return'])}, median {format_pct(metrics['median_return'])}, newly evaluated {new_results_count}"
     )
+    if missed_summary and int(missed_summary.get("evaluated", 0) or 0) > 0:
+        lines.append(
+            f"Missed audit: evaluated {int(missed_summary.get('evaluated', 0) or 0)}, missed {int(missed_summary.get('missed', 0) or 0)}"
+        )
+        top_reasons = missed_summary.get("top_reasons", []) or []
+        if top_reasons:
+            lines.append(
+                "Missed top reasons: "
+                + ", ".join(
+                    f"{str(x.get('reason', 'unknown'))}={int(x.get('count', 0) or 0)}"
+                    for x in top_reasons[:4]
+                )
+            )
     if calibrate_notes:
         lines.append("Auto-calibration:")
         lines.extend(f"- {n}" for n in calibrate_notes)
@@ -2543,7 +2852,7 @@ def run_cycle(args: argparse.Namespace, state: Dict[str, Any]) -> int:
         )
     blocked_symbols = set(state["meta"].get("loss_cooldowns", {}).keys())
 
-    candidates, filter_stats = compute_candidates(
+    candidates, filter_stats, candidate_stage_diag = compute_candidates(
         bithumb=bithumb,
         bitget=bitget,
         cfg=cfg,
@@ -2600,6 +2909,35 @@ def run_cycle(args: argparse.Namespace, state: Dict[str, Any]) -> int:
         state["results"].extend(finalized)
         # Keep state bounded.
         state["results"] = state["results"][-3000:]
+
+    # Missed-opportunity audit: queue non-picked liquid symbols, then evaluate due rows.
+    state.setdefault("missed_queue", [])
+    state.setdefault("missed_results", [])
+    new_watch_rows = build_missed_watch_rows(
+        bithumb=bithumb,
+        bitget=bitget,
+        cfg=cfg,
+        blocked_symbols=blocked_symbols,
+        stage_diag=candidate_stage_diag,
+        picks=picks,
+        run_ts=run_ts,
+        eval_horizons_min=list(args.eval_horizons_min),
+    )
+    if new_watch_rows:
+        state["missed_queue"].extend(new_watch_rows)
+        state["missed_queue"] = state["missed_queue"][-8000:]
+    missed_queue, missed_evals = evaluate_missed_queue(
+        queue=state.get("missed_queue", []),
+        bithumb=bithumb,
+        bitget=bitget,
+        now=run_ts,
+    )
+    state["missed_queue"] = missed_queue
+    missed_flagged = [r for r in missed_evals if bool(r.get("missed"))]
+    if missed_flagged:
+        state["missed_results"].extend(missed_flagged)
+        state["missed_results"] = state["missed_results"][-3000:]
+    missed_summary = summarize_missed_evaluations(missed_evals)
 
     if picks:
         state["meta"]["no_candidate_streak"] = 0
@@ -2713,6 +3051,7 @@ def run_cycle(args: argparse.Namespace, state: Dict[str, Any]) -> int:
         model_governance_notes=model_governance_notes,
         model_recommendation=model_recommendation,
         model_diagnostics=model_diagnostics,
+        missed_summary=missed_summary,
         message_style=args.message_style,
     )
 
@@ -2763,6 +3102,7 @@ def run_cycle(args: argparse.Namespace, state: Dict[str, Any]) -> int:
             "model_metrics": model_metrics,
             "model_recommendation": model_recommendation,
             "model_diagnostics": model_diagnostics,
+            "missed_audit": missed_summary,
         }
     )
     state["run_history"] = state["run_history"][-5000:]
