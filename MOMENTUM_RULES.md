@@ -186,8 +186,9 @@ Each expansion is recorded in:
 
 ## 5) Runtime Defaults (Current)
 
-- Schedule: every 5 minutes (GitHub Actions)
-- Top picks per run: 3
+- Recommendation scan: every 5 minutes (GitHub Actions cron)
+- Loss watchdog: every 15 seconds for ~3.5 minutes after each scan (`--alerts-only --watch --interval-sec 15 --cycles 14`)
+- Top picks per scan: 3
 - Validation horizon: 15 minutes
 - Message style: compact
 

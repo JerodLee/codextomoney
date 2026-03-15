@@ -103,6 +103,16 @@ python momentum_telegram_agent.py \
   --interval-sec 300
 ```
 
+Loss-only watchdog mode (near real-time alert check, no new picks):
+
+```bash
+python momentum_telegram_agent.py \
+  --alerts-only \
+  --watch \
+  --interval-sec 15 \
+  --cycles 14
+```
+
 ## Notes
 
 - This is a data-driven scanner, not investment advice.

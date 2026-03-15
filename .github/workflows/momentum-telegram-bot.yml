@@ -40,6 +40,19 @@ jobs:
             --state-file state/bot_state.json \
             --history-file state/eval_history.jsonl
 
+      - name: Run loss watchdog (near real-time)
+        env:
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+        run: |
+          python momentum_telegram_agent.py \
+            --state-file state/bot_state.json \
+            --history-file state/eval_history.jsonl \
+            --alerts-only \
+            --watch \
+            --interval-sec 15 \
+            --cycles 14
+
       - name: Commit and push state
         run: |
           if [ -z "$(git status --porcelain -- state)" ]; then

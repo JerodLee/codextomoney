@@ -2216,6 +2216,89 @@ def run_cycle(args: argparse.Namespace, state: Dict[str, Any]) -> int:
     return 0
 
 
+def run_alerts_only_cycle(args: argparse.Namespace, state: Dict[str, Any]) -> int:
+    run_ts = utc_now()
+    try:
+        bithumb, bitget, _ = fetch_market_snapshot()
+    except Exception as exc:  # noqa: BLE001
+        print(f"[ERROR] market fetch failed (alerts-only): {exc}")
+        return 1
+
+    state["meta"]["loss_cooldowns"] = prune_loss_cooldowns(
+        state["meta"].get("loss_cooldowns", {}),
+        run_ts,
+    )
+    existing_pending = list(state["pending"])
+    pre_loss_alerts = detect_loss_alerts(
+        pending=existing_pending,
+        bithumb=bithumb,
+        bitget=bitget,
+        now=run_ts,
+        threshold=args.loss_alert_threshold,
+    )
+    if pre_loss_alerts:
+        merge_loss_cooldowns(
+            meta=state["meta"],
+            alerts=pre_loss_alerts,
+            now=run_ts,
+            cooldown_min=args.loss_cooldown_min,
+        )
+
+    pending, finalized = evaluate_pending(
+        pending=existing_pending,
+        bithumb=bithumb,
+        bitget=bitget,
+        now=run_ts,
+    )
+    post_loss_alerts = detect_loss_alerts(
+        pending=pending,
+        bithumb=bithumb,
+        bitget=bitget,
+        now=run_ts,
+        threshold=args.loss_alert_threshold,
+    )
+    if post_loss_alerts:
+        merge_loss_cooldowns(
+            meta=state["meta"],
+            alerts=post_loss_alerts,
+            now=run_ts,
+            cooldown_min=args.loss_cooldown_min,
+        )
+
+    loss_alerts = pre_loss_alerts + post_loss_alerts
+    state["pending"] = pending
+    if finalized:
+        state["results"].extend(finalized)
+        state["results"] = state["results"][-3000:]
+
+    if loss_alerts:
+        alert_msg = make_loss_alert_message(run_ts, loss_alerts)
+        print(alert_msg)
+    else:
+        print(f"[INFO] alerts-only: no loss alert | pending={len(state['pending'])}")
+
+    if not args.dry_run and loss_alerts:
+        token = os.getenv("TELEGRAM_BOT_TOKEN", "").strip()
+        chat_id = os.getenv("TELEGRAM_CHAT_ID", "").strip()
+        if not token or not chat_id:
+            print("[ERROR] TELEGRAM_BOT_TOKEN / TELEGRAM_CHAT_ID is not set")
+            return 2
+        try:
+            send_telegram(
+                token=token,
+                chat_id=chat_id,
+                text=make_loss_alert_message(run_ts, loss_alerts),
+            )
+            print(f"[INFO] loss alert sent ({len(loss_alerts)})")
+        except Exception as exc:  # noqa: BLE001
+            print(f"[ERROR] telegram failed: {exc}")
+            return 3
+
+    state["meta"]["last_alert_watch_at"] = iso_z(run_ts)
+    state["meta"]["last_run_at"] = iso_z(run_ts)
+    return 0
+
+
 def parse_args() -> argparse.Namespace:
     p = argparse.ArgumentParser(
         description="Momentum Telegram automation runner"
@@ -2239,6 +2322,7 @@ def parse_args() -> argparse.Namespace:
     p.add_argument("--loss-alert-threshold", type=float, default=0.0)
     p.add_argument("--loss-cooldown-min", type=int, default=60)
     p.add_argument("--min-short-picks", type=int, default=1)
+    p.add_argument("--alerts-only", action="store_true")
     return p.parse_args()
 
 
@@ -2254,7 +2338,10 @@ def main() -> int:
         cycle += 1
         print(f"\n=== cycle {cycle} ===")
         pre_result_len = len(state["results"])
-        rc = run_cycle(args, state)
+        if args.alerts_only:
+            rc = run_alerts_only_cycle(args, state)
+        else:
+            rc = run_cycle(args, state)
         if rc != 0:
             last_rc = rc
         else:
