@@ -19,6 +19,19 @@ const MARKET_CHANGE_KEYS = ["24h", "12h", "6h", "1h", "15m", "5m", "1m"];
 const RECENT_ROWS = 12;
 const CORR_ROWS = 12;
 const CAL_ROWS = 12;
+const SYMBOL_NAME_MAP = {
+  BTC: "Bitcoin",
+  ETH: "Ethereum",
+  XRP: "Ripple",
+  SOL: "Solana",
+  ADA: "Cardano",
+  DOGE: "Dogecoin",
+  BNB: "BNB",
+  TAO: "Bittensor",
+  THE: "THE",
+  TRUMP: "Official Trump",
+  RESOLV: "Resolv",
+};
 
 function fmtPct(v) {
   return `${(v * 100).toFixed(2)}%`;
@@ -114,6 +127,45 @@ function activeModelNames(state) {
   return Object.entries(reg)
     .filter(([, spec]) => Boolean(spec?.enabled))
     .map(([id]) => modelLabel(String(id)));
+}
+
+function symbolName(symbol) {
+  const code = String(symbol || "").toUpperCase();
+  return SYMBOL_NAME_MAP[code] || code;
+}
+
+function countBySymbol(rows) {
+  const out = new Map();
+  for (const r of rows || []) {
+    const sym = String(r?.symbol || "").toUpperCase().trim();
+    if (!sym) continue;
+    out.set(sym, (out.get(sym) || 0) + 1);
+  }
+  return out;
+}
+
+function symbolCellHtml(symbol, recCount, evalCount) {
+  const code = String(symbol || "-").toUpperCase();
+  return `
+    <div class="sym-cell">
+      <div class="sym-code mono">${code}</div>
+      <div class="sym-name">${symbolName(code)}</div>
+      <div class="sym-meta">\uCD94\uCC9C ${recCount}\uD68C \u00B7 \uAC80\uC99D ${evalCount}\uD68C</div>
+    </div>
+  `;
+}
+
+function sideBadgeHtml(side) {
+  const s = String(side || "LONG").toUpperCase() === "SHORT" ? "SHORT" : "LONG";
+  return `<span class="side-pill ${s === "SHORT" ? "side-short" : "side-long"}">${s}</span>`;
+}
+
+function statusLabel(done) {
+  return done ? "\uAC80\uC99D\uC644\uB8CC" : "\uB300\uAE30";
+}
+
+function resultLabel(win) {
+  return win ? "\uC2B9" : "\uD328";
 }
 
 function relationText(v) {
@@ -242,10 +294,14 @@ function renderRules(cfg) {
 function renderPicks(state) {
   const body = $("pickBody");
   body.innerHTML = "";
-  const picks = [...(state.recommendation_history || [])]
+  const allPicks = state.recommendation_history || [];
+  const allResults = state.results || [];
+  const picks = [...allPicks]
     .sort((a, b) => new Date(b.created_at) - new Date(a.created_at))
     .slice(0, RECENT_ROWS);
-  const resultIds = new Set((state.results || []).map((r) => r.id));
+  const resultIds = new Set(allResults.map((r) => r.id));
+  const recCounts = countBySymbol(allPicks);
+  const evalCounts = countBySymbol(allResults);
 
   if (!picks.length) {
     const tr = document.createElement("tr");
@@ -256,27 +312,33 @@ function renderPicks(state) {
 
   for (const p of picks) {
     const side = sideOf(p);
-    const status = resultIds.has(p.id) ? "평가완료" : "대기";
+    const symbol = String(p.symbol || "").toUpperCase();
+    const status = statusLabel(resultIds.has(p.id));
+    const recN = recCounts.get(symbol) || 0;
+    const evalN = evalCounts.get(symbol) || 0;
     const tr = document.createElement("tr");
     tr.innerHTML = `
       <td>${fmtTime(p.created_at)}</td>
-      <td class="mono">${p.symbol}</td>
-      <td class="mono">${side}</td>
+      <td>${symbolCellHtml(symbol, recN, evalN)}</td>
+      <td>${sideBadgeHtml(side)}</td>
       <td class="mono">${modelLabel(modelOf(p))}</td>
       <td>${Number.isFinite(Number(p.score)) ? fmtNum(p.score, 3) : "-"}</td>
       <td>${fmtFunding(p.g_funding_rate)}</td>
       <td>${fmtOi(p.g_open_interest)}</td>
       <td>${fmtPctValue(p.b_rate24h, 2)}</td>
       <td>${fmtPctValue(p.g_rate24h, 2)}</td>
-      <td class="mono">${status}</td>
+      <td>${status}</td>
     `;
     body.appendChild(tr);
   }
 }
 
-function renderEvaluations(results) {
+function renderEvaluations(state, results) {
   const body = $("evalBody");
   body.innerHTML = "";
+  const allPicks = state.recommendation_history || [];
+  const recCounts = countBySymbol(allPicks);
+  const evalCounts = countBySymbol(results);
   const rows = [...results]
     .sort((a, b) => new Date(b.evaluated_at) - new Date(a.evaluated_at))
     .slice(0, RECENT_ROWS);
@@ -290,16 +352,19 @@ function renderEvaluations(results) {
 
   for (const r of rows) {
     const side = sideOf(r);
+    const symbol = String(r.symbol || "").toUpperCase();
+    const recN = recCounts.get(symbol) || 0;
+    const evalN = evalCounts.get(symbol) || 0;
     const ret = Number(r.return_blended || 0);
     const klass = ret >= 0 ? "good" : "bad";
     const tr = document.createElement("tr");
     tr.innerHTML = `
       <td>${fmtTime(r.evaluated_at)}</td>
-      <td class="mono">${r.symbol}</td>
-      <td class="mono">${side}</td>
+      <td>${symbolCellHtml(symbol, recN, evalN)}</td>
+      <td>${sideBadgeHtml(side)}</td>
       <td class="mono">${modelLabel(modelOf(r))}</td>
       <td class="${klass}">${fmtPct(ret)}</td>
-      <td class="${r.win ? "good" : "bad"}">${r.win ? "승" : "패"}</td>
+      <td><span class="result-pill ${r.win ? "result-win" : "result-loss"}">${resultLabel(Boolean(r.win))}</span></td>
     `;
     body.appendChild(tr);
   }
@@ -843,7 +908,7 @@ async function loadAndRender() {
     renderModelMetrics(state, results);
     renderRules(state.dynamic_config || {});
     renderPicks(state);
-    renderEvaluations(results);
+    renderEvaluations(state, results);
     renderCalibrations(state.calibration_events || [], results);
 
     $("loadStatus").textContent = `불러오기 성공: ${url}`;
