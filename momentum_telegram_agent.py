@@ -376,11 +376,69 @@ def format_money_u(v: float) -> str:
 
 
 def format_pick_line(index: int, p: Dict[str, Any]) -> str:
-    return (
-        f"{index}) {p['symbol']} | score {p['score']:.3f} | "
-        f"b24h {p['b_rate24h']:.2f}% | g24h {p['g_rate24h']:.2f}% | "
-        f"bVal {format_money_k(p['b_value24h'])} | gVol {format_money_u(p['g_volume24h'])}"
-    )
+    return f"{index}) {p['symbol']} | score {p['score']:.3f}"
+
+
+def evaluate_live_return(
+    p: Dict[str, Any],
+    bithumb: Dict[str, Any],
+    bitget: Dict[str, Any],
+) -> Tuple[float | None, float | None, float | None]:
+    symbol = p["symbol"]
+    b_now = bithumb.get(symbol)
+    g_now = bitget.get(symbol)
+
+    b_ret = None
+    g_ret = None
+    if b_now and p.get("entry_bithumb_price", 0) > 0:
+        b_ret = (b_now.close_krw - p["entry_bithumb_price"]) / p["entry_bithumb_price"]
+    if g_now and p.get("entry_bitget_price", 0) > 0:
+        g_ret = (g_now.last_price - p["entry_bitget_price"]) / p["entry_bitget_price"]
+
+    vals = [x for x in (b_ret, g_ret) if x is not None]
+    blended = (sum(vals) / len(vals)) if vals else None
+    return b_ret, g_ret, blended
+
+
+def detect_loss_alerts(
+    pending: List[Dict[str, Any]],
+    bithumb: Dict[str, Any],
+    bitget: Dict[str, Any],
+    now: datetime,
+    threshold: float,
+) -> List[Dict[str, Any]]:
+    alerts: List[Dict[str, Any]] = []
+    now_iso = iso_z(now)
+    for p in pending:
+        b_ret, g_ret, blended = evaluate_live_return(p, bithumb, bitget)
+        p["last_live_checked_at"] = now_iso
+        p["last_live_return_blended"] = blended
+        if blended is None:
+            continue
+        if blended < threshold and not p.get("loss_alert_sent_at"):
+            p["loss_alert_sent_at"] = now_iso
+            alerts.append(
+                {
+                    "id": p["id"],
+                    "symbol": p["symbol"],
+                    "created_at": p["created_at"],
+                    "horizon_min": int(p.get("horizon_min", 15)),
+                    "live_return_blended": blended,
+                    "live_return_bithumb": b_ret,
+                    "live_return_bitget": g_ret,
+                }
+            )
+    return alerts
+
+
+def make_loss_alert_message(run_ts: datetime, alerts: List[Dict[str, Any]]) -> str:
+    ts_kst = run_ts.astimezone(KST).strftime("%Y-%m-%d %H:%M:%S KST")
+    lines = [f"손실 경고 | {ts_kst}"]
+    lines.append("추천 종목이 음수 수익으로 전환되었습니다.")
+    for i, a in enumerate(alerts, start=1):
+        lines.append(f"{i}) {a['symbol']} | 수익률 {format_pct(a['live_return_blended'])}")
+    lines.append(f"대시보드: {DASHBOARD_URL}")
+    return "\n".join(lines)
 
 
 def make_message(
@@ -510,6 +568,13 @@ def run_cycle(args: argparse.Namespace, state: Dict[str, Any]) -> int:
         bitget=bitget,
         now=run_ts,
     )
+    loss_alerts = detect_loss_alerts(
+        pending=pending,
+        bithumb=bithumb,
+        bitget=bitget,
+        now=run_ts,
+        threshold=args.loss_alert_threshold,
+    )
     state["pending"] = pending
     if finalized:
         state["results"].extend(finalized)
@@ -566,6 +631,8 @@ def run_cycle(args: argparse.Namespace, state: Dict[str, Any]) -> int:
     )
 
     print(msg)
+    if loss_alerts:
+        print(make_loss_alert_message(run_ts, loss_alerts))
 
     if not args.dry_run:
         token = os.getenv("TELEGRAM_BOT_TOKEN", "").strip()
@@ -576,6 +643,13 @@ def run_cycle(args: argparse.Namespace, state: Dict[str, Any]) -> int:
         try:
             send_telegram(token=token, chat_id=chat_id, text=msg)
             print("[INFO] telegram sent")
+            if loss_alerts:
+                send_telegram(
+                    token=token,
+                    chat_id=chat_id,
+                    text=make_loss_alert_message(run_ts, loss_alerts),
+                )
+                print(f"[INFO] loss alert sent ({len(loss_alerts)})")
         except Exception as exc:  # noqa: BLE001
             print(f"[ERROR] telegram failed: {exc}")
             return 3
@@ -592,6 +666,7 @@ def run_cycle(args: argparse.Namespace, state: Dict[str, Any]) -> int:
             "config": dict(state["dynamic_config"]),
             "calibrated": calibrated,
             "calibration_notes": calibrate_notes,
+            "loss_alert_count": len(loss_alerts),
         }
     )
     state["run_history"] = state["run_history"][-5000:]
@@ -619,6 +694,7 @@ def parse_args() -> argparse.Namespace:
     p.add_argument("--cycles", type=int, default=0)
     p.add_argument("--orderbook-timeout-sec", type=int, default=8)
     p.add_argument("--max-orderbook-checks", type=int, default=0)
+    p.add_argument("--loss-alert-threshold", type=float, default=0.0)
     return p.parse_args()
 
 

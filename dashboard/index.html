@@ -1,9 +1,9 @@
 <!doctype html>
-<html lang="en">
+<html lang="ko">
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Momentum Control Panel</title>
+  <title>모멘텀 대시보드</title>
   <link rel="stylesheet" href="./styles.css" />
 </head>
 <body>
@@ -14,48 +14,49 @@
   <main class="container">
     <header class="hero card">
       <div>
-        <p class="eyebrow">BITHUMB SPOT + BITGET USDT-M</p>
-        <h1>Momentum Control Panel</h1>
-        <p class="subtitle">Recommendations, validation win-rate, and post-calibration uplift in one view.</p>
+        <p class="eyebrow">BITHUMB SPOT + BITGET FUTURES(USDT-M)</p>
+        <h1>모멘텀 대시보드</h1>
+        <p class="subtitle">추천, 성과 검증, 보정 효과를 한 화면에서 확인합니다.</p>
       </div>
       <div class="hero-actions">
-        <button id="refreshBtn" class="btn">Refresh</button>
+        <a class="btn btn-ghost" href="./logic.html">추천 로직 설명</a>
+        <button id="refreshBtn" class="btn">새로고침</button>
       </div>
     </header>
 
     <section class="source card">
-      <h2>Data Source</h2>
+      <h2>데이터 소스</h2>
       <div class="source-row">
-        <label>Owner <input id="ownerInput" type="text" /></label>
-        <label>Repo <input id="repoInput" type="text" /></label>
-        <label>Branch <input id="branchInput" type="text" /></label>
-        <button id="applySourceBtn" class="btn">Apply</button>
+        <label>소유자(Owner) <input id="ownerInput" type="text" /></label>
+        <label>저장소(Repo) <input id="repoInput" type="text" /></label>
+        <label>브랜치(Branch) <input id="branchInput" type="text" /></label>
+        <button id="applySourceBtn" class="btn">적용</button>
       </div>
       <p id="sourceText" class="muted">-</p>
-      <p id="loadStatus" class="status">Loading...</p>
+      <p id="loadStatus" class="status">불러오는 중...</p>
     </section>
 
     <section class="kpis">
-      <article class="card kpi"><p class="k">Last Run</p><p id="kLastRun" class="v">-</p></article>
-      <article class="card kpi"><p class="k">Pending Picks</p><p id="kPending" class="v">-</p></article>
-      <article class="card kpi"><p class="k">Rolling Win Rate</p><p id="kWinRate" class="v">-</p></article>
-      <article class="card kpi"><p class="k">Rolling Avg Return</p><p id="kAvgReturn" class="v">-</p></article>
-      <article class="card kpi"><p class="k">Calibrations</p><p id="kCalCount" class="v">-</p></article>
-      <article class="card kpi"><p class="k">Last Uplift</p><p id="kUplift" class="v">-</p></article>
+      <article class="card kpi"><p class="k">마지막 실행</p><p id="kLastRun" class="v">-</p></article>
+      <article class="card kpi"><p class="k">평가 대기 종목</p><p id="kPending" class="v">-</p></article>
+      <article class="card kpi"><p class="k">구간 승률</p><p id="kWinRate" class="v">-</p></article>
+      <article class="card kpi"><p class="k">구간 평균 수익률</p><p id="kAvgReturn" class="v">-</p></article>
+      <article class="card kpi"><p class="k">보정 횟수</p><p id="kCalCount" class="v">-</p></article>
+      <article class="card kpi"><p class="k">최근 보정 효과</p><p id="kUplift" class="v">-</p></article>
     </section>
 
     <section class="split">
       <article class="card">
         <div class="card-head">
-          <h2>Win Rate Trend</h2>
+          <h2>승률 추이</h2>
           <p class="muted" id="trendMeta">-</p>
         </div>
         <svg id="trendChart" viewBox="0 0 900 240" preserveAspectRatio="none"></svg>
       </article>
       <article class="card">
         <div class="card-head">
-          <h2>Current Rules</h2>
-          <p class="muted">dynamic_config snapshot</p>
+          <h2>현재 규칙</h2>
+          <p class="muted">dynamic_config 스냅샷</p>
         </div>
         <table class="tbl">
           <tbody id="rulesBody"></tbody>
@@ -66,24 +67,24 @@
     <section class="split">
       <article class="card">
         <div class="card-head">
-          <h2>Recent Recommendations</h2>
-          <p class="muted">latest generated picks</p>
+          <h2>최근 추천 종목</h2>
+          <p class="muted">최근 생성된 추천 목록</p>
         </div>
         <table class="tbl">
           <thead>
-            <tr><th>Time</th><th>Symbol</th><th>Score</th><th>B 24h</th><th>G 24h</th><th>Status</th></tr>
+            <tr><th>시간</th><th>종목</th><th>스코어</th><th>빗썸 24h</th><th>비트겟 24h</th><th>상태</th></tr>
           </thead>
           <tbody id="pickBody"></tbody>
         </table>
       </article>
       <article class="card">
         <div class="card-head">
-          <h2>Recent Evaluations</h2>
-          <p class="muted">blended return outcome</p>
+          <h2>최근 성과 검증</h2>
+          <p class="muted">블렌디드 수익률 결과</p>
         </div>
         <table class="tbl">
           <thead>
-            <tr><th>Time</th><th>Symbol</th><th>Return</th><th>Win</th></tr>
+            <tr><th>시간</th><th>종목</th><th>수익률</th><th>결과</th></tr>
           </thead>
           <tbody id="evalBody"></tbody>
         </table>
@@ -92,12 +93,12 @@
 
     <section class="card">
       <div class="card-head">
-        <h2>Calibration Uplift</h2>
-        <p class="muted">win-rate change before vs after each calibration event</p>
+        <h2>보정 효과</h2>
+        <p class="muted">보정 이벤트 전/후 승률 변화</p>
       </div>
       <table class="tbl">
         <thead>
-          <tr><th>Calibration Time</th><th>Before Win</th><th>After Win</th><th>Delta</th><th>Notes</th></tr>
+          <tr><th>보정 시각</th><th>보정 전 승률</th><th>보정 후 승률</th><th>변화량</th><th>설명</th></tr>
         </thead>
         <tbody id="calBody"></tbody>
       </table>

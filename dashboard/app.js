@@ -71,7 +71,7 @@ function buildSvgLine(svgEl, points) {
   const w = 900;
   const h = 240;
   if (!points.length) {
-    svgEl.innerHTML = `<text x="16" y="28" fill="#5c6a72" font-size="14">No trend data yet.</text>`;
+    svgEl.innerHTML = `<text x="16" y="28" fill="#5c6a72" font-size="14">추이 데이터가 아직 없습니다.</text>`;
     return;
   }
   const min = Math.min(...points.map((p) => p.y), 0);
@@ -113,13 +113,13 @@ function renderPicks(state) {
 
   if (!picks.length) {
     const tr = document.createElement("tr");
-    tr.innerHTML = `<td colspan="6" class="muted">No recommendation history yet.</td>`;
+    tr.innerHTML = `<td colspan="6" class="muted">추천 이력이 아직 없습니다.</td>`;
     body.appendChild(tr);
     return;
   }
 
   for (const p of picks) {
-    const status = resultIds.has(p.id) ? "evaluated" : "pending";
+    const status = resultIds.has(p.id) ? "평가완료" : "대기";
     const tr = document.createElement("tr");
     tr.innerHTML = `
       <td>${fmtTime(p.created_at)}</td>
@@ -142,7 +142,7 @@ function renderEvaluations(results) {
 
   if (!rows.length) {
     const tr = document.createElement("tr");
-    tr.innerHTML = `<td colspan="4" class="muted">No evaluations yet.</td>`;
+    tr.innerHTML = `<td colspan="4" class="muted">검증 데이터가 아직 없습니다.</td>`;
     body.appendChild(tr);
     return;
   }
@@ -155,7 +155,7 @@ function renderEvaluations(results) {
       <td>${fmtTime(r.evaluated_at)}</td>
       <td class="mono">${r.symbol}</td>
       <td class="${klass}">${fmtPct(ret)}</td>
-      <td class="${r.win ? "good" : "bad"}">${r.win ? "WIN" : "LOSE"}</td>
+      <td class="${r.win ? "good" : "bad"}">${r.win ? "승" : "패"}</td>
     `;
     body.appendChild(tr);
   }
@@ -187,7 +187,7 @@ function renderCalibrations(events, results) {
   const rows = computeCalibrationRows(events, results).reverse().slice(0, 20);
   if (!rows.length) {
     const tr = document.createElement("tr");
-    tr.innerHTML = `<td colspan="5" class="muted">No calibration events yet.</td>`;
+    tr.innerHTML = `<td colspan="5" class="muted">보정 이벤트가 아직 없습니다.</td>`;
     body.appendChild(tr);
     $("kCalCount").textContent = "0";
     $("kUplift").textContent = "-";
@@ -196,7 +196,7 @@ function renderCalibrations(events, results) {
   $("kCalCount").textContent = String(rows.length);
 
   const latestDelta = rows.find((r) => r.delta != null)?.delta ?? null;
-  $("kUplift").textContent = latestDelta == null ? "n/a" : fmtPct(latestDelta);
+  $("kUplift").textContent = latestDelta == null ? "데이터없음" : fmtPct(latestDelta);
   $("kUplift").className = `v ${latestDelta == null ? "" : latestDelta >= 0 ? "good" : "bad"}`;
 
   for (const r of rows) {
@@ -204,9 +204,9 @@ function renderCalibrations(events, results) {
     const tr = document.createElement("tr");
     tr.innerHTML = `
       <td>${fmtTime(r.at)}</td>
-      <td>${r.before == null ? "n/a" : fmtPct(r.before)}</td>
-      <td>${r.after == null ? "n/a" : fmtPct(r.after)}</td>
-      <td class="${dCls}">${r.delta == null ? "n/a" : fmtPct(r.delta)}</td>
+      <td>${r.before == null ? "데이터없음" : fmtPct(r.before)}</td>
+      <td>${r.after == null ? "데이터없음" : fmtPct(r.after)}</td>
+      <td class="${dCls}">${r.delta == null ? "데이터없음" : fmtPct(r.delta)}</td>
       <td>${r.notes || "-"}</td>
     `;
     body.appendChild(tr);
@@ -220,7 +220,7 @@ function renderTrend(state) {
     .slice(-120)
     .map((r) => ({ x: r.run_at, y: Number(r.metrics.win_rate) }));
 
-  let source = "run_history";
+  let source = "실행 이력";
   if (points.length < 2) {
     // Backward compatibility: build a synthetic trend from legacy results.
     const results = [...(state.results || [])]
@@ -231,13 +231,13 @@ function renderTrend(state) {
       if (r.win) wins += 1;
       return { x: r.evaluated_at, y: wins / (idx + 1) };
     }).slice(-120);
-    source = "results(cumulative)";
+    source = "검증 결과(누적)";
   }
 
   buildSvgLine($("trendChart"), points);
   $("trendMeta").textContent = points.length
-    ? `showing ${points.length} points from ${source}`
-    : "no trend data yet";
+    ? `최근 ${points.length}개 포인트 (${source})`
+    : "추이 데이터가 아직 없습니다.";
 }
 
 function renderKpis(state, results) {
@@ -264,8 +264,8 @@ async function loadAndRender() {
   const branch = $("branchInput").value.trim() || "main";
   const urls = candidateStateUrls(owner, repo, branch);
 
-  $("sourceText").textContent = `owner=${owner} repo=${repo} branch=${branch}`;
-  $("loadStatus").textContent = "Loading state...";
+  $("sourceText").textContent = `소스: owner=${owner} repo=${repo} branch=${branch}`;
+  $("loadStatus").textContent = "상태 데이터를 불러오는 중...";
   $("loadStatus").className = "status muted";
 
   try {
@@ -278,10 +278,10 @@ async function loadAndRender() {
     renderEvaluations(results);
     renderCalibrations(state.calibration_events || [], results);
 
-    $("loadStatus").textContent = `Loaded from ${url}`;
+    $("loadStatus").textContent = `불러오기 성공: ${url}`;
     $("loadStatus").className = "status good";
   } catch (e) {
-    $("loadStatus").textContent = `Load failed: ${String(e)}`;
+    $("loadStatus").textContent = `불러오기 실패: ${String(e)}`;
     $("loadStatus").className = "status bad";
   }
 }
