@@ -391,8 +391,12 @@ async function fetchJsonFirst(urls) {
 function candidateStateUrls(owner, repo, branch) {
   const ts = Date.now();
   const raw = `https://raw.githubusercontent.com/${owner}/${repo}/${branch}/state/bot_state.json?t=${ts}`;
-  // raw.githack can cache aggressively, so prefer raw.githubusercontent first.
-  return [raw, "../state/bot_state.json", "/state/bot_state.json", "./state/bot_state.json"];
+  const jsdelivr = `https://cdn.jsdelivr.net/gh/${owner}/${repo}@${branch}/state/bot_state.json?t=${ts}`;
+  const host = String(window.location.hostname || "").toLowerCase();
+  const isLocal = host === "localhost" || host === "127.0.0.1" || host === "";
+  // On hosted pages, avoid same-origin fallback because commit-pinned hosts can serve stale state.
+  if (!isLocal) return [raw, jsdelivr];
+  return [raw, jsdelivr, "../state/bot_state.json", "/state/bot_state.json", "./state/bot_state.json"];
 }
 
 function buildSvgLine(svgEl, points, stroke = "#0e8a7b", dot = "#ff9e57") {
