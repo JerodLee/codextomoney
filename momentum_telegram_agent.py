@@ -38,6 +38,7 @@ from crypto_momentum_scanner import (
 
 
 KST = timezone(timedelta(hours=9))
+DASHBOARD_URL = "https://raw.githack.com/JerodLee/codextomoney/main/docs/index.html"
 
 
 DEFAULT_DYNAMIC_CONFIG: Dict[str, float] = {
@@ -404,6 +405,7 @@ def make_message(
         )
         if calibrate_notes:
             lines.append("Tune: " + "; ".join(calibrate_notes))
+        lines.append(f"Dashboard: {DASHBOARD_URL}")
         return "\n".join(lines)
 
     lines.append(f"Momentum Scan | {ts_kst}")
@@ -426,6 +428,7 @@ def make_message(
     if calibrate_notes:
         lines.append("Auto-calibration:")
         lines.extend(f"- {n}" for n in calibrate_notes)
+    lines.append(f"Dashboard: {DASHBOARD_URL}")
     return "\n".join(lines)
 
 
