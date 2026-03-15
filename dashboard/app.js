@@ -555,6 +555,67 @@ function renderModelMetrics(state, results) {
   }
 }
 
+function modelIssueLabel(dim) {
+  const key = String(dim || "");
+  const map = {
+    alignment: "시장정합",
+    funding: "펀딩",
+    momentum: "모멘텀",
+    open_interest: "OI",
+    regime: "장세",
+  };
+  return map[key] || key || "-";
+}
+
+function renderModelLab(state) {
+  const body = $("modelLabBody");
+  if (!body) return;
+  body.innerHTML = "";
+
+  const latestRun = (state.run_history || []).slice(-1)[0] || {};
+  const diag = latestRun.model_diagnostics || state.meta?.last_model_diagnostics || null;
+  const rows = Array.isArray(diag?.items) ? diag.items : [];
+
+  if (!rows.length) {
+    const tr = document.createElement("tr");
+    tr.innerHTML = `<td colspan="5" class="muted">저성과 원인 진단 데이터가 아직 없습니다.</td>`;
+    body.appendChild(tr);
+    return;
+  }
+
+  for (const r of rows.slice(0, 6)) {
+    const wr = Number(r?.win_rate);
+    const ar = Number(r?.avg_return);
+    const wrTxt = Number.isFinite(wr) ? fmtPct(wr) : "-";
+    const arTxt = Number.isFinite(ar) ? fmtPct(ar) : "-";
+    const perfTxt = `n=${Number(r?.count || 0)} | win=${wrTxt} | avg=${arTxt}`;
+
+    const issues = Array.isArray(r?.issues) ? r.issues : [];
+    const issueTxt = issues.length
+      ? issues.slice(0, 2).map((x) => {
+        const n = Number(x?.count || 0);
+        const w = Number(x?.win_rate);
+        const wTxt = Number.isFinite(w) ? fmtPct(w) : "-";
+        return `${modelIssueLabel(x?.dimension)}:${String(x?.bucket || "-")} (n=${n}, win=${wTxt})`;
+      }).join(" | ")
+      : "-";
+
+    const proposals = Array.isArray(r?.proposals) ? r.proposals : [];
+    const proposalTxt = proposals.length ? proposals.slice(0, 2).join(" ; ") : "-";
+
+    const nextMid = String(r?.next_model_id || "-");
+    const tr = document.createElement("tr");
+    tr.innerHTML = `
+      <td class="mono">${modelLabel(String(r?.model_id || "-"))}</td>
+      <td>${perfTxt}</td>
+      <td>${issueTxt}</td>
+      <td>${proposalTxt}</td>
+      <td class="mono">${nextMid}</td>
+    `;
+    body.appendChild(tr);
+  }
+}
+
 function computeCalibrationRows(events, results, window = 30) {
   const out = [];
   const sortedResults = [...results].sort((a, b) => new Date(a.evaluated_at) - new Date(b.evaluated_at));
@@ -1060,6 +1121,7 @@ async function loadAndRender() {
     renderTrend(state);
     renderSideTrends(results);
     renderModelMetrics(state, results);
+    renderModelLab(state);
     renderRules(state.dynamic_config || {});
     renderPicks(state);
     renderEvaluations(state, results);

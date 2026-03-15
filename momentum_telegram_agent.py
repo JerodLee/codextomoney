@@ -98,6 +98,8 @@ MODEL_EXPANSION_COOLDOWN_HOURS = 6
 MODEL_RECOMMEND_MIN_COUNT = 24
 MODEL_RECOMMEND_WIN_RATE_FLOOR = 0.48
 MODEL_RECOMMEND_AVG_RETURN_FLOOR = -0.001
+MODEL_DIAG_MIN_COUNT = 24
+MODEL_DIAG_MIN_BUCKET = 8
 
 
 def utc_now() -> datetime:
@@ -122,6 +124,20 @@ def model_id_from_side(side: str) -> str:
 
 def model_name_from_id(model_id: str) -> str:
     return MODEL_NAMES.get(model_id, model_id)
+
+
+def next_model_id(model_id: str) -> str:
+    mid = str(model_id or "").strip()
+    if not mid:
+        return "momentum_model_v2"
+    if "_v" in mid:
+        head, tail = mid.rsplit("_v", 1)
+        try:
+            ver = int(tail)
+            return f"{head}_v{ver + 1}"
+        except Exception:  # noqa: BLE001
+            pass
+    return f"{mid}_v2"
 
 
 def sanitize_model_registry(raw: Dict[str, Any] | None) -> Dict[str, Dict[str, Any]]:
@@ -230,6 +246,7 @@ def load_state(path: Path) -> Dict[str, Any]:
                 "last_model_governance_at": None,
                 "model_governance_cooldown_until": None,
                 "last_model_recommendation": None,
+                "last_model_diagnostics": None,
             },
         }
     with path.open("r", encoding="utf-8") as f:
@@ -266,6 +283,7 @@ def load_state(path: Path) -> Dict[str, Any]:
     data["meta"].setdefault("last_model_governance_at", None)
     data["meta"].setdefault("model_governance_cooldown_until", None)
     data["meta"].setdefault("last_model_recommendation", None)
+    data["meta"].setdefault("last_model_diagnostics", None)
     data.setdefault("version", 3)
     return data
 
@@ -1126,6 +1144,10 @@ def make_recommendations(
     market_changes = market_indicators.get("market", {}).get("changes", {}) or {}
     btc_changes = market_indicators.get("btc", {}).get("changes", {}) or {}
     eth_changes = market_indicators.get("eth", {}).get("changes", {}) or {}
+    concentration = market_indicators.get("concentration", {}) or {}
+    market_trend = str(market_indicators.get("market", {}).get("trend", "neutral"))
+    btc_trend = str(market_indicators.get("btc", {}).get("trend", "neutral"))
+    eth_trend = str(market_indicators.get("eth", {}).get("trend", "neutral"))
     for row in selected:
         c = row["candidate"]
         mid = str(row["model_id"])
@@ -1166,6 +1188,11 @@ def make_recommendations(
                 "market_change_btc_24h": btc_changes.get("24h"),
                 "market_change_eth_1h": eth_changes.get("1h"),
                 "market_change_eth_24h": eth_changes.get("24h"),
+                "market_regime": str(concentration.get("regime", "balanced")),
+                "market_top_alt_symbol": str(concentration.get("top_alt_symbol", "")).upper(),
+                "market_trend_market": market_trend,
+                "market_trend_btc": btc_trend,
+                "market_trend_eth": eth_trend,
                 **plan,
             }
         )
@@ -1510,8 +1537,22 @@ def evaluate_pending(
                 "win": blended > 0,
                 "available_legs": available,
                 "score": p.get("score"),
+                "base_score": p.get("base_score"),
+                "model_score_delta": p.get("model_score_delta"),
+                "b_rate24h": p.get("b_rate24h"),
+                "g_rate24h": p.get("g_rate24h"),
                 "g_funding_rate": p.get("g_funding_rate"),
                 "g_open_interest": p.get("g_open_interest"),
+                "market_sign_market": p.get("market_sign_market"),
+                "market_sign_btc": p.get("market_sign_btc"),
+                "market_sign_eth": p.get("market_sign_eth"),
+                "market_change_market_1h": p.get("market_change_market_1h"),
+                "market_change_market_24h": p.get("market_change_market_24h"),
+                "market_change_btc_1h": p.get("market_change_btc_1h"),
+                "market_change_btc_24h": p.get("market_change_btc_24h"),
+                "market_change_eth_1h": p.get("market_change_eth_1h"),
+                "market_change_eth_24h": p.get("market_change_eth_24h"),
+                "market_regime": p.get("market_regime"),
             }
         )
 
@@ -1552,6 +1593,241 @@ def compute_model_metrics(
             "median_return": statistics.median(vals) if vals else 0.0,
             "label": model_name_from_id(mid),
         }
+    return out
+
+
+def _bucket_stats(
+    rows: List[Dict[str, Any]],
+    bucket_fn: Any,
+) -> Dict[str, Dict[str, float | int]]:
+    agg: Dict[str, Dict[str, float | int]] = {}
+    for r in rows:
+        bucket = str(bucket_fn(r) or "").strip()
+        if not bucket:
+            continue
+        cur = agg.setdefault(bucket, {"count": 0, "wins": 0, "sum_return": 0.0})
+        cur["count"] = int(cur["count"]) + 1
+        if bool(r.get("win")):
+            cur["wins"] = int(cur["wins"]) + 1
+        ret = safe_float(r.get("return_blended"))
+        cur["sum_return"] = float(cur["sum_return"]) + (0.0 if ret is None else float(ret))
+    out: Dict[str, Dict[str, float | int]] = {}
+    for bucket, cur in agg.items():
+        cnt = int(cur.get("count", 0) or 0)
+        wins = int(cur.get("wins", 0) or 0)
+        total = float(cur.get("sum_return", 0.0) or 0.0)
+        out[bucket] = {
+            "count": cnt,
+            "win_rate": (wins / cnt) if cnt > 0 else 0.0,
+            "avg_return": (total / cnt) if cnt > 0 else 0.0,
+        }
+    return out
+
+
+def _pick_weak_bucket(
+    stats: Dict[str, Dict[str, float | int]],
+    min_bucket_count: int,
+) -> Tuple[str, Dict[str, float | int]] | None:
+    rows = []
+    for bucket, cur in stats.items():
+        cnt = int(cur.get("count", 0) or 0)
+        if cnt < max(1, int(min_bucket_count)):
+            continue
+        rows.append((bucket, cur))
+    if not rows:
+        return None
+    rows.sort(
+        key=lambda x: (
+            float(x[1].get("win_rate", 0.0) or 0.0),
+            float(x[1].get("avg_return", 0.0) or 0.0),
+            -int(x[1].get("count", 0) or 0),
+        )
+    )
+    return rows[0]
+
+
+def _proposal_from_issue(side: str, dim: str, bucket: str) -> str:
+    side_u = str(side).upper()
+    if dim == "alignment":
+        if bucket == "inverse":
+            return "시장 역행 구간 진입 패널티를 강화합니다."
+        if bucket == "aligned":
+            return "정방향 구간에서 점수 가중치를 높여 정합성 종목을 우선합니다."
+        return "중립장 구간 전용 게이트를 분리합니다."
+    if dim == "funding":
+        if "crowded" in bucket:
+            return "혼잡(funding crowding) 구간 회피 조건을 강화합니다."
+        if "contrarian" in bucket:
+            return "역발상 funding 보너스/패널티를 사이드별로 재조정합니다."
+        return "funding 중립 구간의 노이즈 필터를 강화합니다."
+    if dim == "momentum":
+        if bucket == "high-momentum":
+            return "과열 구간 상한(overheat/conservative)을 더 보수적으로 조정합니다."
+        if bucket == "low-momentum":
+            return "최소 모멘텀 바닥값을 상향해 약한 추세를 제외합니다."
+        return "중간 모멘텀 구간에서 변동성 대비 손익비를 재조정합니다."
+    if dim == "open_interest":
+        if bucket == "low-oi":
+            return "OI 하한을 높여 체결 신뢰도가 낮은 종목을 제외합니다."
+        if bucket == "high-oi":
+            return "고 OI 과밀 구간에서 추격 진입 패널티를 강화합니다."
+        return "OI 구간별 스코어 기여도를 재조정합니다."
+    if dim == "regime":
+        if bucket == "btc":
+            return "BTC 주도장 전용 가중치를 별도 모델에 분리합니다."
+        if bucket == "eth":
+            return "ETH 주도장 전용 가중치를 별도 모델에 분리합니다."
+        if bucket == "single-alt":
+            return "단일 알트 쏠림장 전용 가중치를 별도 모델에 분리합니다."
+        if bucket == "alt-broad":
+            return "광범위 알트장 전용 가중치를 별도 모델에 분리합니다."
+        return "균형장 전용 기준선을 별도로 튜닝합니다."
+    if side_u == "SHORT":
+        return "SHORT 전용 리스크 컷(손절폭/진입 오프셋/펀딩 필터)을 강화합니다."
+    return "LONG 전용 리스크 컷(손절폭/진입 오프셋/모멘텀 필터)을 강화합니다."
+
+
+def diagnose_underperforming_models(
+    results: List[Dict[str, Any]],
+    model_metrics: Dict[str, Dict[str, float | int]],
+    min_count: int = MODEL_DIAG_MIN_COUNT,
+    win_rate_floor: float = MODEL_RECOMMEND_WIN_RATE_FLOOR,
+    avg_return_floor: float = MODEL_RECOMMEND_AVG_RETURN_FLOOR,
+    min_bucket_count: int = MODEL_DIAG_MIN_BUCKET,
+) -> Dict[str, Any]:
+    out: Dict[str, Any] = {
+        "triggered": False,
+        "items": [],
+        "gate": {
+            "min_count": int(min_count),
+            "win_rate_floor": float(win_rate_floor),
+            "avg_return_floor": float(avg_return_floor),
+            "min_bucket_count": int(min_bucket_count),
+        },
+    }
+    if not results or not model_metrics:
+        return out
+
+    for mid, mm in model_metrics.items():
+        count = int(mm.get("count", 0) or 0)
+        win_rate = float(mm.get("win_rate", 0.0) or 0.0)
+        avg_return = float(mm.get("avg_return", 0.0) or 0.0)
+        if count < max(1, int(min_count)):
+            continue
+        if win_rate >= float(win_rate_floor) and avg_return >= float(avg_return_floor):
+            continue
+
+        side = model_side_from_id(mid)
+        rows = [r for r in results if pick_model_id(r) == mid]
+        rows = rows[-max(120, count):]
+        if not rows:
+            continue
+
+        def alignment_bucket(r: Dict[str, Any]) -> str:
+            m_sign = int(safe_float(r.get("market_sign_market")) or 0)
+            if m_sign == 0:
+                return "neutral-market"
+            side_v = side_sign(pick_side(r))
+            rel = side_v * m_sign
+            if rel > 0:
+                return "aligned"
+            if rel < 0:
+                return "inverse"
+            return "neutral-market"
+
+        def funding_bucket(r: Dict[str, Any]) -> str:
+            fr = safe_float(r.get("g_funding_rate"))
+            if fr is None:
+                return "unknown"
+            if side == "LONG":
+                if fr >= 0.0010:
+                    return "crowded-long"
+                if fr <= -0.0003:
+                    return "contrarian-long"
+            else:
+                if fr <= -0.0010:
+                    return "crowded-short"
+                if fr >= 0.0003:
+                    return "contrarian-short"
+            return "neutral-funding"
+
+        def momentum_bucket(r: Dict[str, Any]) -> str:
+            g_rate = abs(safe_float(r.get("g_rate24h")) or 0.0)
+            if g_rate >= 6.0:
+                return "high-momentum"
+            if g_rate <= 1.5:
+                return "low-momentum"
+            return "mid-momentum"
+
+        def oi_bucket(r: Dict[str, Any]) -> str:
+            oi = safe_float(r.get("g_open_interest"))
+            if oi is None:
+                return "unknown"
+            if oi < 100_000:
+                return "low-oi"
+            if oi >= 1_000_000:
+                return "high-oi"
+            return "mid-oi"
+
+        def regime_bucket(r: Dict[str, Any]) -> str:
+            raw = str(r.get("market_regime", "")).strip()
+            return raw or "unknown"
+
+        dims = [
+            ("alignment", _bucket_stats(rows, alignment_bucket)),
+            ("funding", _bucket_stats(rows, funding_bucket)),
+            ("momentum", _bucket_stats(rows, momentum_bucket)),
+            ("open_interest", _bucket_stats(rows, oi_bucket)),
+            ("regime", _bucket_stats(rows, regime_bucket)),
+        ]
+
+        issues: List[Dict[str, Any]] = []
+        proposals: List[str] = []
+        for dim, stats in dims:
+            weak = _pick_weak_bucket(stats, min_bucket_count=min_bucket_count)
+            if not weak:
+                continue
+            bucket, cur = weak
+            issue = {
+                "dimension": dim,
+                "bucket": bucket,
+                "count": int(cur.get("count", 0) or 0),
+                "win_rate": float(cur.get("win_rate", 0.0) or 0.0),
+                "avg_return": float(cur.get("avg_return", 0.0) or 0.0),
+            }
+            issues.append(issue)
+            proposal = _proposal_from_issue(side=side, dim=dim, bucket=bucket)
+            if proposal not in proposals:
+                proposals.append(proposal)
+
+        if not issues:
+            proposals = ["저성과 원인 표본이 부족해 추가 데이터 확보 후 재진단이 필요합니다."]
+
+        nxt = next_model_id(mid)
+        summary_parts: List[str] = []
+        for issue in issues[:2]:
+            summary_parts.append(
+                f"{issue['dimension']}:{issue['bucket']}(n={issue['count']}, win={issue['win_rate'] * 100:.1f}%)"
+            )
+        summary = " | ".join(summary_parts) if summary_parts else "no-bucket-signal"
+
+        out["items"].append(
+            {
+                "model_id": str(mid),
+                "model_label": model_name_from_id(str(mid)),
+                "side": side,
+                "count": count,
+                "win_rate": win_rate,
+                "avg_return": avg_return,
+                "next_model_id": nxt,
+                "next_model_label": model_name_from_id(nxt),
+                "issues": issues[:4],
+                "proposals": proposals[:4],
+                "summary": summary,
+            }
+        )
+
+    out["triggered"] = bool(out["items"])
     return out
 
 
@@ -1840,6 +2116,29 @@ def format_model_hint_line(model_recommendation: Dict[str, Any] | None) -> str |
     return "ModelHint: underperform -> " + " | ".join(parts) + f" | regime={regime}"
 
 
+def format_model_lab_line(model_diagnostics: Dict[str, Any] | None) -> str | None:
+    if not model_diagnostics or not bool(model_diagnostics.get("triggered")):
+        return None
+    rows = model_diagnostics.get("items", []) or []
+    parts: List[str] = []
+    for item in rows[:2]:
+        side = str(item.get("side", "?")).upper()
+        mid = str(item.get("model_id", "")).strip()
+        nxt = str(item.get("next_model_id", "")).strip()
+        summary = str(item.get("summary", "")).strip()
+        if not side or not mid:
+            continue
+        bit = f"{side}:{model_name_from_id(mid)}"
+        if summary:
+            bit += f" weak[{summary}]"
+        if nxt:
+            bit += f" -> {nxt}"
+        parts.append(bit)
+    if not parts:
+        return None
+    return "ModelLab: " + " | ".join(parts)
+
+
 def make_message(
     run_ts: datetime,
     picks: List[Dict[str, Any]],
@@ -1850,6 +2149,7 @@ def make_message(
     calibrate_notes: List[str],
     model_governance_notes: List[str],
     model_recommendation: Dict[str, Any] | None,
+    model_diagnostics: Dict[str, Any] | None,
     message_style: str,
 ) -> str:
     ts_kst = run_ts.astimezone(KST).strftime("%Y-%m-%d %H:%M:%S KST")
@@ -1877,6 +2177,9 @@ def make_message(
         hint_line = format_model_hint_line(model_recommendation)
         if hint_line:
             lines.append(hint_line)
+        lab_line = format_model_lab_line(model_diagnostics)
+        if lab_line:
+            lines.append(lab_line)
         lines.append(f"Dashboard: {DASHBOARD_URL}")
         return "\n".join(lines)
 
@@ -1906,6 +2209,9 @@ def make_message(
     hint_line = format_model_hint_line(model_recommendation)
     if hint_line:
         lines.append(hint_line)
+    lab_line = format_model_lab_line(model_diagnostics)
+    if lab_line:
+        lines.append(lab_line)
     lines.append(f"Dashboard: {DASHBOARD_URL}")
     return "\n".join(lines)
 
@@ -2066,6 +2372,10 @@ def run_cycle(args: argparse.Namespace, state: Dict[str, Any]) -> int:
         candidates=candidates,
         model_registry=state.get("model_registry", {}),
     )
+    model_diagnostics = diagnose_underperforming_models(
+        results=state["results"],
+        model_metrics=model_metrics,
+    )
     alignment_now = compute_alignment_now(picks, market_indicators)
     alignment_history = compute_alignment_history(state["recommendation_history"])
 
@@ -2159,6 +2469,7 @@ def run_cycle(args: argparse.Namespace, state: Dict[str, Any]) -> int:
         calibrate_notes=calibrate_notes,
         model_governance_notes=model_governance_notes,
         model_recommendation=model_recommendation,
+        model_diagnostics=model_diagnostics,
         message_style=args.message_style,
     )
 
@@ -2208,10 +2519,12 @@ def run_cycle(args: argparse.Namespace, state: Dict[str, Any]) -> int:
             "market_alignment_history": alignment_history,
             "model_metrics": model_metrics,
             "model_recommendation": model_recommendation,
+            "model_diagnostics": model_diagnostics,
         }
     )
     state["run_history"] = state["run_history"][-5000:]
     state.setdefault("meta", {})["last_model_recommendation"] = model_recommendation
+    state["meta"]["last_model_diagnostics"] = model_diagnostics
     state["meta"]["last_run_at"] = iso_z(run_ts)
     return 0
 

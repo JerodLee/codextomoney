@@ -174,6 +174,29 @@ Each expansion is recorded in:
 - `state.model_governance_events`
 - latest `run_history[*].model_governance_notes`
 
+### 3.7 ModelLab (underperformance diagnostics)
+
+When a model underperforms with enough sample size:
+
+- gate:
+  - model count `>= 24`
+  - and (`win_rate < 48%` or `avg_return < -0.10%`)
+- analyze weak buckets on:
+  - market alignment
+  - funding crowding/contrarian zone
+  - momentum bucket
+  - open-interest bucket
+  - market regime bucket
+- output:
+  - weakness summary (`dimension`, `bucket`, `n`, `win_rate`, `avg_return`)
+  - concrete rule suggestions
+  - next model id proposal (`vN+1`, e.g. `momentum_long_v2 -> momentum_long_v3`)
+
+Important:
+
+- ModelLab does **not** auto-create v3/v4 models.
+- It generates design guidance to build/enable the next model deliberately.
+
 ## 4) State and Persistence
 
 - `state/bot_state.json`
