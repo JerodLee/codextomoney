@@ -63,6 +63,15 @@ DEFAULT_DYNAMIC_CONFIG: Dict[str, float] = {
 
 MARKET_TREND_UP = 0.6
 MARKET_TREND_DOWN = -0.6
+TIMEFRAME_MINUTES: List[Tuple[str, int]] = [
+    ("24h", 24 * 60),
+    ("12h", 12 * 60),
+    ("6h", 6 * 60),
+    ("1h", 60),
+    ("15m", 15),
+    ("5m", 5),
+    ("1m", 1),
+]
 
 
 def utc_now() -> datetime:
@@ -90,6 +99,7 @@ def load_state(path: Path) -> Dict[str, Any]:
             "results": [],
             "recommendation_history": [],
             "run_history": [],
+            "market_series": [],
             "calibration_events": [],
             "meta": {
                 "no_candidate_streak": 0,
@@ -106,6 +116,7 @@ def load_state(path: Path) -> Dict[str, Any]:
     data.setdefault("results", [])
     data.setdefault("recommendation_history", [])
     data.setdefault("run_history", [])
+    data.setdefault("market_series", [])
     data.setdefault("calibration_events", [])
     data.setdefault("meta", {})
     data["meta"].setdefault("no_candidate_streak", 0)
@@ -161,7 +172,165 @@ def trend_label(sign: int) -> str:
     return "neutral"
 
 
-def compute_market_indicators(bitget: Dict[str, Any]) -> Dict[str, Dict[str, Any]]:
+def _weighted_avg_price(
+    bitget: Dict[str, Any],
+    include_fn: Any = None,
+) -> float | None:
+    total_w = 0.0
+    total_v = 0.0
+    for sym, t in bitget.items():
+        if include_fn and not include_fn(sym):
+            continue
+        vol = float(getattr(t, "usdt_volume", 0.0) or 0.0)
+        px = float(getattr(t, "last_price", 0.0) or 0.0)
+        if vol <= 0 or px <= 0:
+            continue
+        total_w += px * vol
+        total_v += vol
+    if total_v <= 0:
+        return None
+    return total_w / total_v
+
+
+def compute_market_snapshot(
+    bitget: Dict[str, Any],
+    now: datetime,
+) -> Dict[str, Any]:
+    btc = bitget.get("BTC")
+    eth = bitget.get("ETH")
+    btc_px = float(getattr(btc, "last_price", 0.0) or 0.0) if btc else None
+    eth_px = float(getattr(eth, "last_price", 0.0) or 0.0) if eth else None
+
+    market_px = _weighted_avg_price(bitget)
+    alt_px = _weighted_avg_price(bitget, include_fn=lambda s: s not in {"BTC", "ETH"})
+
+    total_vol = 0.0
+    btc_vol = 0.0
+    eth_vol = 0.0
+    top_alt_symbol = None
+    top_alt_vol = 0.0
+    for sym, t in bitget.items():
+        vol = float(getattr(t, "usdt_volume", 0.0) or 0.0)
+        total_vol += max(0.0, vol)
+        if sym == "BTC":
+            btc_vol = max(0.0, vol)
+        elif sym == "ETH":
+            eth_vol = max(0.0, vol)
+        else:
+            if vol > top_alt_vol:
+                top_alt_vol = vol
+                top_alt_symbol = sym
+
+    btc_share = (btc_vol / total_vol) if total_vol > 0 else 0.0
+    eth_share = (eth_vol / total_vol) if total_vol > 0 else 0.0
+    alt_share = max(0.0, 1.0 - btc_share - eth_share)
+    top_alt_share = (top_alt_vol / total_vol) if total_vol > 0 else 0.0
+
+    regime = "balanced"
+    if btc_share >= 0.45 and btc_share > eth_share + 0.08:
+        regime = "btc"
+    elif eth_share >= 0.30 and eth_share > btc_share:
+        regime = "eth"
+    elif top_alt_share >= 0.18 and top_alt_symbol:
+        regime = "single-alt"
+    elif alt_share >= 0.60:
+        regime = "alt-broad"
+
+    return {
+        "at": iso_z(now),
+        "prices": {
+            "market": market_px,
+            "btc": btc_px,
+            "eth": eth_px,
+            "alt": alt_px,
+        },
+        "concentration": {
+            "regime": regime,
+            "btc_share": btc_share,
+            "eth_share": eth_share,
+            "alt_share": alt_share,
+            "top_alt_symbol": top_alt_symbol,
+            "top_alt_share": top_alt_share,
+        },
+    }
+
+
+def append_market_series(state: Dict[str, Any], snapshot: Dict[str, Any], keep: int = 5000) -> None:
+    series = list(state.get("market_series", []))
+    series.append(snapshot)
+    if len(series) > keep:
+        series = series[-keep:]
+    state["market_series"] = series
+
+
+def _series_value_at(
+    series: List[Dict[str, Any]],
+    key: str,
+    target_ts: float,
+) -> float | None:
+    if not series:
+        return None
+
+    points: List[Tuple[float, float]] = []
+    for row in series:
+        try:
+            ts = parse_iso(str(row.get("at"))).timestamp()
+            val = row.get("prices", {}).get(key)
+            if val is None:
+                continue
+            v = float(val)
+            if v <= 0:
+                continue
+            points.append((ts, v))
+        except Exception:  # noqa: BLE001
+            continue
+    if not points:
+        return None
+    points.sort(key=lambda x: x[0])
+
+    if target_ts <= points[0][0]:
+        return points[0][1]
+    if target_ts >= points[-1][0]:
+        return points[-1][1]
+
+    for i in range(1, len(points)):
+        t1, v1 = points[i]
+        t0, v0 = points[i - 1]
+        if t0 <= target_ts <= t1:
+            if abs(t1 - t0) < 1e-9:
+                return v1
+            ratio = (target_ts - t0) / (t1 - t0)
+            return v0 + (v1 - v0) * ratio
+    return None
+
+
+def compute_timeframe_changes(
+    series: List[Dict[str, Any]],
+    now: datetime,
+    key: str,
+    fallback_24h: float | None = None,
+) -> Dict[str, float | None]:
+    now_ts = now.timestamp()
+    now_val = _series_value_at(series, key, now_ts)
+    out: Dict[str, float | None] = {}
+    for label, mins in TIMEFRAME_MINUTES:
+        target_ts = now_ts - (mins * 60.0)
+        past_val = _series_value_at(series, key, target_ts)
+        if now_val and past_val and past_val > 0:
+            out[label] = ((now_val / past_val) - 1.0) * 100.0
+        elif label == "24h" and fallback_24h is not None:
+            out[label] = fallback_24h
+        else:
+            out[label] = None
+    return out
+
+
+def compute_market_indicators(
+    bitget: Dict[str, Any],
+    series: List[Dict[str, Any]],
+    now: datetime,
+    concentration: Dict[str, Any],
+) -> Dict[str, Dict[str, Any]]:
     total_w = 0.0
     total_v = 0.0
     for t in bitget.values():
@@ -171,25 +340,49 @@ def compute_market_indicators(bitget: Dict[str, Any]) -> Dict[str, Dict[str, Any
             continue
         total_w += chg * vol
         total_v += vol
-    market_change = (total_w / total_v) if total_v > 0 else 0.0
+    market_change24h = (total_w / total_v) if total_v > 0 else 0.0
 
     btc = bitget.get("BTC")
     eth = bitget.get("ETH")
-    btc_change = float(getattr(btc, "change24h_pct", 0.0)) if btc else None
-    eth_change = float(getattr(eth, "change24h_pct", 0.0)) if eth else None
+    btc_change24h = float(getattr(btc, "change24h_pct", 0.0)) if btc else None
+    eth_change24h = float(getattr(eth, "change24h_pct", 0.0)) if eth else None
 
-    def pack(change: float | None) -> Dict[str, Any]:
-        s = trend_sign(change)
+    market_changes = compute_timeframe_changes(
+        series=series,
+        now=now,
+        key="market",
+        fallback_24h=market_change24h,
+    )
+    btc_changes = compute_timeframe_changes(
+        series=series,
+        now=now,
+        key="btc",
+        fallback_24h=btc_change24h,
+    )
+    eth_changes = compute_timeframe_changes(
+        series=series,
+        now=now,
+        key="eth",
+        fallback_24h=eth_change24h,
+    )
+
+    def pack(changes: Dict[str, float | None]) -> Dict[str, Any]:
+        base = changes.get("1h")
+        if base is None:
+            base = changes.get("24h")
+        s = trend_sign(base)
         return {
-            "change24h": change,
+            "change24h": changes.get("24h"),
+            "changes": changes,
             "sign": s,
             "trend": trend_label(s),
         }
 
     return {
-        "market": pack(market_change),
-        "btc": pack(btc_change),
-        "eth": pack(eth_change),
+        "market": pack(market_changes),
+        "btc": pack(btc_changes),
+        "eth": pack(eth_changes),
+        "concentration": concentration,
     }
 
 
@@ -279,6 +472,7 @@ def make_recommendations(
                 "b_value24h": c.b_krw_value24h,
                 "g_volume24h": c.g_usdt_volume,
                 "g_funding_rate": c.g_funding_rate,
+                "g_open_interest": c.g_open_interest,
                 "g_symbol": c.g_symbol,
                 "market_sign_market": int(market_indicators.get("market", {}).get("sign", 0)),
                 "market_sign_btc": int(market_indicators.get("btc", {}).get("sign", 0)),
@@ -391,6 +585,67 @@ def compute_alignment_history(
     return out
 
 
+def _build_run_sign_series(run_history: List[Dict[str, Any]]) -> Dict[str, List[Tuple[float, int]]]:
+    out: Dict[str, List[Tuple[float, int]]] = {"market": [], "btc": [], "eth": []}
+    for r in run_history:
+        try:
+            ts = parse_iso(str(r.get("run_at"))).timestamp()
+        except Exception:  # noqa: BLE001
+            continue
+        mi = r.get("market_indicators", {}) or {}
+        for key in ("market", "btc", "eth"):
+            s = mi.get(key, {}).get("sign")
+            if s is None:
+                continue
+            try:
+                out[key].append((ts, int(s)))
+            except Exception:  # noqa: BLE001
+                continue
+    for key in out:
+        out[key].sort(key=lambda x: x[0])
+    return out
+
+
+def _lookup_sign_at(series: List[Tuple[float, int]], ts: float) -> int:
+    if not series:
+        return 0
+    last = 0
+    for t, s in series:
+        if t <= ts:
+            last = s
+            continue
+        break
+    if last != 0:
+        return last
+    return int(series[0][1])
+
+
+def enrich_recommendations_with_market_signs(
+    recommendation_history: List[Dict[str, Any]],
+    run_history: List[Dict[str, Any]],
+) -> None:
+    sign_series = _build_run_sign_series(run_history)
+    if not any(sign_series.values()):
+        return
+    field_map = {
+        "market": "market_sign_market",
+        "btc": "market_sign_btc",
+        "eth": "market_sign_eth",
+    }
+    for p in recommendation_history:
+        try:
+            ts = parse_iso(str(p.get("created_at"))).timestamp()
+        except Exception:  # noqa: BLE001
+            continue
+        for key, field in field_map.items():
+            cur = p.get(field)
+            if cur not in (None, "", 0):
+                continue
+            s = _lookup_sign_at(sign_series[key], ts)
+            if s != 0:
+                p[field] = int(s)
+
+
 def blend_returns(
     side: str,
     b_ret: float | None,
@@ -467,6 +722,7 @@ def evaluate_pending(
                 "available_legs": available,
                 "score": p.get("score"),
                 "g_funding_rate": p.get("g_funding_rate"),
+                "g_open_interest": p.get("g_open_interest"),
             }
         )
 
@@ -591,9 +847,22 @@ def format_money_u(v: float) -> str:
     return f"{v:,.0f} USDT"
 
 
+def format_oi(v: float | None) -> str:
+    if v is None:
+        return "-"
+    x = float(v)
+    if abs(x) >= 1_000_000:
+        return f"{x / 1_000_000:.2f}M"
+    if abs(x) >= 1_000:
+        return f"{x / 1_000:.2f}K"
+    return f"{x:.0f}"
+
+
 def format_pick_line(index: int, p: Dict[str, Any]) -> str:
     side = pick_side(p)
-    return f"{index}) {p['symbol']} | {side} | score {p['score']:.3f}"
+    fr = float(p.get("g_funding_rate", 0.0) or 0.0)
+    oi = format_oi(p.get("g_open_interest"))
+    return f"{index}) {p['symbol']} | {side} | score {p['score']:.3f} | fr {fr:.4f} | oi {oi}"
 
 
 def evaluate_live_return(
@@ -767,7 +1036,14 @@ def run_cycle(args: argparse.Namespace, state: Dict[str, Any]) -> int:
         print(f"[ERROR] market fetch failed: {exc}")
         return 1
 
-    market_indicators = compute_market_indicators(bitget)
+    market_snapshot = compute_market_snapshot(bitget=bitget, now=run_ts)
+    append_market_series(state, market_snapshot)
+    market_indicators = compute_market_indicators(
+        bitget=bitget,
+        series=list(state.get("market_series", [])),
+        now=run_ts,
+        concentration=market_snapshot.get("concentration", {}),
+    )
 
     candidates, filter_stats = compute_candidates(
         bithumb=bithumb,
@@ -788,6 +1064,11 @@ def run_cycle(args: argparse.Namespace, state: Dict[str, Any]) -> int:
     if picks:
         state["recommendation_history"].extend(picks)
         state["recommendation_history"] = state["recommendation_history"][-5000:]
+
+    enrich_recommendations_with_market_signs(
+        recommendation_history=state["recommendation_history"],
+        run_history=state["run_history"],
+    )
 
     pending = state["pending"] + picks
     pending, finalized = evaluate_pending(

@@ -56,6 +56,7 @@
         <p>필터를 통과한 종목을 LONG/SHORT로 점수화해 상위 종목을 텔레그램으로 전달합니다.</p>
         <ul class="timeline">
           <li>추천 메시지에 <strong>LONG/SHORT</strong> 방향을 함께 표시</li>
+          <li>추천 목록에 <strong>펀딩비(Funding Rate)</strong>, <strong>OI(Open Interest)</strong>를 함께 기록</li>
           <li>SHORT는 비트겟 하락 모멘텀을 기준으로 우선 선별</li>
           <li>상위 추천에서 <strong>최소 1개 SHORT 슬롯</strong>을 보장(후보 존재 시)</li>
           <li>실행마다 새 후보를 계산하고 상위 N개를 추천</li>
@@ -100,11 +101,13 @@
     <section class="logic-grid">
       <article class="card logic-card">
         <h3>7) 시장 인디케이터</h3>
-        <p>대시보드에서 시장 전체, BTC, ETH 장세를 각각 상승/하락/중립으로 표시합니다.</p>
+        <p>대시보드에서 시장 전체, BTC, ETH 장세를 다중 시간대로 추적하고 현재 쏠림(집중) 상태를 표시합니다.</p>
         <ul class="timeline">
-          <li>시장 전체: 비트겟 선물 전체의 거래대금 가중 24h 변동률</li>
-          <li>BTC/ETH: 비트겟 해당 종목의 24h 변동률</li>
-          <li>장세 판정: +0.6% 이상 상승, -0.6% 이하 하락, 그 외 중립</li>
+          <li>변동 구간: 24h / 12h / 6h / 1h / 15m / 5m / 1m</li>
+          <li>시장 전체: 비트겟 선물 전체의 거래대금 가중 가격 변화를 기준으로 계산</li>
+          <li>BTC/ETH: 해당 심볼 가격 시계열 기준으로 동일 구간 변동 계산</li>
+          <li>장세 판정: 1h 기준 +0.6% 이상 상승, -0.6% 이하 하락, 그 외 중립(1h 부재 시 24h 대체)</li>
+          <li>쏠림 판별: BTC 주도 / ETH 주도 / 알트 전반 / 특정 알트 집중 / 균형</li>
         </ul>
       </article>
 

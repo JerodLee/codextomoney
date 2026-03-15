@@ -51,6 +51,7 @@ class BitgetTicker:
     usdt_volume: float
     funding_rate: float
     last_price: float
+    holding_amount: float
 
 
 @dataclass
@@ -64,6 +65,7 @@ class Candidate:
     g_change24h_pct: float
     g_usdt_volume: float
     g_funding_rate: float
+    g_open_interest: float
     g_symbol: str
     g_last_price: float
 
@@ -124,6 +126,7 @@ def parse_bitget(payload: dict) -> Dict[str, BitgetTicker]:
             usdt_volume=to_float(row.get("usdtVolume")),
             funding_rate=to_float(row.get("fundingRate")),
             last_price=to_float(row.get("lastPr")),
+            holding_amount=to_float(row.get("holdingAmount")),
         )
     return out
 
@@ -235,6 +238,7 @@ def build_candidates(
                     g_change24h_pct=g.change24h_pct,
                     g_usdt_volume=g.usdt_volume,
                     g_funding_rate=g.funding_rate,
+                    g_open_interest=g.holding_amount,
                     g_symbol=g.symbol,
                     g_last_price=g.last_price,
                 )
@@ -257,6 +261,7 @@ def build_candidates(
                     g_change24h_pct=g.change24h_pct,
                     g_usdt_volume=g.usdt_volume,
                     g_funding_rate=g.funding_rate,
+                    g_open_interest=g.holding_amount,
                     g_symbol=g.symbol,
                     g_last_price=g.last_price,
                 )

@@ -15,6 +15,7 @@ const source = detectRepo();
 $("ownerInput").value = source.owner;
 $("repoInput").value = source.repo;
 $("branchInput").value = source.branch;
+const MARKET_CHANGE_KEYS = ["24h", "12h", "6h", "1h", "15m", "5m", "1m"];
 
 function fmtPct(v) {
   return `${(v * 100).toFixed(2)}%`;
@@ -22,6 +23,43 @@ function fmtPct(v) {
 
 function fmtNum(v, d = 2) {
   return Number(v).toFixed(d);
+}
+
+function fmtOi(v) {
+  const x = Number(v);
+  if (!Number.isFinite(x)) return "-";
+  if (Math.abs(x) >= 1_000_000) return `${(x / 1_000_000).toFixed(2)}M`;
+  if (Math.abs(x) >= 1_000) return `${(x / 1_000).toFixed(2)}K`;
+  return `${x.toFixed(0)}`;
+}
+
+function fmtPctValue(v, d = 2) {
+  const x = Number(v);
+  if (!Number.isFinite(x)) return "-";
+  return `${x.toFixed(d)}%`;
+}
+
+function fmtFunding(v) {
+  const x = Number(v);
+  if (!Number.isFinite(x)) return "-";
+  return x.toFixed(4);
+}
+
+function concentrationText(c) {
+  if (!c || !c.regime) return "쏠림: 데이터없음";
+  const btc = Number(c.btc_share || 0);
+  const eth = Number(c.eth_share || 0);
+  const alt = Number(c.alt_share || 0);
+  const topAlt = Number(c.top_alt_share || 0);
+  const topAltSymbol = c.top_alt_symbol || "-";
+  const base = `BTC ${fmtPct(btc)} | ETH ${fmtPct(eth)} | ALT ${fmtPct(alt)}`;
+  if (c.regime === "btc") return `쏠림: BTC 주도 (${base})`;
+  if (c.regime === "eth") return `쏠림: ETH 주도 (${base})`;
+  if (c.regime === "alt-broad") return `쏠림: 알트 전반 강세 (${base})`;
+  if (c.regime === "single-alt") {
+    return `쏠림: 특정 알트(${topAltSymbol}) 집중 ${fmtPct(topAlt)} (${base})`;
+  }
+  return `쏠림: 균형 (${base})`;
 }
 
 function fmtTime(ts) {
@@ -163,7 +201,7 @@ function renderPicks(state) {
 
   if (!picks.length) {
     const tr = document.createElement("tr");
-    tr.innerHTML = `<td colspan="7" class="muted">추천 이력이 아직 없습니다.</td>`;
+    tr.innerHTML = `<td colspan="9" class="muted">추천 이력이 아직 없습니다.</td>`;
     body.appendChild(tr);
     return;
   }
@@ -176,9 +214,11 @@ function renderPicks(state) {
       <td>${fmtTime(p.created_at)}</td>
       <td class="mono">${p.symbol}</td>
       <td class="mono">${side}</td>
-      <td>${fmtNum(p.score, 3)}</td>
-      <td>${fmtNum(p.b_rate24h, 2)}%</td>
-      <td>${fmtNum(p.g_rate24h, 2)}%</td>
+      <td>${Number.isFinite(Number(p.score)) ? fmtNum(p.score, 3) : "-"}</td>
+      <td>${fmtFunding(p.g_funding_rate)}</td>
+      <td>${fmtOi(p.g_open_interest)}</td>
+      <td>${fmtPctValue(p.b_rate24h, 2)}</td>
+      <td>${fmtPctValue(p.g_rate24h, 2)}</td>
       <td class="mono">${status}</td>
     `;
     body.appendChild(tr);
@@ -352,6 +392,7 @@ function renderMarketIndicators(state) {
   const body = $("marketBody");
   if (!body) return;
   body.innerHTML = "";
+  const concentrationEl = $("concentrationText");
 
   const runHistory = state.run_history || [];
   const latestRun = runHistory[runHistory.length - 1] || {};
@@ -360,10 +401,14 @@ function renderMarketIndicators(state) {
   const histAlign = latestRun.market_alignment_history || {};
 
   if (!indicators) {
+    if (concentrationEl) concentrationEl.textContent = "쏠림: 데이터없음";
     const tr = document.createElement("tr");
-    tr.innerHTML = `<td colspan="6" class="muted">시장 인디케이터 데이터가 아직 없습니다.</td>`;
+    tr.innerHTML = `<td colspan="12" class="muted">시장 인디케이터 데이터가 아직 없습니다.</td>`;
     body.appendChild(tr);
     return;
+  }
+  if (concentrationEl) {
+    concentrationEl.textContent = concentrationText(indicators.concentration || {});
   }
 
   const rows = [
@@ -377,18 +422,28 @@ function renderMarketIndicators(state) {
     const n = nowAlign[row.key] || {};
     const h = histAlign[row.key] || {};
 
-    const chg = Number(i.change24h);
-    const hasChg = Number.isFinite(chg);
+    const changes = { ...(i.changes || {}) };
+    if (
+      (changes["24h"] == null || !Number.isFinite(Number(changes["24h"])))
+      && Number.isFinite(Number(i.change24h))
+    ) {
+      changes["24h"] = Number(i.change24h);
+    }
     const corr = Number(h.correlation);
     const hasCorr = Number.isFinite(corr);
-
-    const chgCls = hasChg ? (chg >= 0 ? "good" : "bad") : "";
     const corrCls = hasCorr ? (corr >= 0 ? "good" : "bad") : "";
+    const changeCells = MARKET_CHANGE_KEYS.map((k) => {
+      const v = Number(changes[k]);
+      const hasV = Number.isFinite(v);
+      const cls = hasV ? (v >= 0 ? "good" : "bad") : "";
+      const text = hasV ? fmtPct(v / 100) : "데이터없음";
+      return `<td class="${cls}">${text}</td>`;
+    }).join("");
 
     const tr = document.createElement("tr");
     tr.innerHTML = `
       <td class="mono">${row.label}</td>
-      <td class="${chgCls}">${hasChg ? fmtPct(chg / 100) : "데이터없음"}</td>
+      ${changeCells}
       <td>${trendText(i.trend)}</td>
       <td>${relationText(n.relation)}</td>
       <td class="${corrCls}">${hasCorr ? fmtNum(corr, 3) : "데이터없음"}</td>
@@ -407,6 +462,35 @@ function renderSymbolCorrelations(state) {
   const runHistory = state.run_history || [];
   const latestRun = runHistory[runHistory.length - 1] || {};
   const indicators = latestRun.market_indicators || {};
+  const runSignSeries = { market: [], btc: [], eth: [] };
+  for (const run of runHistory) {
+    const ts = Date.parse(run?.run_at || "");
+    if (!Number.isFinite(ts)) continue;
+    for (const key of Object.keys(runSignSeries)) {
+      const sign = Number(run?.market_indicators?.[key]?.sign || 0);
+      if (!Number.isFinite(sign) || sign === 0) continue;
+      runSignSeries[key].push({ ts, sign: sign > 0 ? 1 : -1 });
+    }
+  }
+  for (const key of Object.keys(runSignSeries)) {
+    runSignSeries[key].sort((a, b) => a.ts - b.ts);
+  }
+
+  function lookupSignAt(series, ts) {
+    if (!Array.isArray(series) || !series.length) return 0;
+    if (!Number.isFinite(ts)) return Number(series[series.length - 1]?.sign || 0);
+    let last = 0;
+    for (const p of series) {
+      if (p.ts <= ts) {
+        last = Number(p.sign || 0);
+      } else {
+        break;
+      }
+    }
+    if (last !== 0) return last;
+    return Number(series[0]?.sign || 0);
+  }
+
   const keyToField = {
     market: "market_sign_market",
     btc: "market_sign_btc",
@@ -430,9 +514,14 @@ function renderSymbolCorrelations(state) {
       row.latest = r;
     }
     const s = sideSign(r);
+    const createdTs = Date.parse(r.created_at || "");
     for (const [k, f] of Object.entries(keyToField)) {
-      const m = Number(r[f]);
+      let m = Number(r[f]);
+      if (!Number.isFinite(m) || m === 0) {
+        m = lookupSignAt(runSignSeries[k], createdTs);
+      }
       if (!Number.isFinite(m) || m === 0) continue;
+      m = m > 0 ? 1 : -1;
       row[k].xs.push(s);
       row[k].ys.push(m);
     }
