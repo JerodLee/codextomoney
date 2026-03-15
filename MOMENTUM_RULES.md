@@ -1,0 +1,153 @@
+# Momentum System Rules (Bithumb Spot + Bitget USDT-M)
+
+This document summarizes the current production logic used by:
+
+- `crypto_momentum_scanner.py`
+- `momentum_telegram_agent.py`
+- `.github/workflows/momentum-telegram-bot.yml`
+
+## 1) Recommendation Conditions
+
+### 1.1 Universe
+
+1. Load all KRW spot tickers from Bithumb.
+2. Load all USDT futures tickers from Bitget (`USDT-FUTURES`).
+3. Keep only symbol intersection (`BTC`, `ETH`, `TAO`, etc. where both sides exist).
+
+### 1.2 Base Filters (current defaults)
+
+- `min_bithumb_rate >= 1.0%`
+- `min_bitget_rate >= 1.0%`
+- `min_bithumb_value >= 2,000,000,000 KRW`
+- `min_bitget_volume >= 10,000,000 USDT`
+
+### 1.3 Additional Safety Filters
+
+1. Overheat filter:
+   - Remove if either side 24h change is `>= 40.0%`.
+2. Conservative filter:
+   - Remove if either side 24h change is `> 20.0%`.
+   - Remove if `abs(funding_rate) > 0.0015`.
+3. Orderability filter (Bithumb):
+   - Keep only symbols with active orderbook (`bids` and `asks` both non-empty).
+
+### 1.4 Ranking Score
+
+Candidate score is computed as:
+
+`score = 0.42*b_rate_score + 0.33*g_rate_score + 0.15*b_liq_score + 0.10*g_liq_score - funding_penalty`
+
+Where:
+
+- `b_rate_score`: Bithumb 24h rate normalized to 0~1 with cap at 50%.
+- `g_rate_score`: Bitget 24h rate normalized to 0~1 with cap at 50%.
+- `b_liq_score`, `g_liq_score`: logarithmic liquidity score relative to filter floors.
+- `funding_penalty`: applied when `funding_rate > 0.001`.
+
+Final output:
+
+- Top N picks (default `top=3`)
+- Telegram message style default: `compact`
+
+## 2) Performance Validation Logic
+
+### 2.1 Entry Tracking
+
+At recommendation time, store per pick:
+
+- symbol
+- timestamp
+- entry Bithumb price
+- entry Bitget price
+- score, rates, liquidity, funding
+- horizon minutes (default `15`)
+
+### 2.2 Evaluation Timing
+
+- A pick is evaluated when `now >= created_at + horizon`.
+- If both market legs are temporarily unavailable, it waits up to one extra horizon.
+
+### 2.3 Return Calculation
+
+- `return_bithumb = (exit_bithumb - entry_bithumb) / entry_bithumb`
+- `return_bitget = (exit_bitget - entry_bitget) / entry_bitget`
+- `return_blended = average(available legs)`
+- `win = (return_blended > 0)`
+
+### 2.4 Rolling Metrics
+
+On recent window (default `120` evaluations):
+
+- win rate
+- average blended return
+- median blended return
+
+## 3) Auto-Calibration Rules
+
+### 3.1 Trigger Conditions
+
+Calibration runs when either:
+
+1. `no_candidate_streak >= 3` (fast recovery path), or
+2. performance path is eligible:
+   - newly evaluated picks `>= 3`
+   - metric sample count `>= 20`
+   - and at least 6 hours since last calibration
+
+### 3.2 Recovery Calibration (low candidates)
+
+If `no_candidate_streak >= 3`:
+
+- `min_bithumb_value *= 0.90` (floor: `1,000,000,000`)
+- `min_bitget_volume *= 0.90` (floor: `5,000,000`)
+- `min_bithumb_rate -= 0.2` (floor: `0.5`)
+- `min_bitget_rate -= 0.2` (floor: `0.5`)
+
+### 3.3 Underperformance Calibration
+
+If metrics count `>= 20` and `win_rate < 0.45`:
+
+- `max_overheat_rate -= 2.0` (floor: `20.0`)
+- `conservative_max_rate -= 1.0` (floor: `10.0`)
+- `min_bithumb_value *= 1.10` (cap: `20,000,000,000`)
+- `min_bitget_volume *= 1.10` (cap: `60,000,000`)
+- `conservative_max_abs_funding *= 0.90` (floor: `0.0005`)
+
+### 3.4 Strong Performance Calibration
+
+If metrics count `>= 20`, `win_rate > 0.60`, and `avg_return > 0.002`:
+
+- `max_overheat_rate += 1.0` (cap: `50.0`)
+- `conservative_max_rate += 1.0` (cap: `25.0`)
+- `min_bithumb_value *= 0.95` (floor: `1,000,000,000`)
+- `min_bitget_volume *= 0.95` (floor: `5,000,000`)
+- `conservative_max_abs_funding *= 1.05` (cap: `0.0025`)
+
+### 3.5 Normalization
+
+After calibration:
+
+- rate-like thresholds are rounded to 0.01 step
+- liquidity thresholds are kept as integer-like float values
+
+## 4) State and Persistence
+
+- `state/bot_state.json`
+  - dynamic config
+  - pending picks
+  - evaluated results
+  - metadata (`no_candidate_streak`, calibration/run timestamps)
+- `state/eval_history.jsonl`
+  - append-only evaluation log records
+
+## 5) Runtime Defaults (Current)
+
+- Schedule: every 5 minutes (GitHub Actions)
+- Top picks per run: 3
+- Validation horizon: 15 minutes
+- Message style: compact
+
+## 6) Notes
+
+- This system is a momentum scanner and automation pipeline, not investment advice.
+- Sudden volatility, API gaps, or market microstructure can degrade short-term outcomes.

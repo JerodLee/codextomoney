@@ -70,10 +70,13 @@ def round_step(v: float, step: float = 0.01) -> float:
 def load_state(path: Path) -> Dict[str, Any]:
     if not path.exists():
         return {
-            "version": 1,
+            "version": 2,
             "dynamic_config": dict(DEFAULT_DYNAMIC_CONFIG),
             "pending": [],
             "results": [],
+            "recommendation_history": [],
+            "run_history": [],
+            "calibration_events": [],
             "meta": {
                 "no_candidate_streak": 0,
                 "last_calibrated_at": None,
@@ -87,10 +90,14 @@ def load_state(path: Path) -> Dict[str, Any]:
         data["dynamic_config"].setdefault(k, v)
     data.setdefault("pending", [])
     data.setdefault("results", [])
+    data.setdefault("recommendation_history", [])
+    data.setdefault("run_history", [])
+    data.setdefault("calibration_events", [])
     data.setdefault("meta", {})
     data["meta"].setdefault("no_candidate_streak", 0)
     data["meta"].setdefault("last_calibrated_at", None)
     data["meta"].setdefault("last_run_at", None)
+    data.setdefault("version", 2)
     return data
 
 
@@ -461,6 +468,7 @@ def send_telegram(token: str, chat_id: str, text: str) -> None:
 def run_cycle(args: argparse.Namespace, state: Dict[str, Any]) -> int:
     run_ts = utc_now()
     cfg = dict(state["dynamic_config"])
+    pre_cfg = dict(state["dynamic_config"])
 
     try:
         bithumb, bitget, _ = fetch_market_snapshot()
@@ -482,6 +490,9 @@ def run_cycle(args: argparse.Namespace, state: Dict[str, Any]) -> int:
         run_ts=run_ts,
         horizon_min=args.horizon_min,
     )
+    if picks:
+        state["recommendation_history"].extend(picks)
+        state["recommendation_history"] = state["recommendation_history"][-5000:]
 
     pending = state["pending"] + picks
     pending, finalized = evaluate_pending(
@@ -504,6 +515,7 @@ def run_cycle(args: argparse.Namespace, state: Dict[str, Any]) -> int:
     metrics = compute_metrics(state["results"], window=args.metric_window)
 
     calibrate_notes: List[str] = []
+    calibrated = False
     if should_calibrate(
         metrics=metrics,
         new_results_count=len(finalized),
@@ -518,6 +530,20 @@ def run_cycle(args: argparse.Namespace, state: Dict[str, Any]) -> int:
         )
         state["dynamic_config"] = cfg
         state["meta"]["last_calibrated_at"] = iso_z(run_ts)
+        calibrated = True
+        state["calibration_events"].append(
+            {
+                "id": f"cal-{int(run_ts.timestamp())}",
+                "at": iso_z(run_ts),
+                "notes": calibrate_notes,
+                "pre_config": pre_cfg,
+                "post_config": dict(cfg),
+                "metrics": dict(metrics),
+                "new_results_count": len(finalized),
+                "no_candidate_streak": state["meta"]["no_candidate_streak"],
+            }
+        )
+        state["calibration_events"] = state["calibration_events"][-500:]
 
     msg = make_message(
         run_ts=run_ts,
@@ -545,6 +571,21 @@ def run_cycle(args: argparse.Namespace, state: Dict[str, Any]) -> int:
             print(f"[ERROR] telegram failed: {exc}")
             return 3
 
+    state["run_history"].append(
+        {
+            "run_at": iso_z(run_ts),
+            "picks_count": len(picks),
+            "pending_count": len(state["pending"]),
+            "results_count": len(state["results"]),
+            "new_results_count": len(finalized),
+            "metrics": dict(metrics),
+            "filter_stats": dict(filter_stats),
+            "config": dict(state["dynamic_config"]),
+            "calibrated": calibrated,
+            "calibration_notes": calibrate_notes,
+        }
+    )
+    state["run_history"] = state["run_history"][-5000:]
     state["meta"]["last_run_at"] = iso_z(run_ts)
     return 0
 

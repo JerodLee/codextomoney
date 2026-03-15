@@ -53,6 +53,7 @@ To find chat id:
 Included workflow:
 
 - `.github/workflows/momentum-telegram-bot.yml`
+- Dashboard UI: `dashboard/index.html`
 
 What it does:
 
@@ -106,3 +107,26 @@ python momentum_telegram_agent.py \
 
 - This is a data-driven scanner, not investment advice.
 - API delays or missing fields can delay recommendations/evaluations.
+
+## Dashboard
+
+Open:
+
+- `dashboard/index.html`
+
+Recommended local preview:
+
+```powershell
+cd .
+python -m http.server 8080
+```
+
+Then visit:
+
+- `http://localhost:8080/dashboard/index.html`
+
+The page shows:
+
+1. latest recommendation symbols
+2. rolling win rate and return trend
+3. calibration events and pre/post win-rate uplift
