@@ -105,6 +105,16 @@ function modelLabel(modelId) {
   return map[modelId] || modelId || "-";
 }
 
+function modelShortLabel(modelId) {
+  const map = {
+    momentum_long_v1: "롱v1",
+    momentum_short_v1: "숏v1",
+    momentum_long_v2: "롱v2",
+    momentum_short_v2: "숏v2",
+  };
+  return map[modelId] || modelId || "-";
+}
+
 function winRate(rows) {
   if (!rows.length) return null;
   const wins = rows.filter((r) => Boolean(r.win)).length;
@@ -572,6 +582,7 @@ function renderKpis(state, results) {
   const latestRun = runHistory[runHistory.length - 1];
   const rollingMetrics = latestRun?.metrics || null;
   const activeModelsEl = $("kActiveModels");
+  const modelHintEl = $("kModelHint");
   const longWinEl = $("kLongWinRate");
   const shortWinEl = $("kShortWinRate");
 
@@ -589,6 +600,31 @@ function renderKpis(state, results) {
     const ar = avgReturn(recent);
     $("kWinRate").textContent = wr == null ? "-" : fmtPct(wr);
     $("kAvgReturn").textContent = ar == null ? "-" : fmtPct(ar);
+  }
+
+  if (modelHintEl) {
+    const rec = latestRun?.model_recommendation || state.meta?.last_model_recommendation || null;
+    const rows = Array.isArray(rec?.recommendations) ? rec.recommendations : [];
+    if (rec?.triggered && rows.length) {
+      const parts = rows
+        .map((r) => {
+          const side = String(r?.side || "").toUpperCase();
+          const mid = String(r?.suggested_model || "");
+          if (!side || !mid) return null;
+          return `${side}:${modelShortLabel(mid)}`;
+        })
+        .filter(Boolean);
+      if (parts.length) {
+        modelHintEl.textContent = parts.join(" | ");
+        modelHintEl.className = "v bad";
+      } else {
+        modelHintEl.textContent = "보류";
+        modelHintEl.className = "v";
+      }
+    } else {
+      modelHintEl.textContent = "정상";
+      modelHintEl.className = "v good";
+    }
   }
 
   if (longWinEl || shortWinEl) {

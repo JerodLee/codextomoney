@@ -103,6 +103,16 @@
         <li>표본(n)은 신뢰도 판단을 위해 유지합니다. n이 작으면 상관값 변동성이 커집니다.</li>
       </ul>
     </section>
+
+    <section class="card logic-card">
+      <h3>8) 누적 저성과 시 모델 추천</h3>
+      <ul class="timeline">
+        <li>트리거: 최근 검증 표본이 충분하고(기본 24건), 승률 또는 평균 수익률이 기준보다 낮을 때.</li>
+        <li>시장 적합도: 현재 후보군에 대해 모델별 점수(상위 평균)를 계산해 시장 적합도를 산출합니다.</li>
+        <li>과거 성과: 모델별 win_rate/avg_return/count를 신뢰도 가중으로 반영합니다.</li>
+        <li>출력: LONG/SHORT별 유력 모델과 근거(fit edge, 과거 승률, 표본)를 ModelHint로 텔레그램/대시보드에 표시합니다.</li>
+      </ul>
+    </section>
   </main>
 
   <nav class="mobile-nav" aria-label="하단 메뉴">

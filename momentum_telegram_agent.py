@@ -95,6 +95,9 @@ MODEL_EVOLUTION_PATH: Dict[str, List[str]] = {
 MODEL_EXPANSION_MIN_COUNT = 24
 MODEL_EXPANSION_WIN_RATE_FLOOR = 0.45
 MODEL_EXPANSION_COOLDOWN_HOURS = 6
+MODEL_RECOMMEND_MIN_COUNT = 24
+MODEL_RECOMMEND_WIN_RATE_FLOOR = 0.48
+MODEL_RECOMMEND_AVG_RETURN_FLOOR = -0.001
 
 
 def utc_now() -> datetime:
@@ -226,6 +229,7 @@ def load_state(path: Path) -> Dict[str, Any]:
                 "last_run_at": None,
                 "last_model_governance_at": None,
                 "model_governance_cooldown_until": None,
+                "last_model_recommendation": None,
             },
         }
     with path.open("r", encoding="utf-8") as f:
@@ -261,6 +265,7 @@ def load_state(path: Path) -> Dict[str, Any]:
     data["meta"].setdefault("loss_cooldowns", {})
     data["meta"].setdefault("last_model_governance_at", None)
     data["meta"].setdefault("model_governance_cooldown_until", None)
+    data["meta"].setdefault("last_model_recommendation", None)
     data.setdefault("version", 3)
     return data
 
@@ -755,6 +760,192 @@ def maybe_expand_models(
     state["model_governance_events"] = state["model_governance_events"][-500:]
     state["model_registry"] = registry
     return notes
+
+
+def _market_context_snapshot(market_indicators: Dict[str, Dict[str, Any]]) -> Dict[str, Any]:
+    concentration = market_indicators.get("concentration", {}) or {}
+    return {
+        "market_trend": str(market_indicators.get("market", {}).get("trend", "neutral")),
+        "btc_trend": str(market_indicators.get("btc", {}).get("trend", "neutral")),
+        "eth_trend": str(market_indicators.get("eth", {}).get("trend", "neutral")),
+        "regime": str(concentration.get("regime", "balanced")),
+        "top_alt_symbol": str(concentration.get("top_alt_symbol", "")).upper() or None,
+    }
+
+
+def _side_model_fit(
+    candidates: List[Any],
+    side: str,
+    model_id: str,
+    market_indicators: Dict[str, Dict[str, Any]],
+    top_k: int = 5,
+) -> Dict[str, Any]:
+    side_u = str(side).upper()
+    vals: List[float] = []
+    for c in candidates:
+        if str(getattr(c, "side", "LONG")).upper() != side_u:
+            continue
+        vals.append(float(score_candidate_for_model(c, model_id, market_indicators)))
+    if not vals:
+        return {"candidate_count": 0, "top_avg": None, "top_best": None}
+    vals.sort(reverse=True)
+    top = vals[: max(1, int(top_k))]
+    return {
+        "candidate_count": len(vals),
+        "top_avg": sum(top) / len(top),
+        "top_best": top[0],
+    }
+
+
+def recommend_models_for_underperformance(
+    metrics: Dict[str, float],
+    model_metrics: Dict[str, Dict[str, float | int]],
+    market_indicators: Dict[str, Dict[str, Any]],
+    candidates: List[Any],
+    model_registry: Dict[str, Dict[str, Any]],
+    min_count: int = MODEL_RECOMMEND_MIN_COUNT,
+    win_rate_floor: float = MODEL_RECOMMEND_WIN_RATE_FLOOR,
+    avg_return_floor: float = MODEL_RECOMMEND_AVG_RETURN_FLOOR,
+) -> Dict[str, Any]:
+    count = int(metrics.get("count", 0) or 0)
+    win_rate = float(metrics.get("win_rate", 0.0) or 0.0)
+    avg_return = float(metrics.get("avg_return", 0.0) or 0.0)
+    underperform = count >= max(1, int(min_count)) and (
+        win_rate < float(win_rate_floor) or avg_return < float(avg_return_floor)
+    )
+    out: Dict[str, Any] = {
+        "triggered": False,
+        "underperformance": underperform,
+        "gate": {
+            "count": count,
+            "win_rate": win_rate,
+            "avg_return": avg_return,
+            "min_count": int(min_count),
+            "win_rate_floor": float(win_rate_floor),
+            "avg_return_floor": float(avg_return_floor),
+        },
+        "market_context": _market_context_snapshot(market_indicators),
+        "recommendations": [],
+        "summary": "No recommendation: performance gate not met.",
+    }
+    if not underperform:
+        return out
+
+    registry = sanitize_model_registry(model_registry)
+    for side in ("LONG", "SHORT"):
+        mids = MODEL_EVOLUTION_PATH.get(side, []) or [model_id_from_side(side)]
+        side_candidates = [
+            c for c in candidates if str(getattr(c, "side", "LONG")).upper() == side
+        ]
+        if not side_candidates:
+            continue
+
+        base_mid = model_id_from_side(side)
+        rows: List[Dict[str, Any]] = []
+        fit_by_model: Dict[str, Dict[str, Any]] = {}
+        for mid in mids:
+            fit_by_model[mid] = _side_model_fit(
+                candidates=side_candidates,
+                side=side,
+                model_id=mid,
+                market_indicators=market_indicators,
+            )
+        base_fit = fit_by_model.get(base_mid, {}).get("top_avg")
+        for mid in mids:
+            fit_row = fit_by_model.get(mid, {})
+            fit_avg = fit_row.get("top_avg")
+            hist = model_metrics.get(mid, {}) or {}
+            hist_count = int(hist.get("count", 0) or 0)
+            hist_win = float(hist.get("win_rate", 0.0) or 0.0)
+            hist_avg = float(hist.get("avg_return", 0.0) or 0.0)
+
+            reliability = 0.0
+            if hist_count > 0:
+                reliability = (
+                    0.60 * clamp((hist_win - 0.50) / 0.20, -1.0, 1.0)
+                    + 0.40 * clamp(hist_avg / 0.01, -1.0, 1.0)
+                ) * min(1.0, hist_count / 60.0)
+
+            fit_component = -9.0 if fit_avg is None else float(fit_avg)
+            fit_edge_vs_base = 0.0
+            if fit_avg is not None and base_fit is not None:
+                fit_edge_vs_base = float(fit_avg) - float(base_fit)
+            composite = fit_component + (0.06 * reliability)
+            rows.append(
+                {
+                    "model_id": mid,
+                    "fit_avg": fit_avg,
+                    "fit_component": fit_component,
+                    "fit_edge_vs_base": fit_edge_vs_base,
+                    "composite": composite,
+                    "candidate_count": int(fit_row.get("candidate_count", 0) or 0),
+                    "hist_count": hist_count,
+                    "hist_win_rate": hist_win,
+                    "hist_avg_return": hist_avg,
+                }
+            )
+
+        if not rows:
+            continue
+        rows.sort(
+            key=lambda x: (
+                float(x["composite"]),
+                float(x["fit_component"]),
+            ),
+            reverse=True,
+        )
+        best = rows[0]
+        base_row = next((x for x in rows if str(x.get("model_id", "")) == base_mid), None)
+        # Guardrail: if a non-active model looks worse on immediate market fit, keep baseline.
+        if (
+            base_row is not None
+            and str(best.get("model_id", "")) != base_mid
+            and float(best.get("fit_edge_vs_base", 0.0) or 0.0) < -0.005
+        ):
+            best = base_row
+        second = rows[1] if len(rows) > 1 else None
+        fit_edge_vs_next = 0.0
+        if (
+            second is not None
+            and best.get("fit_avg") is not None
+            and second.get("fit_avg") is not None
+        ):
+            fit_edge_vs_next = float(best["fit_avg"]) - float(second["fit_avg"])
+        active_side = active_model_ids(registry, side)
+        action = "keep" if best["model_id"] in active_side else "enable"
+        out["recommendations"].append(
+            {
+                "side": side,
+                "suggested_model": best["model_id"],
+                "suggested_label": model_name_from_id(str(best["model_id"])),
+                "action": action,
+                "active_models": active_side,
+                "candidate_count": int(best["candidate_count"]),
+                "fit_top_avg": None
+                if best.get("fit_avg") is None
+                else round(float(best["fit_avg"]), 4),
+                "fit_edge_vs_base": round(float(best["fit_edge_vs_base"]), 4),
+                "fit_edge_vs_next": round(float(fit_edge_vs_next), 4),
+                "hist_count": int(best["hist_count"]),
+                "hist_win_rate": round(float(best["hist_win_rate"]), 6),
+                "hist_avg_return": round(float(best["hist_avg_return"]), 6),
+            }
+        )
+
+    out["triggered"] = bool(out["recommendations"])
+    if out["triggered"]:
+        chunks: List[str] = []
+        for r in out["recommendations"]:
+            chunks.append(
+                f"{r['side']}->{r['suggested_label']}({r['action']}, "
+                f"fitΔbase {float(r['fit_edge_vs_base']):+.3f}, "
+                f"hist {float(r['hist_win_rate']) * 100:.1f}%/"
+                f"{float(r['hist_avg_return']) * 100:.2f}%, n={int(r['hist_count'])})"
+            )
+        out["summary"] = " | ".join(chunks)
+    else:
+        out["summary"] = "Underperformance detected but side candidates were empty."
+    return out
 
 
 def make_recommendations(
@@ -1561,6 +1752,33 @@ def make_loss_alert_message(run_ts: datetime, alerts: List[Dict[str, Any]]) -> s
     return "\n".join(lines)
 
 
+def format_model_hint_line(model_recommendation: Dict[str, Any] | None) -> str | None:
+    if not model_recommendation or not bool(model_recommendation.get("triggered")):
+        return None
+    recs = model_recommendation.get("recommendations", []) or []
+    parts: List[str] = []
+    for r in recs:
+        mid = str(r.get("suggested_model", "")).strip()
+        if not mid:
+            continue
+        side = str(r.get("side", "?")).upper()
+        action = str(r.get("action", "keep")).lower()
+        fit_edge = r.get("fit_edge_vs_base")
+        hist_win = r.get("hist_win_rate")
+        hist_avg = r.get("hist_avg_return")
+        hist_count = int(r.get("hist_count", 0) or 0)
+        fit_txt = "n/a" if fit_edge is None else f"{float(fit_edge):+.3f}"
+        wr_txt = "n/a" if hist_win is None else f"{float(hist_win) * 100:.1f}%"
+        ar_txt = "n/a" if hist_avg is None else f"{float(hist_avg) * 100:.2f}%"
+        parts.append(
+            f"{side}:{model_name_from_id(mid)}({action}, fitΔ {fit_txt}, hist {wr_txt}/{ar_txt}, n={hist_count})"
+        )
+    if not parts:
+        return None
+    regime = str((model_recommendation.get("market_context", {}) or {}).get("regime", "balanced"))
+    return "ModelHint: underperform -> " + " | ".join(parts) + f" | regime={regime}"
+
+
 def make_message(
     run_ts: datetime,
     picks: List[Dict[str, Any]],
@@ -1570,6 +1788,7 @@ def make_message(
     new_results_count: int,
     calibrate_notes: List[str],
     model_governance_notes: List[str],
+    model_recommendation: Dict[str, Any] | None,
     message_style: str,
 ) -> str:
     ts_kst = run_ts.astimezone(KST).strftime("%Y-%m-%d %H:%M:%S KST")
@@ -1594,6 +1813,9 @@ def make_message(
             lines.append("Tune: " + "; ".join(calibrate_notes))
         if model_governance_notes:
             lines.append("ModelOps: " + "; ".join(model_governance_notes))
+        hint_line = format_model_hint_line(model_recommendation)
+        if hint_line:
+            lines.append(hint_line)
         lines.append(f"Dashboard: {DASHBOARD_URL}")
         return "\n".join(lines)
 
@@ -1620,6 +1842,9 @@ def make_message(
     if model_governance_notes:
         lines.append("Model governance:")
         lines.extend(f"- {n}" for n in model_governance_notes)
+    hint_line = format_model_hint_line(model_recommendation)
+    if hint_line:
+        lines.append(hint_line)
     lines.append(f"Dashboard: {DASHBOARD_URL}")
     return "\n".join(lines)
 
@@ -1773,6 +1998,13 @@ def run_cycle(args: argparse.Namespace, state: Dict[str, Any]) -> int:
 
     metrics = compute_metrics(state["results"], window=args.metric_window)
     model_metrics = compute_model_metrics(state["results"], window=max(120, args.metric_window * 2))
+    model_recommendation = recommend_models_for_underperformance(
+        metrics=metrics,
+        model_metrics=model_metrics,
+        market_indicators=market_indicators,
+        candidates=candidates,
+        model_registry=state.get("model_registry", {}),
+    )
     alignment_now = compute_alignment_now(picks, market_indicators)
     alignment_history = compute_alignment_history(state["recommendation_history"])
 
@@ -1865,6 +2097,7 @@ def run_cycle(args: argparse.Namespace, state: Dict[str, Any]) -> int:
         new_results_count=len(finalized),
         calibrate_notes=calibrate_notes,
         model_governance_notes=model_governance_notes,
+        model_recommendation=model_recommendation,
         message_style=args.message_style,
     )
 
@@ -1913,9 +2146,11 @@ def run_cycle(args: argparse.Namespace, state: Dict[str, Any]) -> int:
             "market_alignment_now": alignment_now,
             "market_alignment_history": alignment_history,
             "model_metrics": model_metrics,
+            "model_recommendation": model_recommendation,
         }
     )
     state["run_history"] = state["run_history"][-5000:]
+    state.setdefault("meta", {})["last_model_recommendation"] = model_recommendation
     state["meta"]["last_run_at"] = iso_z(run_ts)
     return 0
 
