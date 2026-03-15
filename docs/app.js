@@ -130,6 +130,15 @@ function pearsonCorr(xs, ys) {
   return cov / Math.sqrt(vx * vy);
 }
 
+function directionalAgreement(xs, ys) {
+  if (!xs.length || xs.length !== ys.length) return null;
+  let sum = 0;
+  for (let i = 0; i < xs.length; i += 1) {
+    sum += Number(xs[i]) * Number(ys[i]);
+  }
+  return sum / xs.length;
+}
+
 async function fetchJsonFirst(urls) {
   let lastErr = "unknown";
   for (const u of urls) {
@@ -476,6 +485,11 @@ function renderSymbolCorrelations(state) {
   for (const key of Object.keys(runSignSeries)) {
     runSignSeries[key].sort((a, b) => a.ts - b.ts);
   }
+  function latestNonZeroSign(key) {
+    const series = runSignSeries[key] || [];
+    if (!series.length) return 0;
+    return Number(series[series.length - 1]?.sign || 0);
+  }
 
   function lookupSignAt(series, ts) {
     if (!Array.isArray(series) || !series.length) return 0;
@@ -530,14 +544,26 @@ function renderSymbolCorrelations(state) {
 
   const rows = [];
   for (const [sym, row] of bySymbol.entries()) {
-    const cMarket = pearsonCorr(row.market.xs, row.market.ys);
-    const cBtc = pearsonCorr(row.btc.xs, row.btc.ys);
-    const cEth = pearsonCorr(row.eth.xs, row.eth.ys);
+    const cMarketPearson = pearsonCorr(row.market.xs, row.market.ys);
+    const cBtcPearson = pearsonCorr(row.btc.xs, row.btc.ys);
+    const cEthPearson = pearsonCorr(row.eth.xs, row.eth.ys);
+    const cMarket = cMarketPearson == null
+      ? directionalAgreement(row.market.xs, row.market.ys)
+      : cMarketPearson;
+    const cBtc = cBtcPearson == null
+      ? directionalAgreement(row.btc.xs, row.btc.ys)
+      : cBtcPearson;
+    const cEth = cEthPearson == null
+      ? directionalAgreement(row.eth.xs, row.eth.ys)
+      : cEthPearson;
 
     const sNow = sideSign(row.latest);
-    const mNow = Number(indicators?.market?.sign || 0);
-    const bNow = Number(indicators?.btc?.sign || 0);
-    const eNow = Number(indicators?.eth?.sign || 0);
+    let mNow = Number(indicators?.market?.sign || 0);
+    let bNow = Number(indicators?.btc?.sign || 0);
+    let eNow = Number(indicators?.eth?.sign || 0);
+    if (!Number.isFinite(mNow) || mNow === 0) mNow = latestNonZeroSign("market");
+    if (!Number.isFinite(bNow) || bNow === 0) bNow = latestNonZeroSign("btc");
+    if (!Number.isFinite(eNow) || eNow === 0) eNow = latestNonZeroSign("eth");
     const relNowMarket = mNow === 0 ? "neutral-market" : relationFromNumeric(sNow * mNow, 0.01);
     const relNowBtc = bNow === 0 ? "neutral-market" : relationFromNumeric(sNow * bNow, 0.01);
     const relNowEth = eNow === 0 ? "neutral-market" : relationFromNumeric(sNow * eNow, 0.01);
