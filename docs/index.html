@@ -1,0 +1,109 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Momentum Control Panel</title>
+  <link rel="stylesheet" href="./styles.css" />
+</head>
+<body>
+  <div class="bg-shape shape-a"></div>
+  <div class="bg-shape shape-b"></div>
+  <div class="bg-grid"></div>
+
+  <main class="container">
+    <header class="hero card">
+      <div>
+        <p class="eyebrow">BITHUMB SPOT + BITGET USDT-M</p>
+        <h1>Momentum Control Panel</h1>
+        <p class="subtitle">Recommendations, validation win-rate, and post-calibration uplift in one view.</p>
+      </div>
+      <div class="hero-actions">
+        <button id="refreshBtn" class="btn">Refresh</button>
+      </div>
+    </header>
+
+    <section class="source card">
+      <h2>Data Source</h2>
+      <div class="source-row">
+        <label>Owner <input id="ownerInput" type="text" /></label>
+        <label>Repo <input id="repoInput" type="text" /></label>
+        <label>Branch <input id="branchInput" type="text" /></label>
+        <button id="applySourceBtn" class="btn">Apply</button>
+      </div>
+      <p id="sourceText" class="muted">-</p>
+      <p id="loadStatus" class="status">Loading...</p>
+    </section>
+
+    <section class="kpis">
+      <article class="card kpi"><p class="k">Last Run</p><p id="kLastRun" class="v">-</p></article>
+      <article class="card kpi"><p class="k">Pending Picks</p><p id="kPending" class="v">-</p></article>
+      <article class="card kpi"><p class="k">Rolling Win Rate</p><p id="kWinRate" class="v">-</p></article>
+      <article class="card kpi"><p class="k">Rolling Avg Return</p><p id="kAvgReturn" class="v">-</p></article>
+      <article class="card kpi"><p class="k">Calibrations</p><p id="kCalCount" class="v">-</p></article>
+      <article class="card kpi"><p class="k">Last Uplift</p><p id="kUplift" class="v">-</p></article>
+    </section>
+
+    <section class="split">
+      <article class="card">
+        <div class="card-head">
+          <h2>Win Rate Trend</h2>
+          <p class="muted" id="trendMeta">-</p>
+        </div>
+        <svg id="trendChart" viewBox="0 0 900 240" preserveAspectRatio="none"></svg>
+      </article>
+      <article class="card">
+        <div class="card-head">
+          <h2>Current Rules</h2>
+          <p class="muted">dynamic_config snapshot</p>
+        </div>
+        <table class="tbl">
+          <tbody id="rulesBody"></tbody>
+        </table>
+      </article>
+    </section>
+
+    <section class="split">
+      <article class="card">
+        <div class="card-head">
+          <h2>Recent Recommendations</h2>
+          <p class="muted">latest generated picks</p>
+        </div>
+        <table class="tbl">
+          <thead>
+            <tr><th>Time</th><th>Symbol</th><th>Score</th><th>B 24h</th><th>G 24h</th><th>Status</th></tr>
+          </thead>
+          <tbody id="pickBody"></tbody>
+        </table>
+      </article>
+      <article class="card">
+        <div class="card-head">
+          <h2>Recent Evaluations</h2>
+          <p class="muted">blended return outcome</p>
+        </div>
+        <table class="tbl">
+          <thead>
+            <tr><th>Time</th><th>Symbol</th><th>Return</th><th>Win</th></tr>
+          </thead>
+          <tbody id="evalBody"></tbody>
+        </table>
+      </article>
+    </section>
+
+    <section class="card">
+      <div class="card-head">
+        <h2>Calibration Uplift</h2>
+        <p class="muted">win-rate change before vs after each calibration event</p>
+      </div>
+      <table class="tbl">
+        <thead>
+          <tr><th>Calibration Time</th><th>Before Win</th><th>After Win</th><th>Delta</th><th>Notes</th></tr>
+        </thead>
+        <tbody id="calBody"></tbody>
+      </table>
+    </section>
+  </main>
+
+  <script src="./app.js"></script>
+</body>
+</html>
