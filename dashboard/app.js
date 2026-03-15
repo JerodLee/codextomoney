@@ -213,15 +213,29 @@ function renderCalibrations(events, results) {
 
 function renderTrend(state) {
   const runHistory = state.run_history || [];
-  const points = runHistory
+  let points = runHistory
     .filter((r) => r.metrics && Number.isFinite(Number(r.metrics.win_rate)))
     .slice(-120)
     .map((r) => ({ x: r.run_at, y: Number(r.metrics.win_rate) }));
 
+  let source = "run_history";
+  if (points.length < 2) {
+    // Backward compatibility: build a synthetic trend from legacy results.
+    const results = [...(state.results || [])]
+      .filter((r) => r && r.evaluated_at)
+      .sort((a, b) => new Date(a.evaluated_at) - new Date(b.evaluated_at));
+    let wins = 0;
+    points = results.map((r, idx) => {
+      if (r.win) wins += 1;
+      return { x: r.evaluated_at, y: wins / (idx + 1) };
+    }).slice(-120);
+    source = "results(cumulative)";
+  }
+
   buildSvgLine($("trendChart"), points);
   $("trendMeta").textContent = points.length
-    ? `showing ${points.length} recent runs`
-    : "no run history yet";
+    ? `showing ${points.length} points from ${source}`
+    : "no trend data yet";
 }
 
 function renderKpis(state, results) {
