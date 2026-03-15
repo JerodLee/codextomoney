@@ -61,8 +61,10 @@ async function fetchJsonFirst(urls) {
 }
 
 function candidateStateUrls(owner, repo, branch) {
-  const raw = `https://raw.githubusercontent.com/${owner}/${repo}/${branch}/state/bot_state.json`;
-  return ["../state/bot_state.json", "/state/bot_state.json", "./state/bot_state.json", raw];
+  const ts = Date.now();
+  const raw = `https://raw.githubusercontent.com/${owner}/${repo}/${branch}/state/bot_state.json?t=${ts}`;
+  // raw.githack can cache aggressively, so prefer raw.githubusercontent first.
+  return [raw, "../state/bot_state.json", "/state/bot_state.json", "./state/bot_state.json"];
 }
 
 function buildSvgLine(svgEl, points) {
