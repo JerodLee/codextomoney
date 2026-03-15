@@ -1,4 +1,4 @@
-﻿const CACHE_NAME = "momentum-dashboard-v1";
+﻿const CACHE_NAME = "momentum-dashboard-v2";
 const STATIC_ASSETS = [
   "./",
   "./index.html",
@@ -34,29 +34,20 @@ self.addEventListener("fetch", (event) => {
   if (url.origin !== self.location.origin) return;
   if (url.pathname.includes("/state/")) return;
 
-  if (event.request.mode === "navigate") {
-    event.respondWith(
-      fetch(event.request)
-        .then((res) => {
-          const copy = res.clone();
-          caches.open(CACHE_NAME).then((cache) => cache.put(event.request, copy));
-          return res;
-        })
-        .catch(() => caches.match(event.request).then((cached) => cached || caches.match("./index.html")))
-    );
-    return;
-  }
-
+  // Always prefer network so dashboard code/state rendering updates immediately.
   event.respondWith(
-    caches.match(event.request).then((cached) => {
-      const network = fetch(event.request)
-        .then((res) => {
-          const copy = res.clone();
-          caches.open(CACHE_NAME).then((cache) => cache.put(event.request, copy));
-          return res;
+    fetch(event.request)
+      .then((res) => {
+        const copy = res.clone();
+        caches.open(CACHE_NAME).then((cache) => cache.put(event.request, copy));
+        return res;
+      })
+      .catch(() =>
+        caches.match(event.request).then((cached) => {
+          if (cached) return cached;
+          if (event.request.mode === "navigate") return caches.match("./index.html");
+          return Response.error();
         })
-        .catch(() => cached);
-      return cached || network;
-    })
+      )
   );
 });
