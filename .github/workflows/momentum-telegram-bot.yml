@@ -40,6 +40,20 @@ jobs:
             --state-file state/bot_state.json \
             --history-file state/eval_history.jsonl
 
+      - name: Commit and push state (after recommendation run)
+        run: |
+          if [ -z "$(git status --porcelain -- state)" ]; then
+            echo "No state change after recommendation run."
+            exit 0
+          fi
+
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add state
+          git commit -m "chore(bot): update momentum state (run) [skip ci]"
+          git pull --rebase origin "${GITHUB_REF_NAME}" || true
+          git push origin HEAD:"${GITHUB_REF_NAME}"
+
       - name: Run loss watchdog (near real-time)
         env:
           TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
@@ -53,10 +67,10 @@ jobs:
             --interval-sec 15 \
             --cycles 14
 
-      - name: Commit and push state
+      - name: Commit and push state (after watchdog)
         run: |
           if [ -z "$(git status --porcelain -- state)" ]; then
-            echo "No state change."
+            echo "No state change after watchdog."
             exit 0
           fi
 
