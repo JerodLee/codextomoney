@@ -170,6 +170,7 @@ def load_state(path: Path) -> Dict[str, Any]:
     data["meta"].setdefault("last_run_at", None)
     data["meta"].setdefault("calibration_cooldown_until", None)
     data["meta"].setdefault("last_rollback_event_id", None)
+    data["meta"].setdefault("loss_cooldowns", {})
     data.setdefault("version", 2)
     return data
 
@@ -453,6 +454,7 @@ def compute_candidates(
     cfg: Dict[str, float],
     orderbook_timeout_sec: int,
     max_orderbook_checks: int,
+    blocked_symbols: set[str] | None = None,
 ) -> Tuple[List[Any], Dict[str, int]]:
     candidates = build_candidates(
         bithumb=bithumb,
@@ -466,6 +468,16 @@ def compute_candidates(
         min_bitget_usdt=cfg["min_bitget_volume"],
         include_short=True,
     )
+    blocked = {str(x).upper() for x in (blocked_symbols or set()) if str(x).strip()}
+    removed_loss_cooldown = 0
+    if blocked:
+        kept = []
+        for c in candidates:
+            if str(getattr(c, "symbol", "")).upper() in blocked:
+                removed_loss_cooldown += 1
+                continue
+            kept.append(c)
+        candidates = kept
     base_universe = len(candidates)
     candidates, removed_overheat = apply_overheat_filter(
         candidates, cfg["max_overheat_rate"]
@@ -482,6 +494,7 @@ def compute_candidates(
     )
     return candidates, {
         "base_universe": base_universe,
+        "removed_loss_cooldown": removed_loss_cooldown,
         "removed_overheat": removed_overheat,
         "removed_conservative": removed_conservative,
         "removed_orderable": removed_orderable,
@@ -1140,6 +1153,50 @@ def detect_loss_alerts(
     return alerts
 
 
+def prune_loss_cooldowns(
+    raw: Dict[str, Any],
+    now: datetime,
+) -> Dict[str, str]:
+    out: Dict[str, str] = {}
+    for k, v in (raw or {}).items():
+        sym = str(k).upper().strip()
+        if not sym:
+            continue
+        try:
+            until = parse_iso(str(v))
+        except Exception:  # noqa: BLE001
+            continue
+        if now < until:
+            out[sym] = iso_z(until)
+    return out
+
+
+def merge_loss_cooldowns(
+    meta: Dict[str, Any],
+    alerts: List[Dict[str, Any]],
+    now: datetime,
+    cooldown_min: int,
+) -> Dict[str, str]:
+    cur = prune_loss_cooldowns(meta.get("loss_cooldowns", {}), now)
+    mins = max(1, int(cooldown_min))
+    for a in alerts:
+        sym = str(a.get("symbol", "")).upper().strip()
+        if not sym:
+            continue
+        new_until = now + timedelta(minutes=mins)
+        old = cur.get(sym)
+        if old:
+            try:
+                old_dt = parse_iso(old)
+                if old_dt > new_until:
+                    new_until = old_dt
+            except Exception:  # noqa: BLE001
+                pass
+        cur[sym] = iso_z(new_until)
+    meta["loss_cooldowns"] = cur
+    return cur
+
+
 def make_loss_alert_message(run_ts: datetime, alerts: List[Dict[str, Any]]) -> str:
     ts_kst = run_ts.astimezone(KST).strftime("%Y-%m-%d %H:%M:%S KST")
     lines = [f"손실 경고 | {ts_kst}"]
@@ -1178,6 +1235,8 @@ def make_message(
         lines.append(
             f"Validation({int(metrics['count'])}): win {format_pct(metrics['win_rate'])} | avg {format_pct(metrics['avg_return'])} | med {format_pct(metrics['median_return'])} | new {new_results_count}"
         )
+        if int(filter_stats.get("removed_loss_cooldown", 0)) > 0:
+            lines.append(f"Risk block: cooldown filtered {int(filter_stats['removed_loss_cooldown'])} symbols")
         if calibrate_notes:
             lines.append("Tune: " + "; ".join(calibrate_notes))
         lines.append(f"Dashboard: {DASHBOARD_URL}")
@@ -1189,7 +1248,7 @@ def make_message(
         f"Filters: overheat<{cfg['max_overheat_rate']:.2f}%, gLong>={cfg['min_bitget_rate']:.2f}%, gShort<=-{cfg['min_bitget_short_rate']:.2f}%, bShort<={cfg['short_max_bithumb_rate']:.2f}%, fShort>={cfg['short_min_funding_rate']:.4f}, bValue>={format_money_k(cfg['min_bithumb_value'])}, gVol>={format_money_u(cfg['min_bitget_volume'])}"
     )
     lines.append(
-        f"Candidates: base={filter_stats['base_universe']}, removed(overheat={filter_stats['removed_overheat']}, conservative={filter_stats['removed_conservative']}, orderable={filter_stats['removed_orderable']})"
+        f"Candidates: base={filter_stats['base_universe']}, removed(cooldown={filter_stats.get('removed_loss_cooldown', 0)}, overheat={filter_stats['removed_overheat']}, conservative={filter_stats['removed_conservative']}, orderable={filter_stats['removed_orderable']})"
     )
     if picks:
         lines.append("Top picks:")
@@ -1263,12 +1322,35 @@ def run_cycle(args: argparse.Namespace, state: Dict[str, Any]) -> int:
         concentration=market_snapshot.get("concentration", {}),
     )
 
+    # 1) Detect loss alerts on existing pending first, then block those symbols for new picks.
+    state["meta"]["loss_cooldowns"] = prune_loss_cooldowns(
+        state["meta"].get("loss_cooldowns", {}),
+        run_ts,
+    )
+    existing_pending = list(state["pending"])
+    pre_loss_alerts = detect_loss_alerts(
+        pending=existing_pending,
+        bithumb=bithumb,
+        bitget=bitget,
+        now=run_ts,
+        threshold=args.loss_alert_threshold,
+    )
+    if pre_loss_alerts:
+        merge_loss_cooldowns(
+            meta=state["meta"],
+            alerts=pre_loss_alerts,
+            now=run_ts,
+            cooldown_min=args.loss_cooldown_min,
+        )
+    blocked_symbols = set(state["meta"].get("loss_cooldowns", {}).keys())
+
     candidates, filter_stats = compute_candidates(
         bithumb=bithumb,
         bitget=bitget,
         cfg=cfg,
         orderbook_timeout_sec=args.orderbook_timeout_sec,
         max_orderbook_checks=args.max_orderbook_checks,
+        blocked_symbols=blocked_symbols,
     )
 
     picks = make_recommendations(
@@ -1288,20 +1370,28 @@ def run_cycle(args: argparse.Namespace, state: Dict[str, Any]) -> int:
         run_history=state["run_history"],
     )
 
-    pending = state["pending"] + picks
+    pending = existing_pending + picks
     pending, finalized = evaluate_pending(
         pending=pending,
         bithumb=bithumb,
         bitget=bitget,
         now=run_ts,
     )
-    loss_alerts = detect_loss_alerts(
+    post_loss_alerts = detect_loss_alerts(
         pending=pending,
         bithumb=bithumb,
         bitget=bitget,
         now=run_ts,
         threshold=args.loss_alert_threshold,
     )
+    if post_loss_alerts:
+        merge_loss_cooldowns(
+            meta=state["meta"],
+            alerts=post_loss_alerts,
+            now=run_ts,
+            cooldown_min=args.loss_cooldown_min,
+        )
+    loss_alerts = pre_loss_alerts + post_loss_alerts
     state["pending"] = pending
     if finalized:
         state["results"].extend(finalized)
@@ -1446,6 +1536,7 @@ def run_cycle(args: argparse.Namespace, state: Dict[str, Any]) -> int:
             "calibrated": calibrated,
             "calibration_notes": calibrate_notes,
             "loss_alert_count": len(loss_alerts),
+            "loss_cooldown_symbols": len(state["meta"].get("loss_cooldowns", {})),
             "market_indicators": market_indicators,
             "market_alignment_now": alignment_now,
             "market_alignment_history": alignment_history,
@@ -1478,6 +1569,7 @@ def parse_args() -> argparse.Namespace:
     p.add_argument("--orderbook-timeout-sec", type=int, default=8)
     p.add_argument("--max-orderbook-checks", type=int, default=0)
     p.add_argument("--loss-alert-threshold", type=float, default=0.0)
+    p.add_argument("--loss-cooldown-min", type=int, default=60)
     p.add_argument("--min-short-picks", type=int, default=1)
     return p.parse_args()
 
