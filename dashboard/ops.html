@@ -1,9 +1,13 @@
-<!doctype html>
+﻿<!doctype html>
 <html lang="ko">
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>운영/데이터 상태</title>
+  <meta name="theme-color" content="#0e8a7b" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="default" />
+  <title>운영 상태</title>
+  <link rel="manifest" href="./manifest.webmanifest" />
   <link rel="stylesheet" href="./styles.css" />
 </head>
 <body>
@@ -16,68 +20,82 @@
       <div>
         <p class="eyebrow">MOMENTUM BOT OPERATIONS</p>
         <h1>운영/데이터 상태</h1>
-        <p class="subtitle">상태 파일 크기, 보관 정책, 모델 성과 스냅샷을 확인합니다.</p>
+        <p class="subtitle">저장량, 모델 스냅샷, 보관 정책을 컴팩트하게 확인합니다.</p>
       </div>
       <div class="hero-actions">
-        <a class="btn btn-ghost" href="./index.html">대시보드로 돌아가기</a>
+        <a class="btn btn-ghost" href="./index.html">대시보드</a>
+        <a class="btn btn-ghost" href="./logic.html">추천 로직</a>
+        <a class="btn btn-ghost" href="./ops.html">운영 상태</a>
+        <button id="installAppBtn" class="btn btn-ghost" hidden>앱 설치</button>
         <button id="refreshBtn" class="btn">새로고침</button>
       </div>
     </header>
 
-    <section class="source card">
+    <section class="source card compact-card">
       <h2>데이터 소스</h2>
       <div class="source-row">
-        <label>소유자(Owner) <input id="ownerInput" type="text" /></label>
-        <label>저장소(Repo) <input id="repoInput" type="text" /></label>
-        <label>브랜치(Branch) <input id="branchInput" type="text" /></label>
+        <label>Owner <input id="ownerInput" type="text" /></label>
+        <label>Repo <input id="repoInput" type="text" /></label>
+        <label>Branch <input id="branchInput" type="text" /></label>
         <button id="applySourceBtn" class="btn">적용</button>
       </div>
       <p id="sourceText" class="muted">-</p>
       <p id="loadStatus" class="status">불러오는 중...</p>
     </section>
 
-    <section class="card">
+    <section class="card compact-card">
       <div class="card-head">
         <h2>보관 정책</h2>
-        <p class="muted">상태 파일은 상한 유지, JSONL 로그는 누적</p>
+        <p class="muted">state/jsonl 적재 기준</p>
       </div>
       <ul class="timeline">
-        <li>`recommendation_history`: 최대 5000개 유지</li>
-        <li>`results`: 최대 3000개 유지</li>
-        <li>`run_history`: 최대 5000개 유지</li>
-        <li>`market_series`: 최대 5000개 유지</li>
-        <li>`calibration_events`: 최대 500개 유지</li>
-        <li>`eval_history.jsonl`: 현재 누적 저장(자동 삭제 없음)</li>
+        <li><code>recommendation_history</code>: 최대 5000개</li>
+        <li><code>results</code>: 최대 3000개</li>
+        <li><code>run_history</code>: 최대 5000개</li>
+        <li><code>market_series</code>: 최대 5000개</li>
+        <li><code>calibration_events</code>: 최대 500개</li>
+        <li><code>eval_history.jsonl</code>: append 전용(자동 절단 없음)</li>
       </ul>
     </section>
 
-    <section class="card">
+    <section class="card compact-card">
       <div class="card-head">
         <h2>데이터 사용량</h2>
-        <p class="muted">최근 상태 + 로그 크기 점검</p>
+        <p class="muted">최신 상태 기준</p>
       </div>
-      <table class="tbl">
-        <thead>
-          <tr><th>항목</th><th>현재값</th><th>상한/정책</th><th>상태</th></tr>
-        </thead>
-        <tbody id="storageBody"></tbody>
-      </table>
+      <div class="table-wrap short-wrap">
+        <table class="tbl">
+          <thead>
+            <tr><th>항목</th><th>현재값</th><th>상한/정책</th><th>상태</th></tr>
+          </thead>
+          <tbody id="storageBody"></tbody>
+        </table>
+      </div>
     </section>
 
-    <section class="card">
+    <section class="card compact-card">
       <div class="card-head">
         <h2>모델 스냅샷</h2>
-        <p class="muted">최근 모델별 검증 성과</p>
+        <p class="muted">최신 모델별 검증 성과</p>
       </div>
-      <table class="tbl">
-        <thead>
-          <tr><th>모델</th><th>검증수</th><th>승률</th><th>평균 수익률</th></tr>
-        </thead>
-        <tbody id="modelSnapBody"></tbody>
-      </table>
+      <div class="table-wrap short-wrap">
+        <table class="tbl">
+          <thead>
+            <tr><th>모델</th><th>검증수</th><th>승률</th><th>평균 수익률</th></tr>
+          </thead>
+          <tbody id="modelSnapBody"></tbody>
+        </table>
+      </div>
     </section>
   </main>
 
-  <script src="./ops.js?v=20260316-2"></script>
+  <nav class="mobile-nav" aria-label="하단 메뉴">
+    <a href="./index.html">대시보드</a>
+    <a href="./logic.html">로직</a>
+    <a class="active" href="./ops.html">운영</a>
+  </nav>
+
+  <script src="./pwa.js?v=20260316-1"></script>
+  <script src="./ops.js?v=20260316-3"></script>
 </body>
 </html>

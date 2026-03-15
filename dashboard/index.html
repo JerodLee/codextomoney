@@ -1,9 +1,13 @@
-<!doctype html>
+﻿<!doctype html>
 <html lang="ko">
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta name="theme-color" content="#0e8a7b" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="default" />
   <title>모멘텀 대시보드</title>
+  <link rel="manifest" href="./manifest.webmanifest" />
   <link rel="stylesheet" href="./styles.css" />
 </head>
 <body>
@@ -14,155 +18,190 @@
   <main class="container">
     <header class="hero card">
       <div>
-        <p class="eyebrow">BITHUMB SPOT + BITGET FUTURES(USDT-M)</p>
+        <p class="eyebrow">BITHUMB SPOT + BITGET FUTURES (USDT-M)</p>
         <h1>모멘텀 대시보드</h1>
-        <p class="subtitle">추천, 성과 검증, 보정 효과를 한 화면에서 확인합니다.</p>
+        <p class="subtitle">추천, 검증, 보정 성과를 탭별로 간결하게 확인합니다.</p>
       </div>
       <div class="hero-actions">
-        <a class="btn btn-ghost" href="./logic.html">추천 로직 설명</a>
-        <a class="btn btn-ghost" href="./ops.html">운영/데이터 상태</a>
+        <a class="btn btn-ghost" href="./index.html">대시보드</a>
+        <a class="btn btn-ghost" href="./logic.html">추천 로직</a>
+        <a class="btn btn-ghost" href="./ops.html">운영 상태</a>
+        <button id="installAppBtn" class="btn btn-ghost" hidden>앱 설치</button>
         <button id="refreshBtn" class="btn">새로고침</button>
       </div>
     </header>
 
-    <section class="source card">
+    <section class="source card compact-card">
       <h2>데이터 소스</h2>
       <div class="source-row">
-        <label>소유자(Owner) <input id="ownerInput" type="text" /></label>
-        <label>저장소(Repo) <input id="repoInput" type="text" /></label>
-        <label>브랜치(Branch) <input id="branchInput" type="text" /></label>
+        <label>Owner <input id="ownerInput" type="text" /></label>
+        <label>Repo <input id="repoInput" type="text" /></label>
+        <label>Branch <input id="branchInput" type="text" /></label>
         <button id="applySourceBtn" class="btn">적용</button>
       </div>
       <p id="sourceText" class="muted">-</p>
       <p id="loadStatus" class="status">불러오는 중...</p>
     </section>
 
-    <section class="kpis">
-      <article class="card kpi"><p class="k">마지막 실행</p><p id="kLastRun" class="v">-</p></article>
-      <article class="card kpi"><p class="k">평가 대기 종목</p><p id="kPending" class="v">-</p></article>
-      <article class="card kpi"><p class="k">구간 승률</p><p id="kWinRate" class="v">-</p></article>
-      <article class="card kpi"><p class="k">구간 평균 수익률</p><p id="kAvgReturn" class="v">-</p></article>
-      <article class="card kpi"><p class="k">보정 횟수</p><p id="kCalCount" class="v">-</p></article>
-      <article class="card kpi"><p class="k">최근 보정 효과</p><p id="kUplift" class="v">-</p></article>
+    <section class="tab-bar card compact-card">
+      <button type="button" class="tab-btn active" data-tab="summary">요약</button>
+      <button type="button" class="tab-btn" data-tab="market">시장</button>
+      <button type="button" class="tab-btn" data-tab="history">이력</button>
     </section>
 
-    <section class="card">
-      <div class="card-head">
-        <h2>시장 인디케이터</h2>
-        <p class="muted">전체/BTC/ETH 장세와 추천 방향의 관계</p>
-      </div>
-      <table class="tbl">
-        <thead>
-          <tr><th>구분</th><th>24h</th><th>12h</th><th>6h</th><th>1h</th><th>15m</th><th>5m</th><th>1m</th><th>장세</th><th>현재 추천관계</th><th>역사 상관도</th><th>표본수</th></tr>
-        </thead>
-        <tbody id="marketBody"></tbody>
-      </table>
-      <p id="concentrationText" class="muted">쏠림: -</p>
-    </section>
+    <section class="panel" data-panel="summary">
+      <section class="kpis">
+        <article class="card kpi"><p class="k">마지막 실행</p><p id="kLastRun" class="v">-</p></article>
+        <article class="card kpi"><p class="k">평가 대기</p><p id="kPending" class="v">-</p></article>
+        <article class="card kpi"><p class="k">구간 승률</p><p id="kWinRate" class="v">-</p></article>
+        <article class="card kpi"><p class="k">구간 평균 수익률</p><p id="kAvgReturn" class="v">-</p></article>
+        <article class="card kpi"><p class="k">운영 모델</p><p id="kActiveModels" class="v">-</p></article>
+        <article class="card kpi"><p class="k">최근 보정 효과</p><p id="kUplift" class="v">-</p></article>
+      </section>
 
-    <section class="card">
-      <div class="card-head">
-        <h2>종목별 시장 상관도</h2>
-        <p class="muted">심볼 단위 현재 관계 + 역사 상관도(시장/BTC/ETH)</p>
-      </div>
-      <table class="tbl">
-        <thead>
-          <tr><th>종목</th><th>현재 관계(시장/BTC/ETH)</th><th>시장 상관도</th><th>BTC 상관도</th><th>ETH 상관도</th><th>표본수(시장/BTC/ETH)</th></tr>
-        </thead>
-        <tbody id="symbolCorrBody"></tbody>
-      </table>
-    </section>
+      <section class="split">
+        <article class="card compact-card">
+          <div class="card-head">
+            <h2>승률 추이</h2>
+            <p class="muted" id="trendMeta">-</p>
+          </div>
+          <svg id="trendChart" viewBox="0 0 900 240" preserveAspectRatio="none"></svg>
+        </article>
+        <article class="card compact-card">
+          <div class="card-head">
+            <h2>현재 규칙</h2>
+            <p class="muted">dynamic_config</p>
+          </div>
+          <div class="table-wrap short-wrap">
+            <table class="tbl">
+              <tbody id="rulesBody"></tbody>
+            </table>
+          </div>
+        </article>
+      </section>
 
-    <section class="split">
-      <article class="card">
+      <section class="card compact-card">
         <div class="card-head">
-          <h2>승률 추이</h2>
-          <p class="muted" id="trendMeta">-</p>
+          <h2>모델별 성과</h2>
+          <p class="muted">최근 window 기준</p>
         </div>
-        <svg id="trendChart" viewBox="0 0 900 240" preserveAspectRatio="none"></svg>
-      </article>
-      <article class="card">
-        <div class="card-head">
-          <h2>현재 규칙</h2>
-          <p class="muted">dynamic_config 스냅샷</p>
+        <div class="table-wrap short-wrap">
+          <table class="tbl">
+            <thead>
+              <tr><th>모델</th><th>검증수</th><th>승률</th><th>평균 수익률</th><th>중앙 수익률</th></tr>
+            </thead>
+            <tbody id="modelBody"></tbody>
+          </table>
         </div>
-        <table class="tbl">
-          <tbody id="rulesBody"></tbody>
-        </table>
-      </article>
+      </section>
     </section>
 
-    <section class="split">
-      <article class="card">
+    <section class="panel hidden" data-panel="market">
+      <section class="card compact-card">
         <div class="card-head">
-          <h2>LONG 승률 추이</h2>
-          <p class="muted" id="trendLongMeta">-</p>
+          <h2>시장 인디케이터</h2>
+          <p class="muted">전체/BTC/ETH 추세와 상관</p>
         </div>
-        <svg id="trendLongChart" viewBox="0 0 900 240" preserveAspectRatio="none"></svg>
-      </article>
-      <article class="card">
+        <div class="table-wrap">
+          <table class="tbl">
+            <thead>
+              <tr><th>구분</th><th>24h</th><th>12h</th><th>6h</th><th>1h</th><th>15m</th><th>5m</th><th>1m</th><th>추세</th><th>현재 관계</th><th>역사 상관</th><th>표본</th></tr>
+            </thead>
+            <tbody id="marketBody"></tbody>
+          </table>
+        </div>
+        <p id="concentrationText" class="muted">쏠림: -</p>
+      </section>
+
+      <section class="card compact-card">
         <div class="card-head">
-          <h2>SHORT 승률 추이</h2>
-          <p class="muted" id="trendShortMeta">-</p>
+          <h2>종목별 시장 상관도</h2>
+          <p class="muted">표본 큰 순으로 상위 표시</p>
         </div>
-        <svg id="trendShortChart" viewBox="0 0 900 240" preserveAspectRatio="none"></svg>
-      </article>
+        <div class="table-wrap">
+          <table class="tbl">
+            <thead>
+              <tr><th>종목</th><th>현재 관계(시장/BTC/ETH)</th><th>시장 상관</th><th>BTC 상관</th><th>ETH 상관</th><th>표본(시장/BTC/ETH)</th></tr>
+            </thead>
+            <tbody id="symbolCorrBody"></tbody>
+          </table>
+        </div>
+      </section>
+
+      <section class="split">
+        <article class="card compact-card">
+          <div class="card-head">
+            <h2>LONG 승률 추이</h2>
+            <p class="muted" id="trendLongMeta">-</p>
+          </div>
+          <svg id="trendLongChart" viewBox="0 0 900 240" preserveAspectRatio="none"></svg>
+        </article>
+        <article class="card compact-card">
+          <div class="card-head">
+            <h2>SHORT 승률 추이</h2>
+            <p class="muted" id="trendShortMeta">-</p>
+          </div>
+          <svg id="trendShortChart" viewBox="0 0 900 240" preserveAspectRatio="none"></svg>
+        </article>
+      </section>
     </section>
 
-    <section class="card">
-      <div class="card-head">
-        <h2>모델별 성과</h2>
-        <p class="muted">후보군 모델 단위 승률/수익률</p>
-      </div>
-      <table class="tbl">
-        <thead>
-          <tr><th>모델</th><th>검증수</th><th>승률</th><th>평균 수익률</th><th>중앙 수익률</th></tr>
-        </thead>
-        <tbody id="modelBody"></tbody>
-      </table>
-    </section>
+    <section class="panel hidden" data-panel="history">
+      <section class="split">
+        <article class="card compact-card">
+          <div class="card-head">
+            <h2>최근 추천 종목</h2>
+            <p class="muted">최신 12건</p>
+          </div>
+          <div class="table-wrap">
+            <table class="tbl">
+              <thead>
+                <tr><th>시간</th><th>종목</th><th>방향</th><th>모델</th><th>스코어</th><th>펀딩비</th><th>OI</th><th>빗썸 24h</th><th>비트겟 24h</th><th>상태</th></tr>
+              </thead>
+              <tbody id="pickBody"></tbody>
+            </table>
+          </div>
+        </article>
+        <article class="card compact-card">
+          <div class="card-head">
+            <h2>최근 성과 검증</h2>
+            <p class="muted">최신 12건</p>
+          </div>
+          <div class="table-wrap">
+            <table class="tbl">
+              <thead>
+                <tr><th>시간</th><th>종목</th><th>방향</th><th>모델</th><th>수익률</th><th>결과</th></tr>
+              </thead>
+              <tbody id="evalBody"></tbody>
+            </table>
+          </div>
+        </article>
+      </section>
 
-    <section class="split">
-      <article class="card">
+      <section class="card compact-card">
         <div class="card-head">
-          <h2>최근 추천 종목</h2>
-          <p class="muted">최근 생성된 추천 목록</p>
+          <h2>보정 효과</h2>
+          <p class="muted">최근 12건</p>
         </div>
-        <table class="tbl">
-          <thead>
-            <tr><th>시간</th><th>종목</th><th>포지션</th><th>모델</th><th>스코어</th><th>펀딩비</th><th>OI</th><th>빗썸 24h</th><th>비트겟 24h</th><th>상태</th></tr>
-          </thead>
-          <tbody id="pickBody"></tbody>
-        </table>
-      </article>
-      <article class="card">
-        <div class="card-head">
-          <h2>최근 성과 검증</h2>
-          <p class="muted">블렌디드 수익률 결과</p>
+        <div class="table-wrap">
+          <table class="tbl">
+            <thead>
+              <tr><th>보정 시각</th><th>보정 전 승률</th><th>보정 후 승률</th><th>변화량</th><th>설명</th></tr>
+            </thead>
+            <tbody id="calBody"></tbody>
+          </table>
         </div>
-        <table class="tbl">
-          <thead>
-            <tr><th>시간</th><th>종목</th><th>포지션</th><th>모델</th><th>수익률</th><th>결과</th></tr>
-          </thead>
-          <tbody id="evalBody"></tbody>
-        </table>
-      </article>
-    </section>
-
-    <section class="card">
-      <div class="card-head">
-        <h2>보정 효과</h2>
-        <p class="muted">보정 이벤트 전/후 승률 변화</p>
-      </div>
-      <table class="tbl">
-        <thead>
-          <tr><th>보정 시각</th><th>보정 전 승률</th><th>보정 후 승률</th><th>변화량</th><th>설명</th></tr>
-        </thead>
-        <tbody id="calBody"></tbody>
-      </table>
+      </section>
     </section>
   </main>
 
-  <script src="./app.js?v=20260316-6"></script>
+  <nav class="mobile-nav" aria-label="하단 메뉴">
+    <a class="active" href="./index.html">대시보드</a>
+    <a href="./logic.html">로직</a>
+    <a href="./ops.html">운영</a>
+  </nav>
+
+  <script src="./pwa.js?v=20260316-1"></script>
+  <script src="./app.js?v=20260316-7"></script>
 </body>
 </html>

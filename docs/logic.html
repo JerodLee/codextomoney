@@ -1,9 +1,13 @@
-<!doctype html>
+﻿<!doctype html>
 <html lang="ko">
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta name="theme-color" content="#0e8a7b" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="default" />
   <title>추천 로직 설명</title>
+  <link rel="manifest" href="./manifest.webmanifest" />
   <link rel="stylesheet" href="./styles.css" />
 </head>
 <body>
@@ -14,118 +18,89 @@
   <main class="container">
     <header class="hero card">
       <div>
-        <p class="eyebrow">BITHUMB SPOT + BITGET FUTURES(USDT-M)</p>
+        <p class="eyebrow">MOMENTUM BOT LOGIC</p>
         <h1>추천 로직 설명</h1>
-        <p class="subtitle">현재 운영 중인 추천, 검증, 보정, 손실 경고 흐름을 요약했습니다.</p>
+        <p class="subtitle">후보군 생성부터 검증/보정/모델 확장까지 전체 흐름을 정리했습니다.</p>
       </div>
       <div class="hero-actions">
-        <a class="btn btn-ghost" href="./index.html">대시보드로 돌아가기</a>
+        <a class="btn btn-ghost" href="./index.html">대시보드</a>
+        <a class="btn btn-ghost" href="./logic.html">추천 로직</a>
+        <a class="btn btn-ghost" href="./ops.html">운영 상태</a>
+        <button id="installAppBtn" class="btn btn-ghost" hidden>앱 설치</button>
       </div>
     </header>
 
     <section class="logic-grid">
       <article class="card logic-card">
         <h3>1) 후보군 생성</h3>
-        <p>빗썸 KRW 현물과 비트겟 USDT-M 선물의 공통 심볼만 대상으로 시작합니다.</p>
+        <p>빗썸 현물 + 비트겟 USDT-M 선물의 공통 심볼만 사용합니다.</p>
         <div class="chip-list">
-          <span class="chip">빗썸 24h 등락률 ≥ 1.0%</span>
-          <span class="chip">비트겟 LONG 기준: 24h ≥ 1.0%</span>
-          <span class="chip">비트겟 SHORT 기준: 24h ≤ -1.0%</span>
-          <span class="chip">SHORT 추가: 빗썸 24h ≤ 3.0%</span>
-          <span class="chip">SHORT 추가: 펀딩비 ≥ -0.0005</span>
-          <span class="chip">빗썸 거래대금 ≥ 20억 KRW</span>
-          <span class="chip">비트겟 거래량 ≥ 1,000만 USDT</span>
+          <span class="chip">롱: 빗썸/비트겟 24h 상승률 기준</span>
+          <span class="chip">숏: 비트겟 24h 하락률 + 펀딩 조건</span>
+          <span class="chip">유동성 바닥: 빗썸 거래대금 + 비트겟 거래량</span>
         </div>
       </article>
 
       <article class="card logic-card">
-        <h3>2) 안전 필터</h3>
-        <p>과열 구간과 비정상 펀딩 구간을 제거해 급격한 역변동 리스크를 낮춥니다.</p>
+        <h3>2) 리스크 필터</h3>
+        <p>과열/극단 펀딩/주문불가 종목을 제거해 변동성 리스크를 줄입니다.</p>
         <div class="chip-list">
-          <span class="chip">과열 상한: 40%</span>
-          <span class="chip">보수 상한: 20%</span>
-          <span class="chip">|펀딩비| 상한: 0.0015</span>
-          <span class="chip">빗썸 주문 가능 여부 체크</span>
+          <span class="chip">과열 상한</span>
+          <span class="chip">보수 상한</span>
+          <span class="chip">절대 펀딩 상한</span>
+          <span class="chip">빗썸 주문 가능 여부</span>
         </div>
       </article>
     </section>
 
     <section class="logic-grid">
       <article class="card logic-card">
-        <h3>3) 스코어링 및 추천</h3>
-        <p>필터를 통과한 종목을 LONG/SHORT로 점수화해 상위 종목을 텔레그램으로 전달합니다.</p>
+        <h3>3) 모델 구조</h3>
         <ul class="timeline">
-          <li>추천 메시지에 <strong>LONG/SHORT</strong> 방향을 함께 표시</li>
-          <li>추천 목록에 <strong>펀딩비(Funding Rate)</strong>, <strong>OI(Open Interest)</strong>를 함께 기록</li>
-          <li>후보군 모델 분리: <strong>롱 모멘텀 v1</strong> / <strong>숏 모멘텀 v1</strong></li>
-          <li>SHORT는 비트겟 하락 모멘텀을 기준으로 우선 선별</li>
-          <li>상위 추천에서 <strong>최소 1개 SHORT 슬롯</strong>을 보장(후보 존재 시)</li>
-          <li>실행마다 새 후보를 계산하고 상위 N개를 추천</li>
-          <li>추천 시점 가격(진입가)을 저장해 이후 성과를 추적</li>
+          <li><strong>v1</strong>: 기본 모멘텀/유동성/펀딩 점수</li>
+          <li><strong>v2</strong>: 시장 추세(24h~1m), 펀딩 crowding, OI, 쏠림(regime) 보강</li>
+          <li>활성 모델은 <code>model_registry</code>로 제어</li>
         </ul>
       </article>
 
       <article class="card logic-card">
-        <h3>4) 성과 검증</h3>
-        <p>추천 후 기본 15분 경과 시점에 방향(LONG/SHORT)을 반영한 수익률을 계산합니다.</p>
+        <h3>4) 검증과 승률 집계</h3>
         <ul class="timeline">
-          <li>LONG: 기존과 동일하게 빗썸/비트겟 수익률을 반영</li>
-          <li>SHORT: 비트겟 수익률을 우선 반전(하락 시 +수익)해 판단</li>
-          <li>최종 블렌디드 수익률로 승/패 기록</li>
-          <li>블렌디드 수익률이 0보다 크면 승(Win), 아니면 패(Lose)</li>
+          <li>추천 시점의 진입가를 저장</li>
+          <li>horizon 경과 후 blended 수익률 평가</li>
+          <li>모델별 count/win_rate/avg/median을 별도 집계</li>
         </ul>
       </article>
     </section>
 
     <section class="logic-grid">
       <article class="card logic-card">
-        <h3>5) 자동 보정(Auto Calibration)</h3>
-        <p>최근 성과가 기준 이하이면 필터를 강화하고, 성과가 우수하면 탐색 폭을 소폭 확대합니다.</p>
+        <h3>5) 자동 보정</h3>
         <ul class="timeline">
-          <li>후보가 너무 적으면 유동성/모멘텀 하한을 완화</li>
-          <li>승률/수익률 저하 시 과열 상한·보수 상한 등을 보수적으로 조정</li>
-          <li>최근 보정으로 승률이 유의미하게 악화되면 <strong>이전 설정으로 롤백</strong>하고 6시간 쿨다운</li>
-          <li>보정 이벤트는 대시보드에서 전/후 승률 변화로 추적</li>
+          <li>저성과 시 보수적으로 필터 강화</li>
+          <li>후보 고갈 시 완만하게 필터 완화</li>
+          <li>보정 악화 시 롤백 + 쿨다운</li>
         </ul>
       </article>
 
       <article class="card logic-card">
-        <h3>6) 즉시 손실 경고</h3>
-        <p>평가 대기 중인 추천 종목이 실시간 기준 음수 수익으로 내려가면 별도 경고를 보냅니다.</p>
+        <h3>6) 자동 모델 확장</h3>
         <ul class="timeline">
-          <li>기본 기준: 블렌디드 실시간 수익률 &lt; 0%</li>
-          <li>종목별 1회 경고로 중복 스팸 방지</li>
-          <li>경고 메시지에 종목과 현재 수익률 표시</li>
-          <li>경고 발생 종목은 기본 60분 쿨다운 동안 신규 추천에서 제외</li>
-        </ul>
-      </article>
-    </section>
-
-    <section class="logic-grid">
-      <article class="card logic-card">
-        <h3>7) 시장 인디케이터</h3>
-        <p>대시보드에서 시장 전체, BTC, ETH 장세를 다중 시간대로 추적하고 현재 쏠림(집중) 상태를 표시합니다.</p>
-        <ul class="timeline">
-          <li>변동 구간: 24h / 12h / 6h / 1h / 15m / 5m / 1m</li>
-          <li>시장 전체: 비트겟 선물 전체의 거래대금 가중 가격 변화를 기준으로 계산</li>
-          <li>BTC/ETH: 해당 심볼 가격 시계열 기준으로 동일 구간 변동 계산</li>
-          <li>각 구간은 해당 시간만큼 시계열이 쌓인 뒤부터 표시(부족 시 데이터없음)</li>
-          <li>장세 판정: 1h 기준 +0.6% 이상 상승, -0.6% 이하 하락, 그 외 중립(1h 부재 시 24h 대체)</li>
-          <li>쏠림 판별: BTC 주도 / ETH 주도 / 알트 전반 / 특정 알트 집중 / 균형</li>
-        </ul>
-      </article>
-
-      <article class="card logic-card">
-        <h3>8) 추천-시장 관계/상관도</h3>
-        <p>추천 방향(LONG/SHORT)과 시장 방향의 정합성을 현재/역사 기준으로 함께 보여줍니다.</p>
-        <ul class="timeline">
-          <li>현재 관계: 비례/반비례/혼합/시장중립</li>
-          <li>역사 상관도: 추천 방향 신호와 시장 방향 신호의 상관계수(-1~+1)</li>
-          <li>추가: 종목별로도 동일한 상관도를 분리 계산해 표시</li>
-          <li>양수에 가까울수록 전통적으로 비례, 음수에 가까울수록 반비례</li>
+          <li>조건: 모델 평가수 24 이상 + 승률 45% 미만</li>
+          <li>LONG: <code>momentum_long_v1 → momentum_long_v2</code></li>
+          <li>SHORT: <code>momentum_short_v1 → momentum_short_v2</code></li>
+          <li>확장 이벤트는 run_history/model_governance_events에 기록</li>
         </ul>
       </article>
     </section>
   </main>
+
+  <nav class="mobile-nav" aria-label="하단 메뉴">
+    <a href="./index.html">대시보드</a>
+    <a class="active" href="./logic.html">로직</a>
+    <a href="./ops.html">운영</a>
+  </nav>
+
+  <script src="./pwa.js?v=20260316-1"></script>
 </body>
 </html>

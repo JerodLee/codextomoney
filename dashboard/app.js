@@ -16,6 +16,9 @@ $("ownerInput").value = source.owner;
 $("repoInput").value = source.repo;
 $("branchInput").value = source.branch;
 const MARKET_CHANGE_KEYS = ["24h", "12h", "6h", "1h", "15m", "5m", "1m"];
+const RECENT_ROWS = 12;
+const CORR_ROWS = 12;
+const CAL_ROWS = 12;
 
 function fmtPct(v) {
   return `${(v * 100).toFixed(2)}%`;
@@ -99,6 +102,18 @@ function avgReturn(rows) {
   if (!rows.length) return null;
   const sum = rows.reduce((acc, r) => acc + Number(r.return_blended || 0), 0);
   return sum / rows.length;
+}
+
+function activeModelNames(state) {
+  const latestRun = (state.run_history || []).slice(-1)[0] || {};
+  const fromRun = Array.isArray(latestRun.active_models) ? latestRun.active_models : [];
+  if (fromRun.length) {
+    return fromRun.map((id) => modelLabel(String(id)));
+  }
+  const reg = state.model_registry || {};
+  return Object.entries(reg)
+    .filter(([, spec]) => Boolean(spec?.enabled))
+    .map(([id]) => modelLabel(String(id)));
 }
 
 function relationText(v) {
@@ -229,7 +244,7 @@ function renderPicks(state) {
   body.innerHTML = "";
   const picks = [...(state.recommendation_history || [])]
     .sort((a, b) => new Date(b.created_at) - new Date(a.created_at))
-    .slice(0, 20);
+    .slice(0, RECENT_ROWS);
   const resultIds = new Set((state.results || []).map((r) => r.id));
 
   if (!picks.length) {
@@ -264,7 +279,7 @@ function renderEvaluations(results) {
   body.innerHTML = "";
   const rows = [...results]
     .sort((a, b) => new Date(b.evaluated_at) - new Date(a.evaluated_at))
-    .slice(0, 20);
+    .slice(0, RECENT_ROWS);
 
   if (!rows.length) {
     const tr = document.createElement("tr");
@@ -389,20 +404,24 @@ function computeCalibrationRows(events, results, window = 30) {
 function renderCalibrations(events, results) {
   const body = $("calBody");
   body.innerHTML = "";
-  const rows = computeCalibrationRows(events, results).reverse().slice(0, 20);
+  const rows = computeCalibrationRows(events, results).reverse().slice(0, CAL_ROWS);
+  const calCountEl = $("kCalCount");
+  const upliftEl = $("kUplift");
   if (!rows.length) {
     const tr = document.createElement("tr");
     tr.innerHTML = `<td colspan="5" class="muted">보정 이벤트가 아직 없습니다.</td>`;
     body.appendChild(tr);
-    $("kCalCount").textContent = "0";
-    $("kUplift").textContent = "-";
+    if (calCountEl) calCountEl.textContent = "0";
+    if (upliftEl) upliftEl.textContent = "-";
     return;
   }
-  $("kCalCount").textContent = String(rows.length);
+  if (calCountEl) calCountEl.textContent = String(rows.length);
 
   const latestDelta = rows.find((r) => r.delta != null)?.delta ?? null;
-  $("kUplift").textContent = latestDelta == null ? "데이터없음" : fmtPct(latestDelta);
-  $("kUplift").className = `v ${latestDelta == null ? "" : latestDelta >= 0 ? "good" : "bad"}`;
+  if (upliftEl) {
+    upliftEl.textContent = latestDelta == null ? "데이터없음" : fmtPct(latestDelta);
+    upliftEl.className = `v ${latestDelta == null ? "" : latestDelta >= 0 ? "good" : "bad"}`;
+  }
 
   for (const r of rows) {
     const dCls = r.delta == null ? "" : r.delta >= 0 ? "good" : "bad";
@@ -422,7 +441,7 @@ function renderTrend(state) {
   const runHistory = state.run_history || [];
   let points = runHistory
     .filter((r) => r.metrics && Number.isFinite(Number(r.metrics.win_rate)))
-    .slice(-120)
+    .slice(-90)
     .map((r) => ({ x: r.run_at, y: Number(r.metrics.win_rate) }));
 
   let source = "실행 이력";
@@ -435,7 +454,7 @@ function renderTrend(state) {
     points = results.map((r, idx) => {
       if (r.win) wins += 1;
       return { x: r.evaluated_at, y: wins / (idx + 1) };
-    }).slice(-120);
+    }).slice(-90);
     source = "검증 결과(누적)";
   }
 
@@ -453,7 +472,7 @@ function buildCumulativeSidePoints(results, side) {
   return filtered.map((r, idx) => {
     if (r.win) wins += 1;
     return { x: r.evaluated_at, y: wins / (idx + 1) };
-  }).slice(-120);
+  }).slice(-90);
 }
 
 function renderSideTrends(results) {
@@ -485,11 +504,16 @@ function renderKpis(state, results) {
   const runHistory = state.run_history || [];
   const latestRun = runHistory[runHistory.length - 1];
   const rollingMetrics = latestRun?.metrics || null;
+  const activeModelsEl = $("kActiveModels");
 
   $("kLastRun").textContent = fmtTime(state.meta?.last_run_at);
   $("kPending").textContent = String((state.pending || []).length);
   $("kWinRate").textContent = rollingMetrics ? fmtPct(Number(rollingMetrics.win_rate || 0)) : "-";
   $("kAvgReturn").textContent = rollingMetrics ? fmtPct(Number(rollingMetrics.avg_return || 0)) : "-";
+  if (activeModelsEl) {
+    const names = activeModelNames(state);
+    activeModelsEl.textContent = names.length ? names.join(", ") : "-";
+  }
   if (!rollingMetrics && results.length) {
     const recent = results.slice(-120);
     const wr = winRate(recent);
@@ -732,7 +756,7 @@ function renderSymbolCorrelations(state) {
   const sorted = rows
     .filter((r) => (r.sMarket + r.sBtc + r.sEth) > 0)
     .sort((a, b) => (b.sMarket + b.sBtc + b.sEth) - (a.sMarket + a.sBtc + a.sEth))
-    .slice(0, 25);
+    .slice(0, CORR_ROWS);
 
   if (!sorted.length) {
     const tr = document.createElement("tr");
@@ -763,6 +787,39 @@ function renderSymbolCorrelations(state) {
     `;
     body.appendChild(tr);
   }
+}
+
+function setupTabs() {
+  const buttons = [...document.querySelectorAll(".tab-btn[data-tab]")];
+  const panels = [...document.querySelectorAll(".panel[data-panel]")];
+  if (!buttons.length || !panels.length) return;
+
+  const activate = (tab) => {
+    buttons.forEach((btn) => {
+      btn.classList.toggle("active", btn.dataset.tab === tab);
+    });
+    panels.forEach((panel) => {
+      panel.classList.toggle("hidden", panel.dataset.panel !== tab);
+    });
+    try {
+      localStorage.setItem("momentum_dashboard_tab", tab);
+    } catch (_) {
+      // no-op
+    }
+  };
+
+  buttons.forEach((btn) => {
+    btn.addEventListener("click", () => activate(String(btn.dataset.tab || "summary")));
+  });
+
+  let initial = "summary";
+  try {
+    initial = localStorage.getItem("momentum_dashboard_tab") || "summary";
+  } catch (_) {
+    initial = "summary";
+  }
+  if (!buttons.some((btn) => btn.dataset.tab === initial)) initial = "summary";
+  activate(initial);
 }
 
 async function loadAndRender() {
@@ -799,6 +856,7 @@ async function loadAndRender() {
 
 $("refreshBtn").addEventListener("click", loadAndRender);
 $("applySourceBtn").addEventListener("click", loadAndRender);
+setupTabs();
 
 loadAndRender();
 setInterval(loadAndRender, 60000);
