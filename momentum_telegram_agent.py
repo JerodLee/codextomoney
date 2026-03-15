@@ -51,6 +51,8 @@ DEFAULT_DYNAMIC_CONFIG: Dict[str, float] = {
     "min_bithumb_rate": 1.0,
     "min_bitget_rate": 1.0,
     "min_bitget_short_rate": 1.0,
+    "short_max_bithumb_rate": 3.0,
+    "short_min_funding_rate": -0.0005,
     "min_bithumb_value": 2_000_000_000,
     "min_bitget_volume": 10_000_000,
     "max_overheat_rate": 40.0,
@@ -150,6 +152,8 @@ def compute_candidates(
         min_bithumb_rate=cfg["min_bithumb_rate"],
         min_bitget_rate=cfg["min_bitget_rate"],
         min_bitget_short_rate=cfg["min_bitget_short_rate"],
+        short_max_bithumb_rate=cfg["short_max_bithumb_rate"],
+        short_min_funding_rate=cfg["short_min_funding_rate"],
         min_bithumb_krw=cfg["min_bithumb_value"],
         min_bitget_usdt=cfg["min_bitget_volume"],
         include_short=True,
@@ -180,11 +184,31 @@ def compute_candidates(
 def make_recommendations(
     candidates: List[Any],
     top_n: int,
+    min_short_picks: int,
     run_ts: datetime,
     horizon_min: int,
 ) -> List[Dict[str, Any]]:
+    selected: List[Any] = []
+    top_n = max(0, int(top_n))
+    min_short_picks = max(0, int(min_short_picks))
+    if top_n > 0:
+        shorts = [
+            c for c in candidates if str(getattr(c, "side", "LONG")).upper() == "SHORT"
+        ]
+        forced = shorts[: min(min_short_picks, top_n)]
+        selected.extend(forced)
+        remain = top_n - len(selected)
+        if remain > 0:
+            rest = [c for c in candidates if c not in selected]
+            selected.extend(rest[:remain])
+        selected = sorted(
+            selected,
+            key=lambda x: (x.score, abs(x.g_change24h_pct), abs(x.b_rate24h)),
+            reverse=True,
+        )
+
     out: List[Dict[str, Any]] = []
-    for c in candidates[:top_n]:
+    for c in selected:
         out.append(
             {
                 "id": f"{c.symbol}-{c.side}-{int(run_ts.timestamp())}",
@@ -352,6 +376,10 @@ def auto_calibrate(
         new_cfg["min_bithumb_rate"] = max(0.5, new_cfg["min_bithumb_rate"] - 0.2)
         new_cfg["min_bitget_rate"] = max(0.5, new_cfg["min_bitget_rate"] - 0.2)
         new_cfg["min_bitget_short_rate"] = max(0.5, new_cfg["min_bitget_short_rate"] - 0.2)
+        new_cfg["short_max_bithumb_rate"] = min(8.0, new_cfg["short_max_bithumb_rate"] + 0.5)
+        new_cfg["short_min_funding_rate"] = max(
+            -0.0015, new_cfg["short_min_funding_rate"] - 0.0001
+        )
         notes.append(
             "Low-candidate adjustment: loosened liquidity and momentum floors slightly."
         )
@@ -387,11 +415,13 @@ def auto_calibrate(
         "min_bithumb_rate",
         "min_bitget_rate",
         "min_bitget_short_rate",
+        "short_max_bithumb_rate",
         "max_overheat_rate",
         "conservative_max_rate",
         "conservative_max_abs_funding",
     ):
         new_cfg[k] = round_step(new_cfg[k], 0.01)
+    new_cfg["short_min_funding_rate"] = round_step(new_cfg["short_min_funding_rate"], 0.0001)
     for k in ("min_bithumb_value", "min_bitget_volume"):
         new_cfg[k] = float(int(new_cfg[k]))
 
@@ -503,7 +533,7 @@ def make_message(
     if message_style == "compact":
         lines.append(f"Momentum Scan | {ts_kst}")
         lines.append(
-            f"Rules: overheat<{cfg['max_overheat_rate']:.0f}% | gLong>={cfg['min_bitget_rate']:.1f}% | gShort<=-{cfg['min_bitget_short_rate']:.1f}% | bVal>={format_money_k(cfg['min_bithumb_value'])} | gVol>={format_money_u(cfg['min_bitget_volume'])}"
+            f"Rules: overheat<{cfg['max_overheat_rate']:.0f}% | gLong>={cfg['min_bitget_rate']:.1f}% | gShort<=-{cfg['min_bitget_short_rate']:.1f}% | bShort<={cfg['short_max_bithumb_rate']:.1f}% | fShort>={cfg['short_min_funding_rate']:.4f} | bVal>={format_money_k(cfg['min_bithumb_value'])} | gVol>={format_money_u(cfg['min_bitget_volume'])}"
         )
         if picks:
             lines.append("Picks:")
@@ -522,7 +552,7 @@ def make_message(
     lines.append(f"Momentum Scan | {ts_kst}")
     lines.append("Market: Bithumb Spot + Bitget USDT-M")
     lines.append(
-        f"Filters: overheat<{cfg['max_overheat_rate']:.2f}%, gLong>={cfg['min_bitget_rate']:.2f}%, gShort<=-{cfg['min_bitget_short_rate']:.2f}%, bValue>={format_money_k(cfg['min_bithumb_value'])}, gVol>={format_money_u(cfg['min_bitget_volume'])}"
+        f"Filters: overheat<{cfg['max_overheat_rate']:.2f}%, gLong>={cfg['min_bitget_rate']:.2f}%, gShort<=-{cfg['min_bitget_short_rate']:.2f}%, bShort<={cfg['short_max_bithumb_rate']:.2f}%, fShort>={cfg['short_min_funding_rate']:.4f}, bValue>={format_money_k(cfg['min_bithumb_value'])}, gVol>={format_money_u(cfg['min_bitget_volume'])}"
     )
     lines.append(
         f"Candidates: base={filter_stats['base_universe']}, removed(overheat={filter_stats['removed_overheat']}, conservative={filter_stats['removed_conservative']}, orderable={filter_stats['removed_orderable']})"
@@ -601,6 +631,7 @@ def run_cycle(args: argparse.Namespace, state: Dict[str, Any]) -> int:
     picks = make_recommendations(
         candidates=candidates,
         top_n=args.top,
+        min_short_picks=args.min_short_picks,
         run_ts=run_ts,
         horizon_min=args.horizon_min,
     )
@@ -742,6 +773,7 @@ def parse_args() -> argparse.Namespace:
     p.add_argument("--orderbook-timeout-sec", type=int, default=8)
     p.add_argument("--max-orderbook-checks", type=int, default=0)
     p.add_argument("--loss-alert-threshold", type=float, default=0.0)
+    p.add_argument("--min-short-picks", type=int, default=1)
     return p.parse_args()
 
 

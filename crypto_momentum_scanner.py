@@ -207,6 +207,8 @@ def build_candidates(
     min_bithumb_rate: float,
     min_bitget_rate: float,
     min_bitget_short_rate: float,
+    short_max_bithumb_rate: float,
+    short_min_funding_rate: float,
     min_bithumb_krw: float,
     min_bitget_usdt: float,
     include_short: bool = True,
@@ -238,7 +240,12 @@ def build_candidates(
                 )
             )
 
-        if include_short and g.change24h_pct <= -abs(min_bitget_short_rate):
+        if (
+            include_short
+            and g.change24h_pct <= -abs(min_bitget_short_rate)
+            and b.rate24h <= short_max_bithumb_rate
+            and g.funding_rate >= short_min_funding_rate
+        ):
             candidates.append(
                 Candidate(
                     symbol=symbol,
@@ -390,6 +397,18 @@ def parse_args() -> argparse.Namespace:
         help="Min absolute downside on Bitget 24h change percent for SHORT candidates",
     )
     p.add_argument(
+        "--short-max-bithumb-rate",
+        type=float,
+        default=3.0,
+        help="For SHORT candidates, max allowed Bithumb 24h change percent",
+    )
+    p.add_argument(
+        "--short-min-funding-rate",
+        type=float,
+        default=-0.0005,
+        help="For SHORT candidates, min allowed Bitget funding rate",
+    )
+    p.add_argument(
         "--min-bithumb-value",
         type=float,
         default=1_000_000_000,
@@ -522,6 +541,8 @@ def run_once(args: argparse.Namespace, cycle: int) -> int:
         min_bithumb_rate=args.min_bithumb_rate,
         min_bitget_rate=args.min_bitget_rate,
         min_bitget_short_rate=args.min_bitget_short_rate,
+        short_max_bithumb_rate=args.short_max_bithumb_rate,
+        short_min_funding_rate=args.short_min_funding_rate,
         min_bithumb_krw=min_bithumb_value,
         min_bitget_usdt=min_bitget_volume,
         include_short=not args.long_only,
@@ -558,7 +579,8 @@ def run_once(args: argparse.Namespace, cycle: int) -> int:
     )
     print(
         f"Base filters: b_rate>={args.min_bithumb_rate}%, g_long>={args.min_bitget_rate}%, "
-        f"g_short<=-{args.min_bitget_short_rate}%, "
+        f"g_short<=-{args.min_bitget_short_rate}%, b_short<={args.short_max_bithumb_rate}%, "
+        f"funding_short>={args.short_min_funding_rate}, "
         f"b_value>={min_bithumb_value:,.0f} KRW, g_vol>={min_bitget_volume:,.0f} USDT"
     )
     print(
