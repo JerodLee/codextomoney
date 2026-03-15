@@ -887,8 +887,13 @@ function renderKpis(state, results) {
   const modelHintEl = $("kModelHint");
   const longWinEl = $("kLongWinRate");
   const shortWinEl = $("kShortWinRate");
+  const lastPicksEl = $("kLastPicks");
 
   $("kLastRun").textContent = fmtTime(state.meta?.last_run_at);
+  if (lastPicksEl) {
+    const n = Number(latestRun?.picks_count);
+    lastPicksEl.textContent = Number.isFinite(n) ? `${n}건` : "-";
+  }
   $("kPending").textContent = String((state.pending || []).length);
   $("kWinRate").textContent = rollingMetrics ? fmtPct(Number(rollingMetrics.win_rate || 0)) : "-";
   $("kAvgReturn").textContent = rollingMetrics ? fmtPct(Number(rollingMetrics.avg_return || 0)) : "-";
