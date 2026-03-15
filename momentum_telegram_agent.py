@@ -42,7 +42,7 @@ from crypto_momentum_scanner import (
 KST = timezone(timedelta(hours=9))
 DASHBOARD_OWNER = os.getenv("DASHBOARD_OWNER", "JerodLee")
 DASHBOARD_REPO = os.getenv("DASHBOARD_REPO", "codextomoney")
-DASHBOARD_REF = os.getenv("DASHBOARD_REF") or os.getenv("GITHUB_SHA") or "main"
+DASHBOARD_REF = os.getenv("DASHBOARD_REF", "main")
 DASHBOARD_URL = os.getenv(
     "DASHBOARD_URL",
     f"https://raw.githack.com/{DASHBOARD_OWNER}/{DASHBOARD_REPO}/{DASHBOARD_REF}/docs/index.html",
