@@ -130,3 +130,8 @@ The page shows:
 1. latest recommendation symbols
 2. rolling win rate and return trend
 3. calibration events and pre/post win-rate uplift
+4. model-based performance (`momentum_long_v1`, `momentum_short_v1`)
+
+Operations page:
+
+- `dashboard/ops.html`

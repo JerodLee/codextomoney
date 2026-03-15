@@ -72,6 +72,12 @@ TIMEFRAME_MINUTES: List[Tuple[str, int]] = [
     ("5m", 5),
     ("1m", 1),
 ]
+MODEL_LONG_ID = "momentum_long_v1"
+MODEL_SHORT_ID = "momentum_short_v1"
+MODEL_NAMES = {
+    MODEL_LONG_ID: "롱 모멘텀 v1",
+    MODEL_SHORT_ID: "숏 모멘텀 v1",
+}
 
 
 def utc_now() -> datetime:
@@ -88,6 +94,36 @@ def parse_iso(value: str) -> datetime:
 
 def round_step(v: float, step: float = 0.01) -> float:
     return round(round(v / step) * step, 8)
+
+
+def model_id_from_side(side: str) -> str:
+    return MODEL_SHORT_ID if side == "SHORT" else MODEL_LONG_ID
+
+
+def model_name_from_id(model_id: str) -> str:
+    return MODEL_NAMES.get(model_id, model_id)
+
+
+def sanitize_dynamic_config(cfg: Dict[str, float]) -> Dict[str, float]:
+    out = dict(DEFAULT_DYNAMIC_CONFIG)
+    out.update(cfg or {})
+    for k in (
+        "min_bithumb_rate",
+        "min_bitget_rate",
+        "min_bitget_short_rate",
+        "short_max_bithumb_rate",
+        "max_overheat_rate",
+        "conservative_max_rate",
+    ):
+        out[k] = round_step(float(out[k]), 0.01)
+    out["short_min_funding_rate"] = round_step(float(out["short_min_funding_rate"]), 0.0001)
+    out["conservative_max_abs_funding"] = round_step(
+        min(0.01, max(0.0005, float(out["conservative_max_abs_funding"]))),
+        0.0001,
+    )
+    out["min_bithumb_value"] = float(int(out["min_bithumb_value"]))
+    out["min_bitget_volume"] = float(int(out["min_bitget_volume"]))
+    return out
 
 
 def load_state(path: Path) -> Dict[str, Any]:
@@ -132,6 +168,8 @@ def load_state(path: Path) -> Dict[str, Any]:
     data["meta"].setdefault("no_candidate_streak", 0)
     data["meta"].setdefault("last_calibrated_at", None)
     data["meta"].setdefault("last_run_at", None)
+    data["meta"].setdefault("calibration_cooldown_until", None)
+    data["meta"].setdefault("last_rollback_event_id", None)
     data.setdefault("version", 2)
     return data
 
@@ -483,11 +521,14 @@ def make_recommendations(
     btc_changes = market_indicators.get("btc", {}).get("changes", {}) or {}
     eth_changes = market_indicators.get("eth", {}).get("changes", {}) or {}
     for c in selected:
+        mid = model_id_from_side(c.side)
         out.append(
             {
                 "id": f"{c.symbol}-{c.side}-{int(run_ts.timestamp())}",
                 "symbol": c.symbol,
                 "side": c.side,
+                "model_id": mid,
+                "model_name": model_name_from_id(mid),
                 "created_at": iso_z(run_ts),
                 "horizon_min": horizon_min,
                 "entry_bithumb_price": c.b_close_krw,
@@ -517,6 +558,13 @@ def make_recommendations(
 def pick_side(p: Dict[str, Any]) -> str:
     side = str(p.get("side", "LONG")).upper()
     return "SHORT" if side == "SHORT" else "LONG"
+
+
+def pick_model_id(p: Dict[str, Any]) -> str:
+    raw = str(p.get("model_id", "")).strip()
+    if raw:
+        return raw
+    return model_id_from_side(pick_side(p))
 
 
 def side_sign(side: str) -> int:
@@ -830,6 +878,8 @@ def evaluate_pending(
                 "id": p["id"],
                 "symbol": symbol,
                 "side": side,
+                "model_id": pick_model_id(p),
+                "model_name": model_name_from_id(pick_model_id(p)),
                 "created_at": p["created_at"],
                 "evaluated_at": iso_z(now),
                 "horizon_min": horizon,
@@ -862,6 +912,66 @@ def compute_metrics(results: List[Dict[str, Any]], window: int = 120) -> Dict[st
         "win_rate": wins / len(recent),
         "avg_return": sum(returns) / len(returns),
         "median_return": statistics.median(returns),
+    }
+
+
+def compute_model_metrics(
+    results: List[Dict[str, Any]],
+    window: int = 240,
+) -> Dict[str, Dict[str, float | int]]:
+    recent = results[-window:]
+    buckets: Dict[str, List[Dict[str, Any]]] = {}
+    for r in recent:
+        mid = pick_model_id(r)
+        buckets.setdefault(mid, []).append(r)
+    out: Dict[str, Dict[str, float | int]] = {}
+    for mid, rows in buckets.items():
+        vals = [float(x.get("return_blended", 0.0)) for x in rows]
+        wins = sum(1 for x in rows if x.get("win"))
+        out[mid] = {
+            "count": len(rows),
+            "win_rate": (wins / len(rows)) if rows else 0.0,
+            "avg_return": (sum(vals) / len(vals)) if vals else 0.0,
+            "median_return": statistics.median(vals) if vals else 0.0,
+            "label": model_name_from_id(mid),
+        }
+    return out
+
+
+def _assess_latest_calibration_uplift(
+    results: List[Dict[str, Any]],
+    events: List[Dict[str, Any]],
+    window: int = 30,
+    min_after: int = 10,
+) -> Dict[str, Any] | None:
+    if not results or not events:
+        return None
+    ev = events[-1]
+    if not ev.get("id") or not ev.get("at"):
+        return None
+    try:
+        at_ts = parse_iso(str(ev["at"])).timestamp()
+    except Exception:  # noqa: BLE001
+        return None
+    ordered = sorted(
+        [r for r in results if r.get("evaluated_at")],
+        key=lambda x: parse_iso(str(x["evaluated_at"])).timestamp(),
+    )
+    before = [r for r in ordered if parse_iso(str(r["evaluated_at"])).timestamp() < at_ts][-window:]
+    after = [r for r in ordered if parse_iso(str(r["evaluated_at"])).timestamp() >= at_ts][:window]
+    if len(before) < min_after or len(after) < min_after:
+        return None
+    wr_before = sum(1 for r in before if r.get("win")) / len(before)
+    wr_after = sum(1 for r in after if r.get("win")) / len(after)
+    return {
+        "event_id": str(ev["id"]),
+        "event_at": str(ev["at"]),
+        "delta": wr_after - wr_before,
+        "before_win_rate": wr_before,
+        "after_win_rate": wr_after,
+        "before_n": len(before),
+        "after_n": len(after),
+        "pre_config": ev.get("pre_config"),
     }
 
 
@@ -936,24 +1046,7 @@ def auto_calibrate(
             "Strong-performance adjustment: relaxed filters slightly to widen search."
         )
 
-    for k in (
-        "min_bithumb_rate",
-        "min_bitget_rate",
-        "min_bitget_short_rate",
-        "short_max_bithumb_rate",
-        "max_overheat_rate",
-        "conservative_max_rate",
-    ):
-        new_cfg[k] = round_step(new_cfg[k], 0.01)
-    new_cfg["short_min_funding_rate"] = round_step(new_cfg["short_min_funding_rate"], 0.0001)
-    new_cfg["conservative_max_abs_funding"] = round_step(
-        min(0.01, max(0.0005, float(new_cfg["conservative_max_abs_funding"]))),
-        0.0001,
-    )
-    for k in ("min_bithumb_value", "min_bitget_volume"):
-        new_cfg[k] = float(int(new_cfg[k]))
-
-    return new_cfg, notes
+    return sanitize_dynamic_config(new_cfg), notes
 
 
 def format_pct(v: float) -> str:
@@ -1221,12 +1314,62 @@ def run_cycle(args: argparse.Namespace, state: Dict[str, Any]) -> int:
         state["meta"]["no_candidate_streak"] = int(state["meta"]["no_candidate_streak"]) + 1
 
     metrics = compute_metrics(state["results"], window=args.metric_window)
+    model_metrics = compute_model_metrics(state["results"], window=max(120, args.metric_window * 2))
     alignment_now = compute_alignment_now(picks, market_indicators)
     alignment_history = compute_alignment_history(state["recommendation_history"])
 
     calibrate_notes: List[str] = []
     calibrated = False
-    if should_calibrate(
+    cooldown_until_raw = state["meta"].get("calibration_cooldown_until")
+    in_cooldown = False
+    if cooldown_until_raw:
+        try:
+            in_cooldown = run_ts < parse_iso(str(cooldown_until_raw))
+        except Exception:  # noqa: BLE001
+            in_cooldown = False
+
+    rollback_eval = _assess_latest_calibration_uplift(
+        results=state["results"],
+        events=state["calibration_events"],
+        window=30,
+        min_after=10,
+    )
+    if rollback_eval and rollback_eval["delta"] <= -0.05:
+        last_rb = str(state["meta"].get("last_rollback_event_id") or "")
+        if rollback_eval["event_id"] != last_rb and isinstance(rollback_eval.get("pre_config"), dict):
+            cfg = sanitize_dynamic_config(rollback_eval["pre_config"])
+            state["dynamic_config"] = cfg
+            state["meta"]["last_calibrated_at"] = iso_z(run_ts)
+            state["meta"]["calibration_cooldown_until"] = iso_z(run_ts + timedelta(hours=6))
+            state["meta"]["last_rollback_event_id"] = rollback_eval["event_id"]
+            note = (
+                "Rollback applied: latest calibration reduced win rate by "
+                f"{rollback_eval['delta'] * 100:.2f}pp (before {rollback_eval['before_win_rate'] * 100:.2f}% "
+                f"-> after {rollback_eval['after_win_rate'] * 100:.2f}%)."
+            )
+            calibrate_notes.append(note)
+            calibrated = True
+            state["calibration_events"].append(
+                {
+                    "id": f"rollback-{int(run_ts.timestamp())}",
+                    "at": iso_z(run_ts),
+                    "type": "rollback",
+                    "source_event_id": rollback_eval["event_id"],
+                    "notes": [note],
+                    "pre_config": pre_cfg,
+                    "post_config": dict(cfg),
+                    "metrics": dict(metrics),
+                    "new_results_count": len(finalized),
+                    "no_candidate_streak": state["meta"]["no_candidate_streak"],
+                    "uplist_delta": rollback_eval["delta"],
+                }
+            )
+            state["calibration_events"] = state["calibration_events"][-500:]
+            in_cooldown = True
+
+    if in_cooldown:
+        calibrate_notes.append("Calibration cooldown active: tuning is paused for 6 hours after rollback.")
+    elif should_calibrate(
         metrics=metrics,
         new_results_count=len(finalized),
         last_calibrated_at=state["meta"].get("last_calibrated_at"),
@@ -1306,6 +1449,7 @@ def run_cycle(args: argparse.Namespace, state: Dict[str, Any]) -> int:
             "market_indicators": market_indicators,
             "market_alignment_now": alignment_now,
             "market_alignment_history": alignment_history,
+            "model_metrics": model_metrics,
         }
     )
     state["run_history"] = state["run_history"][-5000:]

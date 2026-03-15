@@ -73,6 +73,20 @@ function sideOf(row) {
   return String(row?.side || "LONG").toUpperCase() === "SHORT" ? "SHORT" : "LONG";
 }
 
+function modelOf(row) {
+  const raw = String(row?.model_id || "").trim();
+  if (raw) return raw;
+  return sideOf(row) === "SHORT" ? "momentum_short_v1" : "momentum_long_v1";
+}
+
+function modelLabel(modelId) {
+  const map = {
+    momentum_long_v1: "롱 모멘텀 v1",
+    momentum_short_v1: "숏 모멘텀 v1",
+  };
+  return map[modelId] || modelId || "-";
+}
+
 function winRate(rows) {
   if (!rows.length) return null;
   const wins = rows.filter((r) => Boolean(r.win)).length;
@@ -218,7 +232,7 @@ function renderPicks(state) {
 
   if (!picks.length) {
     const tr = document.createElement("tr");
-    tr.innerHTML = `<td colspan="9" class="muted">추천 이력이 아직 없습니다.</td>`;
+    tr.innerHTML = `<td colspan="10" class="muted">추천 이력이 아직 없습니다.</td>`;
     body.appendChild(tr);
     return;
   }
@@ -231,6 +245,7 @@ function renderPicks(state) {
       <td>${fmtTime(p.created_at)}</td>
       <td class="mono">${p.symbol}</td>
       <td class="mono">${side}</td>
+      <td class="mono">${modelLabel(modelOf(p))}</td>
       <td>${Number.isFinite(Number(p.score)) ? fmtNum(p.score, 3) : "-"}</td>
       <td>${fmtFunding(p.g_funding_rate)}</td>
       <td>${fmtOi(p.g_open_interest)}</td>
@@ -251,7 +266,7 @@ function renderEvaluations(results) {
 
   if (!rows.length) {
     const tr = document.createElement("tr");
-    tr.innerHTML = `<td colspan="5" class="muted">검증 데이터가 아직 없습니다.</td>`;
+    tr.innerHTML = `<td colspan="6" class="muted">검증 데이터가 아직 없습니다.</td>`;
     body.appendChild(tr);
     return;
   }
@@ -265,8 +280,85 @@ function renderEvaluations(results) {
       <td>${fmtTime(r.evaluated_at)}</td>
       <td class="mono">${r.symbol}</td>
       <td class="mono">${side}</td>
+      <td class="mono">${modelLabel(modelOf(r))}</td>
       <td class="${klass}">${fmtPct(ret)}</td>
       <td class="${r.win ? "good" : "bad"}">${r.win ? "승" : "패"}</td>
+    `;
+    body.appendChild(tr);
+  }
+}
+
+function computeModelRows(results, window = 240) {
+  const recent = [...results]
+    .filter((r) => r && r.evaluated_at)
+    .sort((a, b) => new Date(a.evaluated_at) - new Date(b.evaluated_at))
+    .slice(-window);
+  const by = new Map();
+  for (const r of recent) {
+    const id = modelOf(r);
+    if (!by.has(id)) by.set(id, []);
+    by.get(id).push(r);
+  }
+  const rows = [];
+  for (const [id, arr] of by.entries()) {
+    const wr = winRate(arr);
+    const avg = avgReturn(arr);
+    const vals = arr.map((x) => Number(x.return_blended || 0)).sort((a, b) => a - b);
+    const med = vals.length
+      ? (vals.length % 2 ? vals[(vals.length - 1) / 2] : (vals[vals.length / 2 - 1] + vals[vals.length / 2]) / 2)
+      : null;
+    rows.push({
+      id,
+      label: modelLabel(id),
+      count: arr.length,
+      win_rate: wr,
+      avg_return: avg,
+      median_return: med,
+    });
+  }
+  rows.sort((a, b) => b.count - a.count);
+  return rows;
+}
+
+function renderModelMetrics(state, results) {
+  const body = $("modelBody");
+  if (!body) return;
+  body.innerHTML = "";
+
+  const latestRun = (state.run_history || []).slice(-1)[0] || {};
+  const latestModelMetrics = latestRun.model_metrics || {};
+  let rows = [];
+  if (latestModelMetrics && Object.keys(latestModelMetrics).length) {
+    rows = Object.entries(latestModelMetrics).map(([id, m]) => ({
+      id,
+      label: m.label || modelLabel(id),
+      count: Number(m.count || 0),
+      win_rate: Number(m.win_rate || 0),
+      avg_return: Number(m.avg_return || 0),
+      median_return: Number(m.median_return || 0),
+    })).sort((a, b) => b.count - a.count);
+  } else {
+    rows = computeModelRows(results, 240);
+  }
+
+  if (!rows.length) {
+    const tr = document.createElement("tr");
+    tr.innerHTML = `<td colspan="5" class="muted">모델 성과 데이터가 아직 없습니다.</td>`;
+    body.appendChild(tr);
+    return;
+  }
+
+  for (const r of rows) {
+    const wrCls = r.win_rate >= 0.5 ? "good" : "bad";
+    const avgCls = r.avg_return >= 0 ? "good" : "bad";
+    const medCls = r.median_return >= 0 ? "good" : "bad";
+    const tr = document.createElement("tr");
+    tr.innerHTML = `
+      <td class="mono">${r.label}</td>
+      <td>${r.count}</td>
+      <td class="${wrCls}">${fmtPct(r.win_rate)}</td>
+      <td class="${avgCls}">${fmtPct(r.avg_return)}</td>
+      <td class="${medCls}">${fmtPct(r.median_return)}</td>
     `;
     body.appendChild(tr);
   }
@@ -689,6 +781,7 @@ async function loadAndRender() {
     renderSymbolCorrelations(state);
     renderTrend(state);
     renderSideTrends(results);
+    renderModelMetrics(state, results);
     renderRules(state.dynamic_config || {});
     renderPicks(state);
     renderEvaluations(results);
