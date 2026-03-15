@@ -63,6 +63,35 @@ function trendText(v) {
   return map[v] || "중립";
 }
 
+function sideSign(row) {
+  return sideOf(row) === "SHORT" ? -1 : 1;
+}
+
+function relationFromNumeric(v, neutralBand = 0.2) {
+  if (v == null || !Number.isFinite(Number(v))) return "insufficient";
+  if (v > neutralBand) return "proportional";
+  if (v < -neutralBand) return "inverse";
+  return "mixed";
+}
+
+function pearsonCorr(xs, ys) {
+  if (!xs.length || xs.length !== ys.length || xs.length < 2) return null;
+  const mx = xs.reduce((a, b) => a + b, 0) / xs.length;
+  const my = ys.reduce((a, b) => a + b, 0) / ys.length;
+  let cov = 0;
+  let vx = 0;
+  let vy = 0;
+  for (let i = 0; i < xs.length; i += 1) {
+    const dx = xs[i] - mx;
+    const dy = ys[i] - my;
+    cov += dx * dy;
+    vx += dx * dx;
+    vy += dy * dy;
+  }
+  if (vx <= 1e-12 || vy <= 1e-12) return null;
+  return cov / Math.sqrt(vx * vy);
+}
+
 async function fetchJsonFirst(urls) {
   let lastErr = "unknown";
   for (const u of urls) {
@@ -369,6 +398,105 @@ function renderMarketIndicators(state) {
   }
 }
 
+function renderSymbolCorrelations(state) {
+  const body = $("symbolCorrBody");
+  if (!body) return;
+  body.innerHTML = "";
+
+  const recs = state.recommendation_history || [];
+  const runHistory = state.run_history || [];
+  const latestRun = runHistory[runHistory.length - 1] || {};
+  const indicators = latestRun.market_indicators || {};
+  const keyToField = {
+    market: "market_sign_market",
+    btc: "market_sign_btc",
+    eth: "market_sign_eth",
+  };
+
+  const bySymbol = new Map();
+  for (const r of recs) {
+    if (!r || !r.symbol) continue;
+    const sym = String(r.symbol);
+    if (!bySymbol.has(sym)) {
+      bySymbol.set(sym, {
+        latest: r,
+        market: { xs: [], ys: [] },
+        btc: { xs: [], ys: [] },
+        eth: { xs: [], ys: [] },
+      });
+    }
+    const row = bySymbol.get(sym);
+    if (new Date(r.created_at) > new Date(row.latest.created_at)) {
+      row.latest = r;
+    }
+    const s = sideSign(r);
+    for (const [k, f] of Object.entries(keyToField)) {
+      const m = Number(r[f]);
+      if (!Number.isFinite(m) || m === 0) continue;
+      row[k].xs.push(s);
+      row[k].ys.push(m);
+    }
+  }
+
+  const rows = [];
+  for (const [sym, row] of bySymbol.entries()) {
+    const cMarket = pearsonCorr(row.market.xs, row.market.ys);
+    const cBtc = pearsonCorr(row.btc.xs, row.btc.ys);
+    const cEth = pearsonCorr(row.eth.xs, row.eth.ys);
+
+    const sNow = sideSign(row.latest);
+    const mNow = Number(indicators?.market?.sign || 0);
+    const bNow = Number(indicators?.btc?.sign || 0);
+    const eNow = Number(indicators?.eth?.sign || 0);
+    const relNowMarket = mNow === 0 ? "neutral-market" : relationFromNumeric(sNow * mNow, 0.01);
+    const relNowBtc = bNow === 0 ? "neutral-market" : relationFromNumeric(sNow * bNow, 0.01);
+    const relNowEth = eNow === 0 ? "neutral-market" : relationFromNumeric(sNow * eNow, 0.01);
+
+    rows.push({
+      sym,
+      relNowText: `${relationText(relNowMarket)}/${relationText(relNowBtc)}/${relationText(relNowEth)}`,
+      cMarket,
+      cBtc,
+      cEth,
+      sMarket: row.market.xs.length,
+      sBtc: row.btc.xs.length,
+      sEth: row.eth.xs.length,
+    });
+  }
+
+  const sorted = rows
+    .filter((r) => (r.sMarket + r.sBtc + r.sEth) > 0)
+    .sort((a, b) => (b.sMarket + b.sBtc + b.sEth) - (a.sMarket + a.sBtc + a.sEth))
+    .slice(0, 25);
+
+  if (!sorted.length) {
+    const tr = document.createElement("tr");
+    tr.innerHTML = `<td colspan="6" class="muted">종목별 상관도 데이터가 아직 없습니다.</td>`;
+    body.appendChild(tr);
+    return;
+  }
+
+  for (const r of sorted) {
+    const hasM = Number.isFinite(Number(r.cMarket));
+    const hasB = Number.isFinite(Number(r.cBtc));
+    const hasE = Number.isFinite(Number(r.cEth));
+    const clsM = hasM ? (r.cMarket >= 0 ? "good" : "bad") : "";
+    const clsB = hasB ? (r.cBtc >= 0 ? "good" : "bad") : "";
+    const clsE = hasE ? (r.cEth >= 0 ? "good" : "bad") : "";
+
+    const tr = document.createElement("tr");
+    tr.innerHTML = `
+      <td class="mono">${r.sym}</td>
+      <td>${r.relNowText}</td>
+      <td class="${clsM}">${hasM ? fmtNum(r.cMarket, 3) : "데이터없음"}</td>
+      <td class="${clsB}">${hasB ? fmtNum(r.cBtc, 3) : "데이터없음"}</td>
+      <td class="${clsE}">${hasE ? fmtNum(r.cEth, 3) : "데이터없음"}</td>
+      <td>${r.sMarket}/${r.sBtc}/${r.sEth}</td>
+    `;
+    body.appendChild(tr);
+  }
+}
+
 async function loadAndRender() {
   const owner = $("ownerInput").value.trim();
   const repo = $("repoInput").value.trim();
@@ -384,6 +512,7 @@ async function loadAndRender() {
     const results = state.results || [];
     renderKpis(state, results);
     renderMarketIndicators(state);
+    renderSymbolCorrelations(state);
     renderTrend(state);
     renderSideTrends(results);
     renderRules(state.dynamic_config || {});
