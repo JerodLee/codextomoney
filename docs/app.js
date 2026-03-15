@@ -47,6 +47,22 @@ function avgReturn(rows) {
   return sum / rows.length;
 }
 
+function relationText(v) {
+  const map = {
+    proportional: "비례",
+    inverse: "반비례",
+    mixed: "혼합",
+    "neutral-market": "시장중립",
+    insufficient: "데이터부족",
+  };
+  return map[v] || "데이터부족";
+}
+
+function trendText(v) {
+  const map = { up: "상승", down: "하락", neutral: "중립" };
+  return map[v] || "중립";
+}
+
 async function fetchJsonFirst(urls) {
   let lastErr = "unknown";
   for (const u of urls) {
@@ -303,6 +319,56 @@ function renderKpis(state, results) {
   }
 }
 
+function renderMarketIndicators(state) {
+  const body = $("marketBody");
+  if (!body) return;
+  body.innerHTML = "";
+
+  const runHistory = state.run_history || [];
+  const latestRun = runHistory[runHistory.length - 1] || {};
+  const indicators = latestRun.market_indicators || null;
+  const nowAlign = latestRun.market_alignment_now || {};
+  const histAlign = latestRun.market_alignment_history || {};
+
+  if (!indicators) {
+    const tr = document.createElement("tr");
+    tr.innerHTML = `<td colspan="6" class="muted">시장 인디케이터 데이터가 아직 없습니다.</td>`;
+    body.appendChild(tr);
+    return;
+  }
+
+  const rows = [
+    { key: "market", label: "시장 전체" },
+    { key: "btc", label: "BTC" },
+    { key: "eth", label: "ETH" },
+  ];
+
+  for (const row of rows) {
+    const i = indicators[row.key] || {};
+    const n = nowAlign[row.key] || {};
+    const h = histAlign[row.key] || {};
+
+    const chg = Number(i.change24h);
+    const hasChg = Number.isFinite(chg);
+    const corr = Number(h.correlation);
+    const hasCorr = Number.isFinite(corr);
+
+    const chgCls = hasChg ? (chg >= 0 ? "good" : "bad") : "";
+    const corrCls = hasCorr ? (corr >= 0 ? "good" : "bad") : "";
+
+    const tr = document.createElement("tr");
+    tr.innerHTML = `
+      <td class="mono">${row.label}</td>
+      <td class="${chgCls}">${hasChg ? fmtPct(chg / 100) : "데이터없음"}</td>
+      <td>${trendText(i.trend)}</td>
+      <td>${relationText(n.relation)}</td>
+      <td class="${corrCls}">${hasCorr ? fmtNum(corr, 3) : "데이터없음"}</td>
+      <td>${Number(h.sample || 0)}</td>
+    `;
+    body.appendChild(tr);
+  }
+}
+
 async function loadAndRender() {
   const owner = $("ownerInput").value.trim();
   const repo = $("repoInput").value.trim();
@@ -317,6 +383,7 @@ async function loadAndRender() {
     const { data: state, url } = await fetchJsonFirst(urls);
     const results = state.results || [];
     renderKpis(state, results);
+    renderMarketIndicators(state);
     renderTrend(state);
     renderSideTrends(results);
     renderRules(state.dynamic_config || {});

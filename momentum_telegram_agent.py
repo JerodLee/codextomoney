@@ -14,6 +14,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import math
 import os
 import statistics
 import time
@@ -59,6 +60,9 @@ DEFAULT_DYNAMIC_CONFIG: Dict[str, float] = {
     "conservative_max_rate": 20.0,
     "conservative_max_abs_funding": 0.0015,
 }
+
+MARKET_TREND_UP = 0.6
+MARKET_TREND_DOWN = -0.6
 
 
 def utc_now() -> datetime:
@@ -139,6 +143,56 @@ def fetch_market_snapshot() -> Tuple[Dict[str, Any], Dict[str, Any], Dict[str, A
     }
 
 
+def trend_sign(change24h: float | None) -> int:
+    if change24h is None:
+        return 0
+    if change24h >= MARKET_TREND_UP:
+        return 1
+    if change24h <= MARKET_TREND_DOWN:
+        return -1
+    return 0
+
+
+def trend_label(sign: int) -> str:
+    if sign > 0:
+        return "up"
+    if sign < 0:
+        return "down"
+    return "neutral"
+
+
+def compute_market_indicators(bitget: Dict[str, Any]) -> Dict[str, Dict[str, Any]]:
+    total_w = 0.0
+    total_v = 0.0
+    for t in bitget.values():
+        vol = float(getattr(t, "usdt_volume", 0.0) or 0.0)
+        chg = float(getattr(t, "change24h_pct", 0.0) or 0.0)
+        if vol <= 0:
+            continue
+        total_w += chg * vol
+        total_v += vol
+    market_change = (total_w / total_v) if total_v > 0 else 0.0
+
+    btc = bitget.get("BTC")
+    eth = bitget.get("ETH")
+    btc_change = float(getattr(btc, "change24h_pct", 0.0)) if btc else None
+    eth_change = float(getattr(eth, "change24h_pct", 0.0)) if eth else None
+
+    def pack(change: float | None) -> Dict[str, Any]:
+        s = trend_sign(change)
+        return {
+            "change24h": change,
+            "sign": s,
+            "trend": trend_label(s),
+        }
+
+    return {
+        "market": pack(market_change),
+        "btc": pack(btc_change),
+        "eth": pack(eth_change),
+    }
+
+
 def compute_candidates(
     bithumb: Dict[str, Any],
     bitget: Dict[str, Any],
@@ -185,6 +239,7 @@ def make_recommendations(
     candidates: List[Any],
     top_n: int,
     min_short_picks: int,
+    market_indicators: Dict[str, Dict[str, Any]],
     run_ts: datetime,
     horizon_min: int,
 ) -> List[Dict[str, Any]]:
@@ -225,6 +280,9 @@ def make_recommendations(
                 "g_volume24h": c.g_usdt_volume,
                 "g_funding_rate": c.g_funding_rate,
                 "g_symbol": c.g_symbol,
+                "market_sign_market": int(market_indicators.get("market", {}).get("sign", 0)),
+                "market_sign_btc": int(market_indicators.get("btc", {}).get("sign", 0)),
+                "market_sign_eth": int(market_indicators.get("eth", {}).get("sign", 0)),
             }
         )
     return out
@@ -235,6 +293,10 @@ def pick_side(p: Dict[str, Any]) -> str:
     return "SHORT" if side == "SHORT" else "LONG"
 
 
+def side_sign(side: str) -> int:
+    return -1 if side == "SHORT" else 1
+
+
 def trade_return_from_market_return(
     market_return: float | None,
     side: str,
@@ -242,6 +304,91 @@ def trade_return_from_market_return(
     if market_return is None:
         return None
     return -market_return if side == "SHORT" else market_return
+
+
+def relation_from_value(v: float | None, neutral_band: float = 0.2) -> str:
+    if v is None:
+        return "insufficient"
+    if v > neutral_band:
+        return "proportional"
+    if v < -neutral_band:
+        return "inverse"
+    return "mixed"
+
+
+def pearson_corr(xs: List[float], ys: List[float]) -> float | None:
+    if len(xs) < 2 or len(ys) < 2 or len(xs) != len(ys):
+        return None
+    mx = sum(xs) / len(xs)
+    my = sum(ys) / len(ys)
+    cov = 0.0
+    vx = 0.0
+    vy = 0.0
+    for x, y in zip(xs, ys):
+        dx = x - mx
+        dy = y - my
+        cov += dx * dy
+        vx += dx * dx
+        vy += dy * dy
+    if vx <= 1e-12 or vy <= 1e-12:
+        return None
+    return cov / math.sqrt(vx * vy)
+
+
+def compute_alignment_now(
+    picks: List[Dict[str, Any]],
+    market_indicators: Dict[str, Dict[str, Any]],
+) -> Dict[str, Dict[str, Any]]:
+    out: Dict[str, Dict[str, Any]] = {}
+    for key in ("market", "btc", "eth"):
+        m_sign = int(market_indicators.get(key, {}).get("sign", 0))
+        if m_sign == 0:
+            out[key] = {
+                "value": None,
+                "relation": "neutral-market",
+                "sample": 0,
+            }
+            continue
+        vals: List[float] = []
+        for p in picks:
+            s = side_sign(pick_side(p))
+            vals.append(float(s * m_sign))
+        v = (sum(vals) / len(vals)) if vals else None
+        out[key] = {
+            "value": v,
+            "relation": relation_from_value(v),
+            "sample": len(vals),
+        }
+    return out
+
+
+def compute_alignment_history(
+    recommendation_history: List[Dict[str, Any]],
+) -> Dict[str, Dict[str, Any]]:
+    out: Dict[str, Dict[str, Any]] = {}
+    field_map = {
+        "market": "market_sign_market",
+        "btc": "market_sign_btc",
+        "eth": "market_sign_eth",
+    }
+    for key, field in field_map.items():
+        xs: List[float] = []
+        ys: List[float] = []
+        for p in recommendation_history:
+            if field not in p:
+                continue
+            m_sign = int(p.get(field, 0))
+            if m_sign == 0:
+                continue
+            xs.append(float(side_sign(pick_side(p))))
+            ys.append(float(m_sign))
+        corr = pearson_corr(xs, ys)
+        out[key] = {
+            "correlation": corr,
+            "relation": relation_from_value(corr),
+            "sample": len(xs),
+        }
+    return out
 
 
 def blend_returns(
@@ -620,6 +767,8 @@ def run_cycle(args: argparse.Namespace, state: Dict[str, Any]) -> int:
         print(f"[ERROR] market fetch failed: {exc}")
         return 1
 
+    market_indicators = compute_market_indicators(bitget)
+
     candidates, filter_stats = compute_candidates(
         bithumb=bithumb,
         bitget=bitget,
@@ -632,6 +781,7 @@ def run_cycle(args: argparse.Namespace, state: Dict[str, Any]) -> int:
         candidates=candidates,
         top_n=args.top,
         min_short_picks=args.min_short_picks,
+        market_indicators=market_indicators,
         run_ts=run_ts,
         horizon_min=args.horizon_min,
     )
@@ -665,6 +815,8 @@ def run_cycle(args: argparse.Namespace, state: Dict[str, Any]) -> int:
         state["meta"]["no_candidate_streak"] = int(state["meta"]["no_candidate_streak"]) + 1
 
     metrics = compute_metrics(state["results"], window=args.metric_window)
+    alignment_now = compute_alignment_now(picks, market_indicators)
+    alignment_history = compute_alignment_history(state["recommendation_history"])
 
     calibrate_notes: List[str] = []
     calibrated = False
@@ -745,6 +897,9 @@ def run_cycle(args: argparse.Namespace, state: Dict[str, Any]) -> int:
             "calibrated": calibrated,
             "calibration_notes": calibrate_notes,
             "loss_alert_count": len(loss_alerts),
+            "market_indicators": market_indicators,
+            "market_alignment_now": alignment_now,
+            "market_alignment_history": alignment_history,
         }
     )
     state["run_history"] = state["run_history"][-5000:]
