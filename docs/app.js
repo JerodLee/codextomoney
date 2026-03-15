@@ -132,11 +132,19 @@ function pearsonCorr(xs, ys) {
 
 function directionalAgreement(xs, ys) {
   if (!xs.length || xs.length !== ys.length) return null;
-  let sum = 0;
+  let signed = 0;
+  let totalW = 0;
   for (let i = 0; i < xs.length; i += 1) {
-    sum += Number(xs[i]) * Number(ys[i]);
+    const x = Number(xs[i]);
+    const y = Number(ys[i]);
+    if (!Number.isFinite(x) || !Number.isFinite(y)) continue;
+    const w = Math.max(Math.abs(y), 1e-9);
+    const ySign = y >= 0 ? 1 : -1;
+    signed += x * ySign * w;
+    totalW += w;
   }
-  return sum / xs.length;
+  if (totalW <= 0) return null;
+  return signed / totalW;
 }
 
 async function fetchJsonFirst(urls) {
@@ -473,17 +481,28 @@ function renderSymbolCorrelations(state) {
   const latestRun = runHistory[runHistory.length - 1] || {};
   const indicators = latestRun.market_indicators || {};
   const runSignSeries = { market: [], btc: [], eth: [] };
+  const runValueSeries = { market: [], btc: [], eth: [] };
   for (const run of runHistory) {
     const ts = Date.parse(run?.run_at || "");
     if (!Number.isFinite(ts)) continue;
     for (const key of Object.keys(runSignSeries)) {
       const sign = Number(run?.market_indicators?.[key]?.sign || 0);
-      if (!Number.isFinite(sign) || sign === 0) continue;
-      runSignSeries[key].push({ ts, sign: sign > 0 ? 1 : -1 });
+      if (Number.isFinite(sign) && sign !== 0) {
+        runSignSeries[key].push({ ts, sign: sign > 0 ? 1 : -1 });
+      }
+
+      let change = Number(run?.market_indicators?.[key]?.changes?.["1h"]);
+      if (!Number.isFinite(change)) {
+        change = Number(run?.market_indicators?.[key]?.change24h);
+      }
+      if (Number.isFinite(change) && Math.abs(change) > 1e-9) {
+        runValueSeries[key].push({ ts, value: change });
+      }
     }
   }
   for (const key of Object.keys(runSignSeries)) {
     runSignSeries[key].sort((a, b) => a.ts - b.ts);
+    runValueSeries[key].sort((a, b) => a.ts - b.ts);
   }
   function latestNonZeroSign(key) {
     const series = runSignSeries[key] || [];
@@ -504,6 +523,21 @@ function renderSymbolCorrelations(state) {
     }
     if (last !== 0) return last;
     return Number(series[0]?.sign || 0);
+  }
+  function lookupValueAt(series, ts) {
+    if (!Array.isArray(series) || !series.length) return null;
+    if (!Number.isFinite(ts)) return Number(series[series.length - 1]?.value ?? null);
+    let last = null;
+    for (const p of series) {
+      if (p.ts <= ts) {
+        last = Number(p.value ?? null);
+      } else {
+        break;
+      }
+    }
+    if (last != null && Number.isFinite(last)) return last;
+    const first = Number(series[0]?.value ?? null);
+    return Number.isFinite(first) ? first : null;
   }
 
   const keyToField = {
@@ -531,14 +565,23 @@ function renderSymbolCorrelations(state) {
     const s = sideSign(r);
     const createdTs = Date.parse(r.created_at || "");
     for (const [k, f] of Object.entries(keyToField)) {
-      let m = Number(r[f]);
-      if (!Number.isFinite(m) || m === 0) {
-        m = lookupSignAt(runSignSeries[k], createdTs);
+      let y = Number(r[`market_change_${k}_1h`]);
+      if (!Number.isFinite(y)) {
+        y = Number(r[`market_change_${k}_24h`]);
       }
-      if (!Number.isFinite(m) || m === 0) continue;
-      m = m > 0 ? 1 : -1;
+      if (!Number.isFinite(y) || Math.abs(y) <= 1e-9) {
+        y = Number(lookupValueAt(runValueSeries[k], createdTs));
+      }
+      if (!Number.isFinite(y) || Math.abs(y) <= 1e-9) {
+        let m = Number(r[f]);
+        if (!Number.isFinite(m) || m === 0) {
+          m = lookupSignAt(runSignSeries[k], createdTs);
+        }
+        if (!Number.isFinite(m) || m === 0) continue;
+        y = m > 0 ? 1 : -1;
+      }
       row[k].xs.push(s);
-      row[k].ys.push(m);
+      row[k].ys.push(y);
     }
   }
 
@@ -564,6 +607,18 @@ function renderSymbolCorrelations(state) {
     if (!Number.isFinite(mNow) || mNow === 0) mNow = latestNonZeroSign("market");
     if (!Number.isFinite(bNow) || bNow === 0) bNow = latestNonZeroSign("btc");
     if (!Number.isFinite(eNow) || eNow === 0) eNow = latestNonZeroSign("eth");
+    if (!Number.isFinite(mNow) || mNow === 0) {
+      const v = Number(lookupValueAt(runValueSeries.market, Date.now()));
+      if (Number.isFinite(v) && Math.abs(v) > 1e-9) mNow = v > 0 ? 1 : -1;
+    }
+    if (!Number.isFinite(bNow) || bNow === 0) {
+      const v = Number(lookupValueAt(runValueSeries.btc, Date.now()));
+      if (Number.isFinite(v) && Math.abs(v) > 1e-9) bNow = v > 0 ? 1 : -1;
+    }
+    if (!Number.isFinite(eNow) || eNow === 0) {
+      const v = Number(lookupValueAt(runValueSeries.eth, Date.now()));
+      if (Number.isFinite(v) && Math.abs(v) > 1e-9) eNow = v > 0 ? 1 : -1;
+    }
     const relNowMarket = mNow === 0 ? "neutral-market" : relationFromNumeric(sNow * mNow, 0.01);
     const relNowBtc = bNow === 0 ? "neutral-market" : relationFromNumeric(sNow * bNow, 0.01);
     const relNowEth = eNow === 0 ? "neutral-market" : relationFromNumeric(sNow * eNow, 0.01);

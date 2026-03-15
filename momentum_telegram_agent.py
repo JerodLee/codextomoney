@@ -273,14 +273,7 @@ def append_market_series(state: Dict[str, Any], snapshot: Dict[str, Any], keep: 
     state["market_series"] = series
 
 
-def _series_value_at(
-    series: List[Dict[str, Any]],
-    key: str,
-    target_ts: float,
-) -> float | None:
-    if not series:
-        return None
-
+def _series_points(series: List[Dict[str, Any]], key: str) -> List[Tuple[float, float]]:
     points: List[Tuple[float, float]] = []
     for row in series:
         try:
@@ -294,9 +287,21 @@ def _series_value_at(
             points.append((ts, v))
         except Exception:  # noqa: BLE001
             continue
+    points.sort(key=lambda x: x[0])
+    return points
+
+
+def _series_value_at(
+    series: List[Dict[str, Any]],
+    key: str,
+    target_ts: float,
+) -> float | None:
+    if not series:
+        return None
+
+    points = _series_points(series, key)
     if not points:
         return None
-    points.sort(key=lambda x: x[0])
 
     if target_ts <= points[0][0]:
         return points[0][1]
@@ -321,10 +326,18 @@ def compute_timeframe_changes(
     fallback_24h: float | None = None,
 ) -> Dict[str, float | None]:
     now_ts = now.timestamp()
+    points = _series_points(series, key)
+    min_ts = points[0][0] if points else None
     now_val = _series_value_at(series, key, now_ts)
     out: Dict[str, float | None] = {}
     for label, mins in TIMEFRAME_MINUTES:
         target_ts = now_ts - (mins * 60.0)
+        if len(points) < 2 or min_ts is None or target_ts < min_ts:
+            if label == "24h" and fallback_24h is not None:
+                out[label] = fallback_24h
+            else:
+                out[label] = None
+            continue
         past_val = _series_value_at(series, key, target_ts)
         if now_val and past_val and past_val > 0:
             out[label] = ((now_val / past_val) - 1.0) * 100.0
@@ -466,6 +479,9 @@ def make_recommendations(
         )
 
     out: List[Dict[str, Any]] = []
+    market_changes = market_indicators.get("market", {}).get("changes", {}) or {}
+    btc_changes = market_indicators.get("btc", {}).get("changes", {}) or {}
+    eth_changes = market_indicators.get("eth", {}).get("changes", {}) or {}
     for c in selected:
         out.append(
             {
@@ -487,6 +503,12 @@ def make_recommendations(
                 "market_sign_market": int(market_indicators.get("market", {}).get("sign", 0)),
                 "market_sign_btc": int(market_indicators.get("btc", {}).get("sign", 0)),
                 "market_sign_eth": int(market_indicators.get("eth", {}).get("sign", 0)),
+                "market_change_market_1h": market_changes.get("1h"),
+                "market_change_market_24h": market_changes.get("24h"),
+                "market_change_btc_1h": btc_changes.get("1h"),
+                "market_change_btc_24h": btc_changes.get("24h"),
+                "market_change_eth_1h": eth_changes.get("1h"),
+                "market_change_eth_24h": eth_changes.get("24h"),
             }
         )
     return out
@@ -576,21 +598,48 @@ def compute_alignment_history(
         "eth": "market_sign_eth",
     }
     for key, field in field_map.items():
-        xs: List[float] = []
-        ys: List[float] = []
+        xs_sign: List[float] = []
+        ys_sign: List[float] = []
+        xs_change: List[float] = []
+        ys_change: List[float] = []
+        change_1h = f"market_change_{key}_1h"
+        change_24h = f"market_change_{key}_24h"
         for p in recommendation_history:
-            if field not in p:
-                continue
-            m_sign = int(p.get(field, 0))
+            s = float(side_sign(pick_side(p)))
+            try:
+                m_sign = int(float(p.get(field, 0) or 0))
+            except Exception:  # noqa: BLE001
+                m_sign = 0
             if m_sign == 0:
-                continue
-            xs.append(float(side_sign(pick_side(p))))
-            ys.append(float(m_sign))
-        corr = pearson_corr(xs, ys)
+                pass
+            else:
+                xs_sign.append(s)
+                ys_sign.append(float(1 if m_sign > 0 else -1))
+
+            ch_val = p.get(change_1h)
+            if ch_val is None:
+                ch_val = p.get(change_24h)
+            try:
+                ch = float(ch_val)
+            except Exception:  # noqa: BLE001
+                ch = 0.0
+            if abs(ch) > 1e-9:
+                xs_change.append(s)
+                ys_change.append(ch)
+
+        corr = pearson_corr(xs_sign, ys_sign)
+        sample = len(xs_sign)
+        if corr is None:
+            corr = pearson_corr(xs_change, ys_change)
+            if corr is not None:
+                sample = len(xs_change)
+        if corr is None and xs_sign:
+            corr = sum((x * y) for x, y in zip(xs_sign, ys_sign)) / len(xs_sign)
+            sample = len(xs_sign)
         out[key] = {
             "correlation": corr,
             "relation": relation_from_value(corr),
-            "sample": len(xs),
+            "sample": sample,
         }
     return out
 
@@ -630,12 +679,67 @@ def _lookup_sign_at(series: List[Tuple[float, int]], ts: float) -> int:
     return int(series[0][1])
 
 
+def _build_run_change_series(
+    run_history: List[Dict[str, Any]],
+) -> Dict[str, List[Tuple[float, float | None, float | None]]]:
+    out: Dict[str, List[Tuple[float, float | None, float | None]]] = {
+        "market": [],
+        "btc": [],
+        "eth": [],
+    }
+    for r in run_history:
+        try:
+            ts = parse_iso(str(r.get("run_at"))).timestamp()
+        except Exception:  # noqa: BLE001
+            continue
+        mi = r.get("market_indicators", {}) or {}
+        for key in ("market", "btc", "eth"):
+            row = mi.get(key, {}) or {}
+            changes = row.get("changes", {}) or {}
+            c1 = changes.get("1h")
+            c24 = changes.get("24h", row.get("change24h"))
+            c1f = None
+            c24f = None
+            try:
+                if c1 is not None:
+                    c1f = float(c1)
+            except Exception:  # noqa: BLE001
+                c1f = None
+            try:
+                if c24 is not None:
+                    c24f = float(c24)
+            except Exception:  # noqa: BLE001
+                c24f = None
+            out[key].append((ts, c1f, c24f))
+    for key in out:
+        out[key].sort(key=lambda x: x[0])
+    return out
+
+
+def _lookup_change_at(
+    series: List[Tuple[float, float | None, float | None]],
+    ts: float,
+) -> Tuple[float | None, float | None]:
+    if not series:
+        return None, None
+    last: Tuple[float, float | None, float | None] | None = None
+    for row in series:
+        if row[0] <= ts:
+            last = row
+            continue
+        break
+    if last is None:
+        last = series[0]
+    return last[1], last[2]
+
+
 def enrich_recommendations_with_market_signs(
     recommendation_history: List[Dict[str, Any]],
     run_history: List[Dict[str, Any]],
 ) -> None:
     sign_series = _build_run_sign_series(run_history)
-    if not any(sign_series.values()):
+    change_series = _build_run_change_series(run_history)
+    if not any(sign_series.values()) and not any(change_series.values()):
         return
     field_map = {
         "market": "market_sign_market",
@@ -650,10 +754,18 @@ def enrich_recommendations_with_market_signs(
         for key, field in field_map.items():
             cur = p.get(field)
             if cur not in (None, "", 0):
-                continue
-            s = _lookup_sign_at(sign_series[key], ts)
-            if s != 0:
-                p[field] = int(s)
+                pass
+            else:
+                s = _lookup_sign_at(sign_series[key], ts)
+                if s != 0:
+                    p[field] = int(s)
+            c1, c24 = _lookup_change_at(change_series[key], ts)
+            change_1h = f"market_change_{key}_1h"
+            change_24h = f"market_change_{key}_24h"
+            if p.get(change_1h) is None and c1 is not None:
+                p[change_1h] = c1
+            if p.get(change_24h) is None and c24 is not None:
+                p[change_24h] = c24
 
 
 def blend_returns(
