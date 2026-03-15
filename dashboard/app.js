@@ -429,8 +429,9 @@ function renderMarketIndicators(state) {
     ) {
       changes["24h"] = Number(i.change24h);
     }
-    const corr = Number(h.correlation);
-    const hasCorr = Number.isFinite(corr);
+    const corrRaw = h.correlation;
+    const hasCorr = corrRaw != null && Number.isFinite(Number(corrRaw));
+    const corr = hasCorr ? Number(corrRaw) : null;
     const corrCls = hasCorr ? (corr >= 0 ? "good" : "bad") : "";
     const changeCells = MARKET_CHANGE_KEYS.map((k) => {
       const v = Number(changes[k]);
@@ -566,20 +567,23 @@ function renderSymbolCorrelations(state) {
   }
 
   for (const r of sorted) {
-    const hasM = Number.isFinite(Number(r.cMarket));
-    const hasB = Number.isFinite(Number(r.cBtc));
-    const hasE = Number.isFinite(Number(r.cEth));
-    const clsM = hasM ? (r.cMarket >= 0 ? "good" : "bad") : "";
-    const clsB = hasB ? (r.cBtc >= 0 ? "good" : "bad") : "";
-    const clsE = hasE ? (r.cEth >= 0 ? "good" : "bad") : "";
+    const hasM = r.cMarket != null && Number.isFinite(Number(r.cMarket));
+    const hasB = r.cBtc != null && Number.isFinite(Number(r.cBtc));
+    const hasE = r.cEth != null && Number.isFinite(Number(r.cEth));
+    const mVal = hasM ? Number(r.cMarket) : null;
+    const bVal = hasB ? Number(r.cBtc) : null;
+    const eVal = hasE ? Number(r.cEth) : null;
+    const clsM = hasM ? (mVal >= 0 ? "good" : "bad") : "";
+    const clsB = hasB ? (bVal >= 0 ? "good" : "bad") : "";
+    const clsE = hasE ? (eVal >= 0 ? "good" : "bad") : "";
 
     const tr = document.createElement("tr");
     tr.innerHTML = `
       <td class="mono">${r.sym}</td>
       <td>${r.relNowText}</td>
-      <td class="${clsM}">${hasM ? fmtNum(r.cMarket, 3) : "데이터없음"}</td>
-      <td class="${clsB}">${hasB ? fmtNum(r.cBtc, 3) : "데이터없음"}</td>
-      <td class="${clsE}">${hasE ? fmtNum(r.cEth, 3) : "데이터없음"}</td>
+      <td class="${clsM}">${hasM ? fmtNum(mVal, 3) : "데이터없음"}</td>
+      <td class="${clsB}">${hasB ? fmtNum(bVal, 3) : "데이터없음"}</td>
+      <td class="${clsE}">${hasE ? fmtNum(eVal, 3) : "데이터없음"}</td>
       <td>${r.sMarket}/${r.sBtc}/${r.sEth}</td>
     `;
     body.appendChild(tr);

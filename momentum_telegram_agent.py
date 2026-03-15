@@ -112,6 +112,16 @@ def load_state(path: Path) -> Dict[str, Any]:
     data.setdefault("dynamic_config", dict(DEFAULT_DYNAMIC_CONFIG))
     for k, v in DEFAULT_DYNAMIC_CONFIG.items():
         data["dynamic_config"].setdefault(k, v)
+    # Legacy states can contain an invalid zero cap due to old rounding.
+    # Keep this in a sane range so recommendations are not fully blocked.
+    try:
+        cap = float(data["dynamic_config"].get("conservative_max_abs_funding", 0.0))
+    except Exception:  # noqa: BLE001
+        cap = 0.0
+    if cap <= 0.0:
+        data["dynamic_config"]["conservative_max_abs_funding"] = float(
+            DEFAULT_DYNAMIC_CONFIG["conservative_max_abs_funding"]
+        )
     data.setdefault("pending", [])
     data.setdefault("results", [])
     data.setdefault("recommendation_history", [])
@@ -821,10 +831,13 @@ def auto_calibrate(
         "short_max_bithumb_rate",
         "max_overheat_rate",
         "conservative_max_rate",
-        "conservative_max_abs_funding",
     ):
         new_cfg[k] = round_step(new_cfg[k], 0.01)
     new_cfg["short_min_funding_rate"] = round_step(new_cfg["short_min_funding_rate"], 0.0001)
+    new_cfg["conservative_max_abs_funding"] = round_step(
+        min(0.01, max(0.0005, float(new_cfg["conservative_max_abs_funding"]))),
+        0.0001,
+    )
     for k in ("min_bithumb_value", "min_bitget_volume"):
         new_cfg[k] = float(int(new_cfg[k]))
 
