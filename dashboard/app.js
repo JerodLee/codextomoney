@@ -174,13 +174,24 @@ function countBySymbol(rows) {
   return out;
 }
 
-function symbolCellHtml(symbol, recCount, evalCount) {
+function countWinsBySymbol(rows) {
+  const out = new Map();
+  for (const r of rows || []) {
+    const sym = String(r?.symbol || "").toUpperCase().trim();
+    if (!sym) continue;
+    if (!Boolean(r?.win)) continue;
+    out.set(sym, (out.get(sym) || 0) + 1);
+  }
+  return out;
+}
+
+function symbolCellHtml(symbol, recCount, evalCount, winCount) {
   const code = String(symbol || "-").toUpperCase();
   return `
     <div class="sym-cell">
       <div class="sym-code mono">${code}</div>
       <div class="sym-name">${symbolName(code)}</div>
-      <div class="sym-meta">\uCD94\uCC9C ${recCount}\uD68C \u00B7 \uAC80\uC99D ${evalCount}\uD68C</div>
+      <div class="sym-meta">\uCD94\uCC9C ${recCount}\uD68C \u00B7 \uAC80\uC99D ${evalCount}\uD68C \u00B7 \uC2B9 ${winCount}\uD68C</div>
     </div>
   `;
 }
@@ -398,14 +409,23 @@ function renderRules(cfg) {
 function renderPicks(state) {
   const body = $("pickBody");
   body.innerHTML = "";
+  const metaEl = $("pickMeta");
   const allPicks = state.recommendation_history || [];
   const allResults = state.results || [];
+  const totalRec = allPicks.length;
+  const totalEval = allResults.length;
+  const totalWin = allResults.filter((r) => Boolean(r?.win)).length;
   const picks = [...allPicks]
     .sort((a, b) => new Date(b.created_at) - new Date(a.created_at))
     .slice(0, RECENT_ROWS);
   const resultIds = new Set(allResults.map((r) => r.id));
   const recCounts = countBySymbol(allPicks);
   const evalCounts = countBySymbol(allResults);
+  const winCounts = countWinsBySymbol(allResults);
+
+  if (metaEl) {
+    metaEl.textContent = `최신 ${RECENT_ROWS}건 · 누적 추천 ${totalRec}회 · 검증 ${totalEval}회 · 승 ${totalWin}회`;
+  }
 
   if (!picks.length) {
     const tr = document.createElement("tr");
@@ -420,11 +440,12 @@ function renderPicks(state) {
     const status = statusLabel(resultIds.has(p.id));
     const recN = recCounts.get(symbol) || 0;
     const evalN = evalCounts.get(symbol) || 0;
+    const winN = winCounts.get(symbol) || 0;
     const plan = computePlanFields(p);
     const tr = document.createElement("tr");
     tr.innerHTML = `
       <td>${fmtTime(p.created_at)}</td>
-      <td>${symbolCellHtml(symbol, recN, evalN)}</td>
+      <td>${symbolCellHtml(symbol, recN, evalN, winN)}</td>
       <td>${sideBadgeHtml(side)}</td>
       <td class="mono">${modelLabel(modelOf(p))}</td>
       <td>${Number.isFinite(Number(p.score)) ? fmtNum(p.score, 3) : "-"}</td>
@@ -445,12 +466,21 @@ function renderPicks(state) {
 function renderEvaluations(state, results) {
   const body = $("evalBody");
   body.innerHTML = "";
+  const metaEl = $("evalMeta");
   const allPicks = state.recommendation_history || [];
+  const totalRec = allPicks.length;
+  const totalEval = (results || []).length;
+  const totalWin = (results || []).filter((r) => Boolean(r?.win)).length;
   const recCounts = countBySymbol(allPicks);
   const evalCounts = countBySymbol(results);
+  const winCounts = countWinsBySymbol(results);
   const rows = [...results]
     .sort((a, b) => new Date(b.evaluated_at) - new Date(a.evaluated_at))
     .slice(0, RECENT_ROWS);
+
+  if (metaEl) {
+    metaEl.textContent = `최신 ${RECENT_ROWS}건 · 누적 추천 ${totalRec}회 · 검증 ${totalEval}회 · 승 ${totalWin}회`;
+  }
 
   if (!rows.length) {
     const tr = document.createElement("tr");
@@ -464,12 +494,13 @@ function renderEvaluations(state, results) {
     const symbol = String(r.symbol || "").toUpperCase();
     const recN = recCounts.get(symbol) || 0;
     const evalN = evalCounts.get(symbol) || 0;
+    const winN = winCounts.get(symbol) || 0;
     const ret = Number(r.return_blended || 0);
     const klass = ret >= 0 ? "good" : "bad";
     const tr = document.createElement("tr");
     tr.innerHTML = `
       <td>${fmtTime(r.evaluated_at)}</td>
-      <td>${symbolCellHtml(symbol, recN, evalN)}</td>
+      <td>${symbolCellHtml(symbol, recN, evalN, winN)}</td>
       <td>${sideBadgeHtml(side)}</td>
       <td class="mono">${modelLabel(modelOf(r))}</td>
       <td class="${klass}">${fmtPct(ret)}</td>
