@@ -185,6 +185,32 @@ function countWinsBySymbol(rows) {
   return out;
 }
 
+function countByPickId(rows) {
+  const out = new Map();
+  for (const r of rows || []) {
+    const raw = String(r?.pick_id || r?.id || "").trim();
+    if (!raw) continue;
+    const pickId = raw.includes("@") ? raw.split("@")[0] : raw;
+    if (!pickId) continue;
+    out.set(pickId, (out.get(pickId) || 0) + 1);
+  }
+  return out;
+}
+
+function evalPlanCount(pick) {
+  const hs = Array.isArray(pick?.eval_horizons_min)
+    ? pick.eval_horizons_min.map((x) => Number(x)).filter((x) => Number.isFinite(x) && x > 0)
+    : [];
+  if (hs.length) return hs.length;
+  const h = Number(pick?.horizon_min);
+  return Number.isFinite(h) && h > 0 ? 1 : 1;
+}
+
+function evalHorizonText(row) {
+  const h = Number(row?.horizon_min);
+  return Number.isFinite(h) && h > 0 ? `${Math.round(h)}m` : "-";
+}
+
 function symbolCellHtml(symbol, recCount, evalCount, winCount) {
   const code = String(symbol || "-").toUpperCase();
   return `
@@ -418,7 +444,7 @@ function renderPicks(state) {
   const picks = [...allPicks]
     .sort((a, b) => new Date(b.created_at) - new Date(a.created_at))
     .slice(0, RECENT_ROWS);
-  const resultIds = new Set(allResults.map((r) => r.id));
+  const evalByPick = countByPickId(allResults);
   const recCounts = countBySymbol(allPicks);
   const evalCounts = countBySymbol(allResults);
   const winCounts = countWinsBySymbol(allResults);
@@ -437,7 +463,14 @@ function renderPicks(state) {
   for (const p of picks) {
     const side = sideOf(p);
     const symbol = String(p.symbol || "").toUpperCase();
-    const status = statusLabel(resultIds.has(p.id));
+    const doneN = evalByPick.get(String(p.id || "")) || 0;
+    const planN = evalPlanCount(p);
+    let status = "\uB300\uAE30";
+    if (doneN > 0 && doneN < planN) {
+      status = `\uAC80\uC99D\uC911 ${doneN}/${planN}`;
+    } else if (doneN >= planN) {
+      status = statusLabel(true);
+    }
     const recN = recCounts.get(symbol) || 0;
     const evalN = evalCounts.get(symbol) || 0;
     const winN = winCounts.get(symbol) || 0;
@@ -484,7 +517,7 @@ function renderEvaluations(state, results) {
 
   if (!rows.length) {
     const tr = document.createElement("tr");
-    tr.innerHTML = `<td colspan="6" class="muted">검증 데이터가 아직 없습니다.</td>`;
+    tr.innerHTML = `<td colspan="7" class="muted">검증 데이터가 아직 없습니다.</td>`;
     body.appendChild(tr);
     return;
   }
@@ -500,6 +533,7 @@ function renderEvaluations(state, results) {
     const tr = document.createElement("tr");
     tr.innerHTML = `
       <td>${fmtTime(r.evaluated_at)}</td>
+      <td class="mono">${evalHorizonText(r)}</td>
       <td>${symbolCellHtml(symbol, recN, evalN, winN)}</td>
       <td>${sideBadgeHtml(side)}</td>
       <td class="mono">${modelLabel(modelOf(r))}</td>

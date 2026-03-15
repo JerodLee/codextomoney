@@ -26,6 +26,7 @@ from pathlib import Path
 from typing import Any, Dict, List, Tuple
 
 from crypto_momentum_scanner import (
+    BITHUMB_ORDERBOOK_URL_TMPL,
     BITHUMB_TICKER_URL,
     BITGET_TICKERS_URL,
     apply_bithumb_orderable_filter,
@@ -100,6 +101,7 @@ MODEL_RECOMMEND_WIN_RATE_FLOOR = 0.48
 MODEL_RECOMMEND_AVG_RETURN_FLOOR = -0.001
 MODEL_DIAG_MIN_COUNT = 24
 MODEL_DIAG_MIN_BUCKET = 8
+DEFAULT_EVAL_HORIZONS = [5, 15, 30, 60]
 
 
 def utc_now() -> datetime:
@@ -202,6 +204,47 @@ def safe_float(v: Any) -> float | None:
 
 def clamp(v: float, lo: float, hi: float) -> float:
     return max(lo, min(hi, v))
+
+
+def parse_eval_horizons(raw: str | None, fallback_horizon: int) -> List[int]:
+    vals: List[int] = []
+    for token in str(raw or "").split(","):
+        tok = token.strip()
+        if not tok:
+            continue
+        try:
+            n = int(tok)
+        except Exception:  # noqa: BLE001
+            continue
+        if 1 <= n <= 24 * 60:
+            vals.append(n)
+    if not vals:
+        vals = [max(1, int(fallback_horizon))]
+    out = sorted(set(vals))
+    if fallback_horizon > 0 and int(fallback_horizon) not in out:
+        out.append(int(fallback_horizon))
+        out.sort()
+    return out
+
+
+def parse_pick_eval_horizons(p: Dict[str, Any]) -> List[int]:
+    raw = p.get("eval_horizons_min")
+    out: List[int] = []
+    if isinstance(raw, list):
+        for x in raw:
+            try:
+                n = int(x)
+            except Exception:  # noqa: BLE001
+                continue
+            if 1 <= n <= 24 * 60:
+                out.append(n)
+    if not out:
+        try:
+            n = int(p.get("horizon_min", 15) or 15)
+        except Exception:  # noqa: BLE001
+            n = 15
+        out = [max(1, n)]
+    return sorted(set(out))
 
 
 def sanitize_dynamic_config(cfg: Dict[str, float]) -> Dict[str, float]:
@@ -561,6 +604,119 @@ def compute_market_indicators(
     }
 
 
+def _parse_orderbook_levels(
+    payload: Dict[str, Any],
+    top_n: int = 20,
+) -> Tuple[List[Tuple[float, float]], List[Tuple[float, float]]]:
+    if payload.get("status") != "0000":
+        return [], []
+    data = payload.get("data", {}) or {}
+    bids_raw = data.get("bids") or []
+    asks_raw = data.get("asks") or []
+
+    def norm(rows: List[Any]) -> List[Tuple[float, float]]:
+        out: List[Tuple[float, float]] = []
+        for row in rows[: max(1, int(top_n))]:
+            if not isinstance(row, dict):
+                continue
+            px = safe_float(row.get("price"))
+            qty = safe_float(row.get("quantity"))
+            if px is None or qty is None or px <= 0 or qty <= 0:
+                continue
+            out.append((float(px), float(qty)))
+        return out
+
+    bids = sorted(norm(bids_raw), key=lambda x: x[0], reverse=True)
+    asks = sorted(norm(asks_raw), key=lambda x: x[0])
+    return bids, asks
+
+
+def compute_orderblock_features(
+    symbol: str,
+    ref_price: float,
+    timeout_sec: int = 6,
+) -> Dict[str, float] | None:
+    sym = str(symbol or "").upper().strip()
+    if not sym or ref_price <= 0:
+        return None
+    try:
+        payload = fetch_json(
+            BITHUMB_ORDERBOOK_URL_TMPL.format(symbol=sym),
+            timeout_sec=timeout_sec,
+        )
+    except Exception:  # noqa: BLE001
+        return None
+    bids, asks = _parse_orderbook_levels(payload, top_n=20)
+    if not bids or not asks:
+        return None
+
+    band_pct = 0.60
+    lo = ref_price * (1.0 - (band_pct / 100.0))
+    hi = ref_price * (1.0 + (band_pct / 100.0))
+    bid_notional = sum((px * qty) for px, qty in bids if lo <= px <= ref_price)
+    ask_notional = sum((px * qty) for px, qty in asks if ref_price <= px <= hi)
+    if bid_notional <= 0 and ask_notional <= 0:
+        bid_notional = sum((px * qty) for px, qty in bids[:5])
+        ask_notional = sum((px * qty) for px, qty in asks[:5])
+
+    ratio = (bid_notional + 1.0) / (ask_notional + 1.0)
+    signal = clamp(math.log(ratio), -1.0, 1.0)
+    best_bid = max(bids, key=lambda x: x[0] * x[1], default=None)
+    best_ask = max(asks, key=lambda x: x[0] * x[1], default=None)
+    support_dist_pct = None
+    resist_dist_pct = None
+    if best_bid is not None:
+        support_dist_pct = max(0.0, ((ref_price - best_bid[0]) / ref_price) * 100.0)
+    if best_ask is not None:
+        resist_dist_pct = max(0.0, ((best_ask[0] - ref_price) / ref_price) * 100.0)
+
+    return {
+        "signal": float(signal),
+        "bid_ask_ratio": float(ratio),
+        "support_dist_pct": float(support_dist_pct or 0.0),
+        "resist_dist_pct": float(resist_dist_pct or 0.0),
+    }
+
+
+def enrich_candidates_with_orderblock(
+    candidates: List[Any],
+    timeout_sec: int,
+    max_checks: int,
+) -> Dict[str, int]:
+    checked = 0
+    assigned = 0
+    cache: Dict[str, Dict[str, float] | None] = {}
+    if not candidates:
+        return {"orderblock_checked": 0, "orderblock_assigned": 0}
+
+    to_scan = candidates if max_checks <= 0 else candidates[: max(1, int(max_checks))]
+    for c in to_scan:
+        sym = str(getattr(c, "symbol", "")).upper().strip()
+        ref_price = safe_float(getattr(c, "b_close_krw", None))
+        if not sym or ref_price is None or ref_price <= 0:
+            continue
+        if sym in cache:
+            continue
+        checked += 1
+        cache[sym] = compute_orderblock_features(
+            symbol=sym,
+            ref_price=float(ref_price),
+            timeout_sec=timeout_sec,
+        )
+
+    for c in candidates:
+        sym = str(getattr(c, "symbol", "")).upper().strip()
+        ob = cache.get(sym)
+        if not ob:
+            continue
+        setattr(c, "b_ob_signal", ob.get("signal"))
+        setattr(c, "b_ob_bid_ask_ratio", ob.get("bid_ask_ratio"))
+        setattr(c, "b_ob_support_dist_pct", ob.get("support_dist_pct"))
+        setattr(c, "b_ob_resist_dist_pct", ob.get("resist_dist_pct"))
+        assigned += 1
+    return {"orderblock_checked": checked, "orderblock_assigned": assigned}
+
+
 def compute_candidates(
     bithumb: Dict[str, Any],
     bitget: Dict[str, Any],
@@ -568,6 +724,8 @@ def compute_candidates(
     orderbook_timeout_sec: int,
     max_orderbook_checks: int,
     blocked_symbols: set[str] | None = None,
+    orderblock_timeout_sec: int = 6,
+    max_orderblock_checks: int = 20,
 ) -> Tuple[List[Any], Dict[str, int]]:
     candidates = build_candidates(
         bithumb=bithumb,
@@ -605,6 +763,11 @@ def compute_candidates(
         timeout_sec=orderbook_timeout_sec,
         max_checks=max_orderbook_checks,
     )
+    ob_stats = enrich_candidates_with_orderblock(
+        candidates=candidates,
+        timeout_sec=orderblock_timeout_sec,
+        max_checks=max_orderblock_checks,
+    )
     return candidates, {
         "base_universe": base_universe,
         "removed_loss_cooldown": removed_loss_cooldown,
@@ -612,6 +775,8 @@ def compute_candidates(
         "removed_conservative": removed_conservative,
         "removed_orderable": removed_orderable,
         "orderbook_checked": orderbook_checked,
+        "orderblock_checked": int(ob_stats.get("orderblock_checked", 0)),
+        "orderblock_assigned": int(ob_stats.get("orderblock_assigned", 0)),
     }
 
 
@@ -704,6 +869,24 @@ def score_candidate_for_model(
             adjust += 0.03
         elif symbol not in {"BTC", "ETH"}:
             adjust -= 0.005
+
+    ob_signal = safe_float(getattr(c, "b_ob_signal", None))
+    ob_support = safe_float(getattr(c, "b_ob_support_dist_pct", None))
+    ob_resist = safe_float(getattr(c, "b_ob_resist_dist_pct", None))
+    if ob_signal is not None:
+        # Orderblock pressure: bid-heavy helps LONG, ask-heavy helps SHORT.
+        adjust += 0.05 * direction * clamp(float(ob_signal), -1.0, 1.0)
+    near_band = 0.35
+    if side == "LONG":
+        if ob_resist is not None and ob_resist < near_band:
+            adjust -= 0.03 * (1.0 - (ob_resist / near_band))
+        if ob_support is not None and ob_support < near_band:
+            adjust += 0.02 * (1.0 - (ob_support / near_band))
+    else:
+        if ob_support is not None and ob_support < near_band:
+            adjust -= 0.03 * (1.0 - (ob_support / near_band))
+        if ob_resist is not None and ob_resist < near_band:
+            adjust += 0.02 * (1.0 - (ob_resist / near_band))
 
     return round(base + clamp(adjust, -0.20, 0.20), 4)
 
@@ -1029,6 +1212,7 @@ def make_recommendations(
     market_indicators: Dict[str, Dict[str, Any]],
     run_ts: datetime,
     horizon_min: int,
+    eval_horizons_min: List[int] | None = None,
 ) -> List[Dict[str, Any]]:
     selected: List[Dict[str, Any]] = []
     top_n = max(0, int(top_n))
@@ -1141,6 +1325,10 @@ def make_recommendations(
         )
 
     out: List[Dict[str, Any]] = []
+    eval_horizons = sorted(set(int(x) for x in (eval_horizons_min or [horizon_min]) if int(x) > 0))
+    if not eval_horizons:
+        eval_horizons = [max(1, int(horizon_min))]
+    primary_horizon = int(eval_horizons[0])
     market_changes = market_indicators.get("market", {}).get("changes", {}) or {}
     btc_changes = market_indicators.get("btc", {}).get("changes", {}) or {}
     eth_changes = market_indicators.get("eth", {}).get("changes", {}) or {}
@@ -1166,7 +1354,9 @@ def make_recommendations(
                 "model_id": mid,
                 "model_name": model_name_from_id(mid),
                 "created_at": iso_z(run_ts),
-                "horizon_min": horizon_min,
+                "horizon_min": primary_horizon,
+                "eval_horizons_min": list(eval_horizons),
+                "evaluated_horizons": [],
                 "entry_bithumb_price": c.b_close_krw,
                 "entry_bitget_price": c.g_last_price,
                 "score": score,
@@ -1179,6 +1369,10 @@ def make_recommendations(
                 "g_funding_rate": c.g_funding_rate,
                 "g_open_interest": c.g_open_interest,
                 "g_symbol": c.g_symbol,
+                "ob_signal": safe_float(getattr(c, "b_ob_signal", None)),
+                "ob_bid_ask_ratio": safe_float(getattr(c, "b_ob_bid_ask_ratio", None)),
+                "ob_support_dist_pct": safe_float(getattr(c, "b_ob_support_dist_pct", None)),
+                "ob_resist_dist_pct": safe_float(getattr(c, "b_ob_resist_dist_pct", None)),
                 "market_sign_market": int(market_indicators.get("market", {}).get("sign", 0)),
                 "market_sign_btc": int(market_indicators.get("btc", {}).get("sign", 0)),
                 "market_sign_eth": int(market_indicators.get("eth", {}).get("sign", 0)),
@@ -1489,10 +1683,33 @@ def evaluate_pending(
     finalized: List[Dict[str, Any]] = []
 
     for p in pending:
-        created = parse_iso(p["created_at"])
-        horizon = int(p.get("horizon_min", 30))
+        try:
+            created = parse_iso(str(p["created_at"]))
+        except Exception:  # noqa: BLE001
+            continue
         side = pick_side(p)
-        if now < created + timedelta(minutes=horizon):
+        horizons = parse_pick_eval_horizons(p)
+        if not horizons:
+            continue
+        max_horizon = max(horizons)
+        done_raw = p.get("evaluated_horizons")
+        done_set: set[int] = set()
+        if isinstance(done_raw, list):
+            for x in done_raw:
+                try:
+                    done_set.add(int(x))
+                except Exception:  # noqa: BLE001
+                    continue
+
+        pending_horizons = [h for h in horizons if h not in done_set]
+        if not pending_horizons:
+            continue
+        due_horizons = [
+            h
+            for h in pending_horizons
+            if now >= created + timedelta(minutes=int(h))
+        ]
+        if not due_horizons:
             still_pending.append(p)
             continue
 
@@ -1512,49 +1729,64 @@ def evaluate_pending(
 
         if b_ret is None and g_ret is None:
             # Keep one extra horizon for temporary API mismatch.
-            if now < created + timedelta(minutes=horizon * 2):
+            if now < created + timedelta(minutes=max_horizon * 2):
                 still_pending.append(p)
                 continue
         blended, available = blend_returns(side, b_ret, g_ret)
 
-        finalized.append(
-            {
-                "id": p["id"],
-                "symbol": symbol,
-                "side": side,
-                "model_id": pick_model_id(p),
-                "model_name": model_name_from_id(pick_model_id(p)),
-                "created_at": p["created_at"],
-                "evaluated_at": iso_z(now),
-                "horizon_min": horizon,
-                "entry_bithumb_price": p.get("entry_bithumb_price"),
-                "entry_bitget_price": p.get("entry_bitget_price"),
-                "exit_bithumb_price": b_now.close_krw if b_now else None,
-                "exit_bitget_price": g_now.last_price if g_now else None,
-                "return_bithumb": b_ret,
-                "return_bitget": g_ret,
-                "return_blended": blended,
-                "win": blended > 0,
-                "available_legs": available,
-                "score": p.get("score"),
-                "base_score": p.get("base_score"),
-                "model_score_delta": p.get("model_score_delta"),
-                "b_rate24h": p.get("b_rate24h"),
-                "g_rate24h": p.get("g_rate24h"),
-                "g_funding_rate": p.get("g_funding_rate"),
-                "g_open_interest": p.get("g_open_interest"),
-                "market_sign_market": p.get("market_sign_market"),
-                "market_sign_btc": p.get("market_sign_btc"),
-                "market_sign_eth": p.get("market_sign_eth"),
-                "market_change_market_1h": p.get("market_change_market_1h"),
-                "market_change_market_24h": p.get("market_change_market_24h"),
-                "market_change_btc_1h": p.get("market_change_btc_1h"),
-                "market_change_btc_24h": p.get("market_change_btc_24h"),
-                "market_change_eth_1h": p.get("market_change_eth_1h"),
-                "market_change_eth_24h": p.get("market_change_eth_24h"),
-                "market_regime": p.get("market_regime"),
-            }
-        )
+        model_id = pick_model_id(p)
+        model_name = model_name_from_id(model_id)
+        now_iso = iso_z(now)
+        for horizon in sorted(set(int(h) for h in due_horizons)):
+            finalized.append(
+                {
+                    "id": f"{p['id']}@{horizon}m",
+                    "pick_id": p["id"],
+                    "symbol": symbol,
+                    "side": side,
+                    "model_id": model_id,
+                    "model_name": model_name,
+                    "created_at": p["created_at"],
+                    "evaluated_at": now_iso,
+                    "horizon_min": int(horizon),
+                    "horizon_label": f"{int(horizon)}m",
+                    "entry_bithumb_price": p.get("entry_bithumb_price"),
+                    "entry_bitget_price": p.get("entry_bitget_price"),
+                    "exit_bithumb_price": b_now.close_krw if b_now else None,
+                    "exit_bitget_price": g_now.last_price if g_now else None,
+                    "return_bithumb": b_ret,
+                    "return_bitget": g_ret,
+                    "return_blended": blended,
+                    "win": blended > 0,
+                    "available_legs": available,
+                    "score": p.get("score"),
+                    "base_score": p.get("base_score"),
+                    "model_score_delta": p.get("model_score_delta"),
+                    "b_rate24h": p.get("b_rate24h"),
+                    "g_rate24h": p.get("g_rate24h"),
+                    "g_funding_rate": p.get("g_funding_rate"),
+                    "g_open_interest": p.get("g_open_interest"),
+                    "ob_signal": p.get("ob_signal"),
+                    "ob_bid_ask_ratio": p.get("ob_bid_ask_ratio"),
+                    "ob_support_dist_pct": p.get("ob_support_dist_pct"),
+                    "ob_resist_dist_pct": p.get("ob_resist_dist_pct"),
+                    "market_sign_market": p.get("market_sign_market"),
+                    "market_sign_btc": p.get("market_sign_btc"),
+                    "market_sign_eth": p.get("market_sign_eth"),
+                    "market_change_market_1h": p.get("market_change_market_1h"),
+                    "market_change_market_24h": p.get("market_change_market_24h"),
+                    "market_change_btc_1h": p.get("market_change_btc_1h"),
+                    "market_change_btc_24h": p.get("market_change_btc_24h"),
+                    "market_change_eth_1h": p.get("market_change_eth_1h"),
+                    "market_change_eth_24h": p.get("market_change_eth_24h"),
+                    "market_regime": p.get("market_regime"),
+                }
+            )
+            done_set.add(int(horizon))
+
+        p["evaluated_horizons"] = sorted(done_set)
+        if len(done_set) < len(horizons):
+            still_pending.append(p)
 
     return still_pending, finalized
 
@@ -2170,6 +2402,10 @@ def make_message(
         )
         if int(filter_stats.get("removed_loss_cooldown", 0)) > 0:
             lines.append(f"Risk block: cooldown filtered {int(filter_stats['removed_loss_cooldown'])} symbols")
+        ob_checked = int(filter_stats.get("orderblock_checked", 0) or 0)
+        ob_assigned = int(filter_stats.get("orderblock_assigned", 0) or 0)
+        if ob_checked > 0:
+            lines.append(f"Orderblock: assigned {ob_assigned}/{ob_checked}")
         if calibrate_notes:
             lines.append("Tune: " + "; ".join(calibrate_notes))
         if model_governance_notes:
@@ -2191,6 +2427,10 @@ def make_message(
     lines.append(
         f"Candidates: base={filter_stats['base_universe']}, removed(cooldown={filter_stats.get('removed_loss_cooldown', 0)}, overheat={filter_stats['removed_overheat']}, conservative={filter_stats['removed_conservative']}, orderable={filter_stats['removed_orderable']})"
     )
+    if int(filter_stats.get("orderblock_checked", 0) or 0) > 0:
+        lines.append(
+            f"Orderblock: assigned={int(filter_stats.get('orderblock_assigned', 0) or 0)}/{int(filter_stats.get('orderblock_checked', 0) or 0)}"
+        )
     if picks:
         lines.append("Top picks:")
         for i, p in enumerate(picks, start=1):
@@ -2310,6 +2550,8 @@ def run_cycle(args: argparse.Namespace, state: Dict[str, Any]) -> int:
         orderbook_timeout_sec=args.orderbook_timeout_sec,
         max_orderbook_checks=args.max_orderbook_checks,
         blocked_symbols=blocked_symbols,
+        orderblock_timeout_sec=args.orderblock_timeout_sec,
+        max_orderblock_checks=args.max_orderblock_checks,
     )
 
     picks = make_recommendations(
@@ -2320,6 +2562,7 @@ def run_cycle(args: argparse.Namespace, state: Dict[str, Any]) -> int:
         market_indicators=market_indicators,
         run_ts=run_ts,
         horizon_min=args.horizon_min,
+        eval_horizons_min=args.eval_horizons_min,
     )
     if picks:
         state["recommendation_history"].extend(picks)
@@ -2620,6 +2863,11 @@ def parse_args() -> argparse.Namespace:
     p.add_argument("--history-file", default="state/eval_history.jsonl")
     p.add_argument("--top", type=int, default=3)
     p.add_argument("--horizon-min", type=int, default=15)
+    p.add_argument(
+        "--eval-horizons-min",
+        default="5,15,30,60",
+        help="Comma-separated evaluation horizons in minutes (e.g. 5,15,30,60)",
+    )
     p.add_argument("--metric-window", type=int, default=120)
     p.add_argument(
         "--message-style",
@@ -2632,6 +2880,8 @@ def parse_args() -> argparse.Namespace:
     p.add_argument("--cycles", type=int, default=0)
     p.add_argument("--orderbook-timeout-sec", type=int, default=8)
     p.add_argument("--max-orderbook-checks", type=int, default=0)
+    p.add_argument("--orderblock-timeout-sec", type=int, default=6)
+    p.add_argument("--max-orderblock-checks", type=int, default=20)
     p.add_argument("--loss-alert-threshold", type=float, default=0.0)
     p.add_argument("--loss-cooldown-min", type=int, default=60)
     p.add_argument("--min-short-picks", type=int, default=1)
@@ -2641,6 +2891,11 @@ def parse_args() -> argparse.Namespace:
 
 def main() -> int:
     args = parse_args()
+    args.eval_horizons_min = parse_eval_horizons(
+        raw=getattr(args, "eval_horizons_min", ""),
+        fallback_horizon=int(args.horizon_min),
+    )
+    args.horizon_min = int(args.eval_horizons_min[0]) if args.eval_horizons_min else int(args.horizon_min)
     state_path = Path(args.state_file)
     history_path = Path(args.history_file)
     state = load_state(state_path)

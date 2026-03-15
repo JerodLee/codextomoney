@@ -62,6 +62,7 @@ v2 adjustment uses:
 - funding-rate crowding penalty/bonus by side
 - open-interest participation signal
 - concentration regime (`btc`, `eth`, `single-alt`, `alt-broad`, `balanced`)
+- Bithumb orderbook orderblock signal (bid/ask wall imbalance + near-wall distance)
 
 Only active models in `state.model_registry` are used for recommendation scoring.
 
@@ -76,12 +77,13 @@ At recommendation time, store per pick:
 - entry Bithumb price
 - entry Bitget price
 - score, rates, liquidity, funding
-- horizon minutes (default `15`)
+- evaluation horizons minutes (default `5,15,30,60`)
 
 ### 2.2 Evaluation Timing
 
-- A pick is evaluated when `now >= created_at + horizon`.
-- If both market legs are temporarily unavailable, it waits up to one extra horizon.
+- A pick is evaluated on each due horizon (`5m`, `15m`, `30m`, `60m` by default).
+- Each due horizon produces one evaluation row (`pick_id@{horizon}m`).
+- If both market legs are temporarily unavailable, it waits up to `max_horizon * 2`.
 
 ### 2.3 Return Calculation
 
@@ -212,7 +214,7 @@ Important:
 - Recommendation scan: every 5 minutes (GitHub Actions cron)
 - Loss watchdog: every 15 seconds for ~3.5 minutes after each scan (`--alerts-only --watch --interval-sec 15 --cycles 14`)
 - Top picks per scan: 3
-- Validation horizon: 15 minutes
+- Validation horizons: `5,15,30,60` minutes
 - Message style: compact
 
 ## 6) Notes

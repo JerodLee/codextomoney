@@ -50,6 +50,7 @@
           <span class="chip">보수 상한</span>
           <span class="chip">절대 펀딩 상한</span>
           <span class="chip">빗썸 주문 가능 여부</span>
+          <span class="chip">ORDERBLOCK(매물대) 데이터 수집 가능 여부</span>
           <span class="chip">손실 경고 종목 쿨다운 차단</span>
         </div>
       </article>
@@ -60,7 +61,7 @@
         <h3>3) 모델 구조</h3>
         <ul class="timeline">
           <li><strong>v1</strong>: 기본 모멘텀/유동성/펀딩 점수</li>
-          <li><strong>v2</strong>: 시장 추세(24h~1m), 펀딩 crowding, OI, 쏠림(regime) 보강</li>
+          <li><strong>v2</strong>: 시장 추세(24h~1m), 펀딩 crowding, OI, 쏠림(regime), ORDERBLOCK(매수/매도 벽) 보강</li>
           <li>활성 모델은 <code>model_registry</code>로 제어</li>
         </ul>
       </article>
@@ -69,9 +70,11 @@
         <h3>4) 검증과 승률 집계</h3>
         <ul class="timeline">
           <li>추천 시점의 진입가를 저장</li>
-          <li>horizon 경과 후 blended 수익률 평가</li>
+          <li>추천마다 <code>5m/15m/30m/60m</code> 다중 검증 주기를 저장합니다.</li>
+          <li>각 주기 경과 시점마다 blended 수익률을 별도 평가해 결과 1건씩 누적합니다.</li>
           <li>SHORT는 비트겟 수익률을 우선 평가(없을 때만 빗썸 대체)</li>
-          <li>양 거래소 데이터가 모두 비면 horizon 1회 추가 유예 후 확정</li>
+          <li>양 거래소 데이터가 모두 비면 최대 주기의 2배 시점까지 유예 후 확정합니다.</li>
+          <li>대시보드 상태는 <code>대기 → 검증중 x/y → 검증완료</code>로 표시합니다.</li>
           <li>모델별 count/win_rate/avg/median을 별도 집계</li>
         </ul>
       </article>
@@ -151,6 +154,7 @@
       <h3>11) 실행 주기와 즉시성</h3>
       <ul class="timeline">
         <li>정기 추천 스캔: GitHub Actions cron 기준 5분마다 1회 실행.</li>
+        <li>검증 권장: 추천 1건당 <code>5m/15m/30m/60m</code> 4개 구간을 모두 기록해 단기/중기 품질을 함께 추적합니다.</li>
         <li>손실 워치독: 각 스캔 직후 <code>--alerts-only --watch --interval-sec 15 --cycles 14</code>로 약 3.5분 감시.</li>
         <li>워치독 모드에서는 신규 추천 없이 손실 경고/검증만 수행해 알림 지연을 줄입니다.</li>
       </ul>
