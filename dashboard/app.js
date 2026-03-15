@@ -61,6 +61,26 @@ function fmtFunding(v) {
   return x.toFixed(4);
 }
 
+function fmtKrw(v) {
+  const x = Number(v);
+  if (!Number.isFinite(x) || x <= 0) return "-";
+  return x.toLocaleString("ko-KR", { maximumFractionDigits: 0 });
+}
+
+function fmtUsdt(v) {
+  const x = Number(v);
+  if (!Number.isFinite(x) || x <= 0) return "-";
+  if (Math.abs(x) >= 1000) return x.toFixed(2);
+  if (Math.abs(x) >= 1) return x.toFixed(4);
+  return x.toFixed(6);
+}
+
+function fmtRr(v) {
+  const x = Number(v);
+  if (!Number.isFinite(x) || x <= 0) return "-";
+  return `${x.toFixed(2)} : 1`;
+}
+
 function concentrationText(c) {
   if (!c || !c.regime) return "쏠림: 데이터없음";
   const btc = Number(c.btc_share || 0);
@@ -176,6 +196,80 @@ function statusLabel(done) {
 
 function resultLabel(win) {
   return win ? "\uC2B9" : "\uD328";
+}
+
+function clampNum(v, lo, hi) {
+  return Math.max(lo, Math.min(hi, v));
+}
+
+function computePlanFields(row) {
+  const side = sideOf(row);
+  const dir = side === "SHORT" ? -1 : 1;
+  const score = Number.isFinite(Number(row?.score)) ? Number(row.score) : 0.25;
+  const bNow = Number(row?.entry_bithumb_price);
+  const gNow = Number(row?.entry_bitget_price);
+  const bRate = Math.abs(Number(row?.b_rate24h || 0));
+  const gRate = Math.abs(Number(row?.g_rate24h || 0));
+  const vol24 = clampNum((bRate + gRate) / 2, 0.5, 25);
+  const stopPct = clampNum(0.45 + (vol24 * 0.08), 0.45, 2.8);
+  const rrBase = clampNum(1.10 + (score * 1.50), 1.10, 2.60);
+  const targetPct = stopPct * rrBase;
+  const entryOffsetPct = clampNum(0.10 + (vol24 * 0.02), 0.10, 0.80);
+
+  const recoCalc = (px) => (Number.isFinite(px) && px > 0
+    ? px * (1 - (dir * entryOffsetPct / 100))
+    : null);
+
+  const bRecoStored = Number(row?.entry_reco_bithumb_price);
+  const gRecoStored = Number(row?.entry_reco_bitget_price);
+  const rrNowStored = Number(row?.rr_now);
+  const rrEntryStored = Number(row?.rr_entry);
+
+  const bReco = Number.isFinite(bRecoStored) && bRecoStored > 0 ? bRecoStored : recoCalc(bNow);
+  const gReco = Number.isFinite(gRecoStored) && gRecoStored > 0 ? gRecoStored : recoCalc(gNow);
+
+  let rrNow = Number.isFinite(rrNowStored) && rrNowStored > 0 ? rrNowStored : null;
+  let rrEntry = Number.isFinite(rrEntryStored) && rrEntryStored > 0 ? rrEntryStored : null;
+  if (rrNow == null || rrEntry == null) {
+    const refPx = Number.isFinite(gNow) && gNow > 0
+      ? gNow
+      : (Number.isFinite(bNow) && bNow > 0 ? bNow : null);
+    if (refPx != null) {
+      const targetPx = refPx * (1 + (dir * targetPct / 100));
+      const stopPx = refPx * (1 - (dir * stopPct / 100));
+      const entryPx = refPx * (1 - (dir * entryOffsetPct / 100));
+
+      const rewardNow = Math.abs(targetPx - refPx) / Math.abs(refPx);
+      const riskNow = Math.abs(refPx - stopPx) / Math.abs(refPx);
+      if (rrNow == null && riskNow > 1e-9) rrNow = rewardNow / riskNow;
+
+      const rewardEntry = Math.abs(targetPx - entryPx) / Math.abs(entryPx);
+      const riskEntry = Math.abs(entryPx - stopPx) / Math.abs(entryPx);
+      if (rrEntry == null && riskEntry > 1e-9) rrEntry = rewardEntry / riskEntry;
+    }
+  }
+
+  return {
+    bNow: Number.isFinite(bNow) && bNow > 0 ? bNow : null,
+    gNow: Number.isFinite(gNow) && gNow > 0 ? gNow : null,
+    bReco: Number.isFinite(Number(bReco)) && Number(bReco) > 0 ? Number(bReco) : null,
+    gReco: Number.isFinite(Number(gReco)) && Number(gReco) > 0 ? Number(gReco) : null,
+    rrNow,
+    rrEntry,
+  };
+}
+
+function pricePairCellHtml(krw, usdt) {
+  return `
+    <div class="plan-cell">
+      <div class="mono plan-line">KRW ${fmtKrw(krw)}</div>
+      <div class="mono plan-line">USDT ${fmtUsdt(usdt)}</div>
+    </div>
+  `;
+}
+
+function rrCellHtml(rr) {
+  return `<span class="rr-badge">${fmtRr(rr)}</span>`;
 }
 
 function relationText(v) {
@@ -315,7 +409,7 @@ function renderPicks(state) {
 
   if (!picks.length) {
     const tr = document.createElement("tr");
-    tr.innerHTML = `<td colspan="10" class="muted">추천 이력이 아직 없습니다.</td>`;
+    tr.innerHTML = `<td colspan="14" class="muted">추천 이력이 아직 없습니다.</td>`;
     body.appendChild(tr);
     return;
   }
@@ -326,6 +420,7 @@ function renderPicks(state) {
     const status = statusLabel(resultIds.has(p.id));
     const recN = recCounts.get(symbol) || 0;
     const evalN = evalCounts.get(symbol) || 0;
+    const plan = computePlanFields(p);
     const tr = document.createElement("tr");
     tr.innerHTML = `
       <td>${fmtTime(p.created_at)}</td>
@@ -333,6 +428,10 @@ function renderPicks(state) {
       <td>${sideBadgeHtml(side)}</td>
       <td class="mono">${modelLabel(modelOf(p))}</td>
       <td>${Number.isFinite(Number(p.score)) ? fmtNum(p.score, 3) : "-"}</td>
+      <td>${pricePairCellHtml(plan.bNow, plan.gNow)}</td>
+      <td>${rrCellHtml(plan.rrNow)}</td>
+      <td>${pricePairCellHtml(plan.bReco, plan.gReco)}</td>
+      <td>${rrCellHtml(plan.rrEntry)}</td>
       <td>${fmtFunding(p.g_funding_rate)}</td>
       <td>${fmtOi(p.g_open_interest)}</td>
       <td>${fmtPctValue(p.b_rate24h, 2)}</td>

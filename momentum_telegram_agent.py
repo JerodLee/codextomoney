@@ -690,6 +690,61 @@ def score_candidate_for_model(
     return round(base + clamp(adjust, -0.20, 0.20), 4)
 
 
+def compute_entry_plan_fields(
+    c: Any,
+    side: str,
+    score: float,
+) -> Dict[str, float | None]:
+    side_u = str(side).upper()
+    direction = -1.0 if side_u == "SHORT" else 1.0
+    b_px = safe_float(getattr(c, "b_close_krw", None))
+    g_px = safe_float(getattr(c, "g_last_price", None))
+    b_rate = abs(safe_float(getattr(c, "b_rate24h", None)) or 0.0)
+    g_rate = abs(safe_float(getattr(c, "g_change24h_pct", None)) or 0.0)
+    vol24 = clamp((b_rate + g_rate) / 2.0, 0.5, 25.0)
+
+    stop_pct = clamp(0.45 + (vol24 * 0.08), 0.45, 2.80)
+    rr_base = clamp(1.10 + (float(score) * 1.50), 1.10, 2.60)
+    target_pct = stop_pct * rr_base
+    entry_offset_pct = clamp(0.10 + (vol24 * 0.02), 0.10, 0.80)
+
+    def rec_entry(px: float | None) -> float | None:
+        if px is None or px <= 0:
+            return None
+        return px * (1.0 - direction * entry_offset_pct / 100.0)
+
+    b_reco = rec_entry(b_px)
+    g_reco = rec_entry(g_px)
+
+    ref_px = g_px if g_px and g_px > 0 else b_px
+    rr_now: float | None = None
+    rr_entry: float | None = None
+    if ref_px and ref_px > 0:
+        target_px = ref_px * (1.0 + direction * target_pct / 100.0)
+        stop_px = ref_px * (1.0 - direction * stop_pct / 100.0)
+        entry_px = ref_px * (1.0 - direction * entry_offset_pct / 100.0)
+
+        reward_now = abs(target_px - ref_px) / ref_px
+        risk_now = abs(ref_px - stop_px) / ref_px
+        if risk_now > 1e-9:
+            rr_now = reward_now / risk_now
+
+        reward_entry = abs(target_px - entry_px) / max(entry_px, 1e-9)
+        risk_entry = abs(entry_px - stop_px) / max(entry_px, 1e-9)
+        if risk_entry > 1e-9:
+            rr_entry = reward_entry / risk_entry
+
+    return {
+        "entry_reco_bithumb_price": None if b_reco is None else round(float(b_reco), 8),
+        "entry_reco_bitget_price": None if g_reco is None else round(float(g_reco), 8),
+        "entry_reco_offset_pct": round(float(entry_offset_pct), 4),
+        "plan_stop_pct": round(float(stop_pct), 4),
+        "plan_target_pct": round(float(target_pct), 4),
+        "rr_now": None if rr_now is None else round(float(rr_now), 6),
+        "rr_entry": None if rr_entry is None else round(float(rr_entry), 6),
+    }
+
+
 def maybe_expand_models(
     state: Dict[str, Any],
     model_metrics: Dict[str, Dict[str, float | int]],
@@ -1076,6 +1131,11 @@ def make_recommendations(
         mid = str(row["model_id"])
         score = float(row["score"])
         base_score = float(getattr(c, "score", 0.0) or 0.0)
+        plan = compute_entry_plan_fields(
+            c=c,
+            side=str(c.side),
+            score=score,
+        )
         out.append(
             {
                 "id": f"{c.symbol}-{c.side}-{mid}-{int(run_ts.timestamp())}",
@@ -1106,6 +1166,7 @@ def make_recommendations(
                 "market_change_btc_24h": btc_changes.get("24h"),
                 "market_change_eth_1h": eth_changes.get("1h"),
                 "market_change_eth_24h": eth_changes.get("24h"),
+                **plan,
             }
         )
     return out
