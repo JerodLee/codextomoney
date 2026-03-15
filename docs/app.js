@@ -388,6 +388,46 @@ async function fetchJsonFirst(urls) {
   throw new Error(`Failed to load JSON: ${lastErr}`);
 }
 
+function stateRecencyScore(state) {
+  if (!state || typeof state !== "object") return 0;
+  const fromMeta = Date.parse(String(state?.meta?.last_run_at || ""));
+  if (Number.isFinite(fromMeta) && fromMeta > 0) return fromMeta;
+
+  const runs = Array.isArray(state.run_history) ? state.run_history : [];
+  const lastRun = runs.length ? runs[runs.length - 1] : null;
+  const fromRun = Date.parse(String(lastRun?.run_at || ""));
+  if (Number.isFinite(fromRun) && fromRun > 0) return fromRun;
+
+  const recs = Array.isArray(state.recommendation_history) ? state.recommendation_history : [];
+  const lastRec = recs.length ? recs[recs.length - 1] : null;
+  const fromRec = Date.parse(String(lastRec?.created_at || ""));
+  if (Number.isFinite(fromRec) && fromRec > 0) return fromRec;
+  return 0;
+}
+
+async function fetchJsonNewest(urls) {
+  const hits = [];
+  let lastErr = "unknown";
+  for (const u of urls) {
+    try {
+      const res = await fetch(u, { cache: "no-store" });
+      if (!res.ok) {
+        lastErr = `HTTP ${res.status} ${u}`;
+        continue;
+      }
+      const data = await res.json();
+      hits.push({ data, url: u, score: stateRecencyScore(data) });
+    } catch (e) {
+      lastErr = `${u}: ${String(e)}`;
+    }
+  }
+  if (!hits.length) {
+    throw new Error(`Failed to load JSON: ${lastErr}`);
+  }
+  hits.sort((a, b) => b.score - a.score);
+  return { data: hits[0].data, url: hits[0].url };
+}
+
 function candidateStateUrls(owner, repo, branch) {
   const ts = Date.now();
   const raw = `https://raw.githubusercontent.com/${owner}/${repo}/${branch}/state/bot_state.json?t=${ts}`;
@@ -1215,7 +1255,7 @@ async function loadAndRender() {
   $("loadStatus").className = "status muted";
 
   try {
-    const { data: state, url } = await fetchJsonFirst(urls);
+    const { data: state, url } = await fetchJsonNewest(urls);
     const results = state.results || [];
     renderKpis(state, results);
     renderMarketIndicators(state);
