@@ -96,8 +96,8 @@
         <h3>6) 자동 모델 확장</h3>
         <ul class="timeline">
           <li>조건: 모델 평가수 24 이상 + 승률 45% 미만</li>
-          <li>LONG: <code>momentum_long_v1 → momentum_long_v2</code></li>
-          <li>SHORT: <code>momentum_short_v1 → momentum_short_v2</code></li>
+          <li>LONG/SHORT 모두 현재 활성 모델이 저성과이면 다음 버전 <code>vN+1</code>을 자동 활성화합니다.</li>
+          <li>예시: <code>momentum_long_v2 → momentum_long_v3</code>, <code>momentum_short_v3 → momentum_short_v4</code></li>
           <li>확장 이벤트는 run_history/model_governance_events에 기록</li>
         </ul>
       </article>
@@ -186,7 +186,7 @@
         <li>각 축에서 약점 bucket(표본/승률/평균수익률)을 찾아 보완 제안(필터 강화/가중치 분리)을 생성합니다.</li>
         <li>진단 표본이 아직 부족하면, 상단 모델제안의 시장적합도(fit edge) 기반 fallback 제안을 대시보드에 먼저 표시합니다.</li>
         <li>다음 후보 모델 ID는 <code>vN+1</code> 형태로 제안됩니다(예: <code>momentum_long_v2 → momentum_long_v3</code>).</li>
-        <li>중요: v3/v4는 자동 생성되지 않으며, 진단 결과를 기반으로 별도 설계/승인 후 반영합니다.</li>
+        <li>진단 결과와 성과 게이트를 만족하면 v3/v4 이후 버전도 순차적으로 자동 확장됩니다.</li>
       </ul>
     </section>
   </main>

@@ -188,6 +188,32 @@ def active_models(registry: Dict[str, Dict[str, Any]]) -> List[str]:
     return out
 
 
+def model_version(model_id: str) -> int:
+    mid = str(model_id or "").strip()
+    if "_v" in mid:
+        _, tail = mid.rsplit("_v", 1)
+        try:
+            return max(1, int(tail))
+        except Exception:  # noqa: BLE001
+            pass
+    return 1
+
+
+def side_model_chain(registry: Dict[str, Dict[str, Any]], side: str) -> List[str]:
+    s = str(side).upper()
+    base_mid = model_id_from_side(s)
+    family = base_mid.rsplit("_v", 1)[0] if "_v" in base_mid else base_mid
+    seeded = set(MODEL_EVOLUTION_PATH.get(s, []))
+    for mid, spec in sanitize_model_registry(registry).items():
+        if str(spec.get("side", "")).upper() != s:
+            continue
+        if str(mid).startswith(family):
+            seeded.add(str(mid))
+    if not seeded:
+        seeded.add(base_mid)
+    return sorted(seeded, key=lambda mid: (model_version(mid), str(mid)))
+
+
 def model_side_from_id(model_id: str) -> str:
     mid = str(model_id or "").strip()
     spec = DEFAULT_MODEL_REGISTRY.get(mid, {})
@@ -1005,21 +1031,23 @@ def maybe_expand_models(
             pass
 
     changed = False
-    for side, chain in MODEL_EVOLUTION_PATH.items():
-        if len(chain) < 2:
+    for side in ("LONG", "SHORT"):
+        chain = side_model_chain(registry, side)
+        if not chain:
             continue
-        for idx in range(len(chain) - 1):
-            current_mid = chain[idx]
-            next_mid = chain[idx + 1]
+        for current_mid in chain:
             if not bool(registry.get(current_mid, {}).get("enabled", False)):
-                continue
-            if bool(registry.get(next_mid, {}).get("enabled", False)):
                 continue
             m = model_metrics.get(current_mid, {}) or {}
             count = int(m.get("count", 0) or 0)
             win_rate = float(m.get("win_rate", 0.0) or 0.0)
             if count < max(1, int(min_count)) or win_rate >= float(win_rate_floor):
                 continue
+
+            next_mid = next_model_id(current_mid)
+            if bool(registry.get(next_mid, {}).get("enabled", False)):
+                continue
+
             registry.setdefault(next_mid, {"enabled": False, "side": side})
             registry[next_mid]["enabled"] = True
             registry[next_mid]["side"] = side
@@ -1125,7 +1153,7 @@ def recommend_models_for_underperformance(
 
     registry = sanitize_model_registry(model_registry)
     for side in ("LONG", "SHORT"):
-        mids = MODEL_EVOLUTION_PATH.get(side, []) or [model_id_from_side(side)]
+        mids = side_model_chain(registry, side)
         side_candidates = [
             c for c in candidates if str(getattr(c, "side", "LONG")).upper() == side
         ]
@@ -1307,7 +1335,7 @@ def make_recommendations(
         ordered_models: List[str] = []
         for side in ("LONG", "SHORT"):
             active = set(active_model_ids(registry, side))
-            path = MODEL_EVOLUTION_PATH.get(side, [])
+            path = side_model_chain(registry, side)
             ordered_models.extend([mid for mid in path if mid in active])
             for mid in sorted(active):
                 if mid not in ordered_models:
