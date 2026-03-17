@@ -121,6 +121,8 @@ function modelLabel(modelId) {
     momentum_short_v1: "숏 모멘텀 v1",
     momentum_long_v2: "롱 모멘텀 v2(시장보강)",
     momentum_short_v2: "숏 모멘텀 v2(시장보강)",
+    momentum_long_v3: "롱 스윙 v3(수익확장/보유형)",
+    momentum_short_v3: "숏 스윙 v3(수익확장/보유형)",
   };
   return map[modelId] || modelId || "-";
 }
@@ -131,6 +133,8 @@ function modelShortLabel(modelId) {
     momentum_short_v1: "숏v1",
     momentum_long_v2: "롱v2",
     momentum_short_v2: "숏v2",
+    momentum_long_v3: "롱v3",
+    momentum_short_v3: "숏v3",
   };
   return map[modelId] || modelId || "-";
 }

@@ -77,21 +77,27 @@ MODEL_LONG_ID = "momentum_long_v1"
 MODEL_SHORT_ID = "momentum_short_v1"
 MODEL_LONG_V2_ID = "momentum_long_v2"
 MODEL_SHORT_V2_ID = "momentum_short_v2"
+MODEL_LONG_V3_ID = "momentum_long_v3"
+MODEL_SHORT_V3_ID = "momentum_short_v3"
 MODEL_NAMES = {
     MODEL_LONG_ID: "롱 모멘텀 v1",
     MODEL_SHORT_ID: "숏 모멘텀 v1",
     MODEL_LONG_V2_ID: "롱 모멘텀 v2(시장보강)",
     MODEL_SHORT_V2_ID: "숏 모멘텀 v2(시장보강)",
+    MODEL_LONG_V3_ID: "롱 스윙 v3(수익확장/보유형)",
+    MODEL_SHORT_V3_ID: "숏 스윙 v3(수익확장/보유형)",
 }
 DEFAULT_MODEL_REGISTRY: Dict[str, Dict[str, Any]] = {
     MODEL_LONG_ID: {"enabled": True, "side": "LONG"},
     MODEL_SHORT_ID: {"enabled": True, "side": "SHORT"},
     MODEL_LONG_V2_ID: {"enabled": False, "side": "LONG"},
     MODEL_SHORT_V2_ID: {"enabled": False, "side": "SHORT"},
+    MODEL_LONG_V3_ID: {"enabled": True, "side": "LONG"},
+    MODEL_SHORT_V3_ID: {"enabled": False, "side": "SHORT"},
 }
 MODEL_EVOLUTION_PATH: Dict[str, List[str]] = {
-    "LONG": [MODEL_LONG_ID, MODEL_LONG_V2_ID],
-    "SHORT": [MODEL_SHORT_ID, MODEL_SHORT_V2_ID],
+    "LONG": [MODEL_LONG_ID, MODEL_LONG_V2_ID, MODEL_LONG_V3_ID],
+    "SHORT": [MODEL_SHORT_ID, MODEL_SHORT_V2_ID, MODEL_SHORT_V3_ID],
 }
 MODEL_EXPANSION_MIN_COUNT = 24
 MODEL_EXPANSION_WIN_RATE_FLOOR = 0.45
@@ -302,6 +308,27 @@ def parse_pick_eval_horizons(p: Dict[str, Any]) -> List[int]:
             n = 15
         out = [max(1, n)]
     return sorted(set(out))
+
+
+def eval_horizons_for_model(
+    model_id: str,
+    default_horizons: List[int],
+    fallback_horizon: int,
+) -> List[int]:
+    base = sorted(set(int(x) for x in (default_horizons or [fallback_horizon]) if int(x) > 0))
+    if not base:
+        base = [max(1, int(fallback_horizon))]
+    mid = str(model_id or "").strip()
+    if mid in {MODEL_LONG_V3_ID, MODEL_SHORT_V3_ID}:
+        out = [h for h in base if h >= 15]
+        for h in (30, 60, 120):
+            if h not in out:
+                out.append(h)
+        out = sorted(set(out))
+        if not out:
+            out = [30, 60, 120]
+        return out
+    return base
 
 
 def sanitize_dynamic_config(cfg: Dict[str, float]) -> Dict[str, float]:
@@ -909,48 +936,79 @@ def score_candidate_for_model(
     if model_id in {MODEL_LONG_ID, MODEL_SHORT_ID}:
         return round(base, 4)
 
+    is_swing = model_id in {MODEL_LONG_V3_ID, MODEL_SHORT_V3_ID}
     side = model_side_from_id(model_id)
     direction = -1.0 if side == "SHORT" else 1.0
 
-    fast_weights = [("1h", 0.35), ("15m", 0.25), ("5m", 0.20), ("1m", 0.20)]
-    swing_weights = [("24h", 0.35), ("12h", 0.25), ("6h", 0.20), ("1h", 0.20)]
+    fast_weights = (
+        [("6h", 0.35), ("1h", 0.30), ("15m", 0.20), ("5m", 0.15)]
+        if is_swing
+        else [("1h", 0.35), ("15m", 0.25), ("5m", 0.20), ("1m", 0.20)]
+    )
+    swing_weights = (
+        [("24h", 0.40), ("12h", 0.30), ("6h", 0.20), ("1h", 0.10)]
+        if is_swing
+        else [("24h", 0.35), ("12h", 0.25), ("6h", 0.20), ("1h", 0.20)]
+    )
     market_fast = _weighted_change(market_indicators, "market", fast_weights)
     market_swing = _weighted_change(market_indicators, "market", swing_weights)
     btc_fast = _weighted_change(market_indicators, "btc", fast_weights)
     eth_fast = _weighted_change(market_indicators, "eth", fast_weights)
 
     signal = 0.0
-    parts = [
-        (market_fast, 0.45, 2.5),
-        (market_swing, 0.30, 4.0),
-        (btc_fast, 0.15, 2.0),
-        (eth_fast, 0.10, 2.0),
-    ]
+    parts = (
+        [
+            (market_fast, 0.25, 3.2),
+            (market_swing, 0.50, 4.5),
+            (btc_fast, 0.15, 2.5),
+            (eth_fast, 0.10, 2.5),
+        ]
+        if is_swing
+        else [
+            (market_fast, 0.45, 2.5),
+            (market_swing, 0.30, 4.0),
+            (btc_fast, 0.15, 2.0),
+            (eth_fast, 0.10, 2.0),
+        ]
+    )
     for raw, weight, scale in parts:
         if raw is None:
             continue
         signal += float(weight) * clamp(raw / scale, -1.0, 1.0)
     signal *= direction
-    adjust = 0.10 * signal
+    adjust = (0.12 if is_swing else 0.10) * signal
 
     funding = safe_float(getattr(c, "g_funding_rate", None)) or 0.0
     if side == "LONG":
         if funding < 0:
-            adjust += min(0.04, (-funding) * 30.0)
-        elif funding > 0.0008:
-            adjust -= min(0.06, (funding - 0.0008) * 45.0)
+            k = 36.0 if is_swing else 30.0
+            limit = 0.05 if is_swing else 0.04
+            adjust += min(limit, (-funding) * k)
+        elif funding > (0.0006 if is_swing else 0.0008):
+            limit = 0.08 if is_swing else 0.06
+            cutoff = 0.0006 if is_swing else 0.0008
+            adjust -= min(limit, (funding - cutoff) * 45.0)
     else:
         if funding > 0:
-            adjust += min(0.04, funding * 30.0)
-        elif funding < -0.0008:
-            adjust -= min(0.06, ((-funding) - 0.0008) * 45.0)
+            k = 36.0 if is_swing else 30.0
+            limit = 0.05 if is_swing else 0.04
+            adjust += min(limit, funding * k)
+        elif funding < -(0.0006 if is_swing else 0.0008):
+            limit = 0.08 if is_swing else 0.06
+            cutoff = 0.0006 if is_swing else 0.0008
+            adjust -= min(limit, ((-funding) - cutoff) * 45.0)
 
     oi = safe_float(getattr(c, "g_open_interest", None))
     change24h = safe_float(getattr(c, "g_change24h_pct", None)) or 0.0
     if oi is not None and oi > 0:
         oi_score = clamp(math.log10(1.0 + oi) / 7.0, 0.0, 1.0)
         dir_momo = direction * clamp(change24h / 15.0, -1.0, 1.0)
-        adjust += 0.03 * oi_score * dir_momo
+        adjust += (0.04 if is_swing else 0.03) * oi_score * dir_momo
+    if is_swing:
+        dir_trend24 = direction * clamp(change24h / 12.0, -1.0, 1.0)
+        adjust += 0.04 * dir_trend24
+        if abs(change24h) < 1.0:
+            adjust -= 0.02
 
     concentration = market_indicators.get("concentration", {}) or {}
     regime = str(concentration.get("regime", "balanced"))
@@ -969,34 +1027,54 @@ def score_candidate_for_model(
             adjust += 0.03
         elif symbol not in {"BTC", "ETH"}:
             adjust -= 0.005
+    if is_swing:
+        if side == "LONG" and market_swing is not None:
+            if market_swing < -0.25:
+                adjust -= 0.06
+            elif market_swing > 0.35:
+                adjust += 0.04
+        if side == "SHORT" and market_swing is not None:
+            if market_swing > 0.25:
+                adjust -= 0.06
+            elif market_swing < -0.35:
+                adjust += 0.04
 
     ob_signal = safe_float(getattr(c, "b_ob_signal", None))
     ob_support = safe_float(getattr(c, "b_ob_support_dist_pct", None))
     ob_resist = safe_float(getattr(c, "b_ob_resist_dist_pct", None))
     if ob_signal is not None:
         # Orderblock pressure: bid-heavy helps LONG, ask-heavy helps SHORT.
-        adjust += 0.05 * direction * clamp(float(ob_signal), -1.0, 1.0)
-    near_band = 0.35
+        ob_w = 0.06 if is_swing else 0.05
+        adjust += ob_w * direction * clamp(float(ob_signal), -1.0, 1.0)
+    near_band = 0.45 if is_swing else 0.35
     if side == "LONG":
         if ob_resist is not None and ob_resist < near_band:
-            adjust -= 0.03 * (1.0 - (ob_resist / near_band))
+            penalty = 0.05 if is_swing else 0.03
+            adjust -= penalty * (1.0 - (ob_resist / near_band))
         if ob_support is not None and ob_support < near_band:
-            adjust += 0.02 * (1.0 - (ob_support / near_band))
+            bonus = 0.03 if is_swing else 0.02
+            adjust += bonus * (1.0 - (ob_support / near_band))
     else:
         if ob_support is not None and ob_support < near_band:
-            adjust -= 0.03 * (1.0 - (ob_support / near_band))
+            penalty = 0.05 if is_swing else 0.03
+            adjust -= penalty * (1.0 - (ob_support / near_band))
         if ob_resist is not None and ob_resist < near_band:
-            adjust += 0.02 * (1.0 - (ob_resist / near_band))
+            bonus = 0.03 if is_swing else 0.02
+            adjust += bonus * (1.0 - (ob_resist / near_band))
 
-    return round(base + clamp(adjust, -0.20, 0.20), 4)
+    lo, hi = (-0.24, 0.26) if is_swing else (-0.20, 0.20)
+    return round(base + clamp(adjust, lo, hi), 4)
 
 
 def compute_entry_plan_fields(
     c: Any,
     side: str,
     score: float,
+    model_id: str | None = None,
 ) -> Dict[str, Any]:
     side_u = str(side).upper()
+    mid = str(model_id or "").strip()
+    is_swing = mid in {MODEL_LONG_V3_ID, MODEL_SHORT_V3_ID}
     direction = -1.0 if side_u == "SHORT" else 1.0
     b_px = safe_float(getattr(c, "b_close_krw", None))
     g_px = safe_float(getattr(c, "g_last_price", None))
@@ -1004,8 +1082,12 @@ def compute_entry_plan_fields(
     g_rate = abs(safe_float(getattr(c, "g_change24h_pct", None)) or 0.0)
     vol24 = clamp((b_rate + g_rate) / 2.0, 0.5, 25.0)
 
-    stop_pct = clamp(0.45 + (vol24 * 0.08), 0.45, 2.80)
-    rr_base = clamp(1.10 + (float(score) * 1.50), 1.10, 2.60)
+    if is_swing:
+        stop_pct = clamp(0.55 + (vol24 * 0.085), 0.60, 3.40)
+        rr_base = clamp(1.35 + (float(score) * 1.80), 1.35, 3.20)
+    else:
+        stop_pct = clamp(0.45 + (vol24 * 0.08), 0.45, 2.80)
+        rr_base = clamp(1.10 + (float(score) * 1.50), 1.10, 2.60)
     target_rr_pct = stop_pct * rr_base
 
     # Method 1) volatility+score RR target.
@@ -1016,55 +1098,82 @@ def compute_entry_plan_fields(
     ob_dist = ob_support if side_u == "SHORT" else ob_resist
     target_ob_pct: float | None = None
     if ob_dist is not None and ob_dist > 0:
-        target_ob_pct = clamp(float(ob_dist) * 0.85, 0.35, 6.00)
+        if is_swing:
+            target_ob_pct = clamp(float(ob_dist) * 0.90, 0.60, 8.00)
+        else:
+            target_ob_pct = clamp(float(ob_dist) * 0.85, 0.35, 6.00)
 
     funding = safe_float(getattr(c, "g_funding_rate", None)) or 0.0
     oi = safe_float(getattr(c, "g_open_interest", None)) or 0.0
     oi_norm = clamp(math.log10(1.0 + max(0.0, oi)) / 7.0, 0.0, 1.0)
-    funding_mult = clamp(1.0 + (-direction * funding * 80.0), 0.80, 1.20)
-    oi_mult = clamp(1.02 - (oi_norm * 0.10), 0.90, 1.05)
-    target_flow_pct = clamp(target_rr_pct * funding_mult * oi_mult, 0.35, 6.00)
+    if is_swing:
+        funding_mult = clamp(1.0 + (-direction * funding * 90.0), 0.78, 1.22)
+        oi_mult = clamp(1.03 - (oi_norm * 0.12), 0.88, 1.06)
+    else:
+        funding_mult = clamp(1.0 + (-direction * funding * 80.0), 0.80, 1.20)
+        oi_mult = clamp(1.02 - (oi_norm * 0.10), 0.90, 1.05)
+    target_flow_pct = clamp(
+        target_rr_pct * funding_mult * oi_mult,
+        0.60 if is_swing else 0.35,
+        8.00 if is_swing else 6.00,
+    )
 
-    weighted_terms: List[Tuple[float, float]] = [(target_rr_pct, 0.50), (target_flow_pct, 0.20)]
+    weighted_terms: List[Tuple[float, float]] = (
+        [(target_rr_pct, 0.45), (target_flow_pct, 0.20)]
+        if is_swing
+        else [(target_rr_pct, 0.50), (target_flow_pct, 0.20)]
+    )
     if target_ob_pct is not None:
-        weighted_terms.append((target_ob_pct, 0.30))
+        weighted_terms.append((target_ob_pct, 0.35 if is_swing else 0.30))
     w_sum = sum(w for _, w in weighted_terms)
     target_pct = (
         sum(v * w for v, w in weighted_terms) / max(w_sum, 1e-9)
         if weighted_terms
         else target_rr_pct
     )
-    target_pct = clamp(float(target_pct), 0.35, 6.00)
+    target_pct = clamp(float(target_pct), 0.60 if is_swing else 0.35, 8.00 if is_swing else 6.00)
     target_basis = "rr+orderblock+flow" if target_ob_pct is not None else "rr+flow"
 
     # Method 1) volatility baseline entry pullback.
     # Method 2) orderblock distance guided entry pullback.
     # Method 3) funding/OI crowding-adjusted entry pullback.
-    entry_base_offset_pct = clamp(0.10 + (vol24 * 0.02), 0.10, 0.80)
+    if is_swing:
+        entry_base_offset_pct = clamp(0.16 + (vol24 * 0.03), 0.16, 1.20)
+    else:
+        entry_base_offset_pct = clamp(0.10 + (vol24 * 0.02), 0.10, 0.80)
     entry_ob_dist = ob_resist if side_u == "SHORT" else ob_support
     entry_ob_offset_pct: float | None = None
     if entry_ob_dist is not None and entry_ob_dist > 0:
-        entry_ob_offset_pct = clamp(float(entry_ob_dist) * 0.75, 0.08, 1.20)
-    entry_funding_mult = clamp(1.0 + (direction * funding * 60.0), 0.80, 1.25)
-    entry_oi_mult = clamp(0.95 + (oi_norm * 0.20), 0.90, 1.15)
+        if is_swing:
+            entry_ob_offset_pct = clamp(float(entry_ob_dist) * 0.85, 0.12, 1.60)
+        else:
+            entry_ob_offset_pct = clamp(float(entry_ob_dist) * 0.75, 0.08, 1.20)
+
+    if is_swing:
+        entry_funding_mult = clamp(1.0 + (direction * funding * 45.0), 0.88, 1.16)
+        entry_oi_mult = clamp(1.0 + (oi_norm * 0.10), 1.00, 1.16)
+    else:
+        entry_funding_mult = clamp(1.0 + (direction * funding * 60.0), 0.80, 1.25)
+        entry_oi_mult = clamp(0.95 + (oi_norm * 0.20), 0.90, 1.15)
     entry_flow_offset_pct = clamp(
         entry_base_offset_pct * entry_funding_mult * entry_oi_mult,
-        0.08,
-        1.20,
+        0.12 if is_swing else 0.08,
+        1.80 if is_swing else 1.20,
     )
-    entry_terms: List[Tuple[float, float]] = [
-        (entry_base_offset_pct, 0.55),
-        (entry_flow_offset_pct, 0.20),
-    ]
+    entry_terms: List[Tuple[float, float]] = (
+        [(entry_base_offset_pct, 0.45), (entry_flow_offset_pct, 0.20)]
+        if is_swing
+        else [(entry_base_offset_pct, 0.55), (entry_flow_offset_pct, 0.20)]
+    )
     if entry_ob_offset_pct is not None:
-        entry_terms.append((entry_ob_offset_pct, 0.25))
+        entry_terms.append((entry_ob_offset_pct, 0.35 if is_swing else 0.25))
     entry_w_sum = sum(w for _, w in entry_terms)
     entry_offset_pct = (
         sum(v * w for v, w in entry_terms) / max(entry_w_sum, 1e-9)
         if entry_terms
         else entry_base_offset_pct
     )
-    entry_offset_pct = clamp(float(entry_offset_pct), 0.08, 1.20)
+    entry_offset_pct = clamp(float(entry_offset_pct), 0.12 if is_swing else 0.08, 1.80 if is_swing else 1.20)
     entry_basis = "vol+orderblock+flow" if entry_ob_offset_pct is not None else "vol+flow"
 
     def rec_entry(px: float | None) -> float | None:
@@ -1119,6 +1228,7 @@ def compute_entry_plan_fields(
         "plan_target_rr_pct": round(float(target_rr_pct), 4),
         "plan_target_ob_pct": None if target_ob_pct is None else round(float(target_ob_pct), 4),
         "plan_target_flow_pct": round(float(target_flow_pct), 4),
+        "plan_holding_style": "swing" if is_swing else "intraday",
         "target_now_bithumb_price": None if target_now_b is None else round(float(target_now_b), 8),
         "target_now_bitget_price": None if target_now_g is None else round(float(target_now_g), 8),
         "target_entry_bithumb_price": None if target_entry_b is None else round(float(target_entry_b), 8),
@@ -1518,10 +1628,11 @@ def make_recommendations(
     execution_rule = execution_profile_rule(execution_profile)
     min_target_pct = float(execution_rule.get("min_target_pct", 0.0) or 0.0)
     min_rr_entry = float(execution_rule.get("min_rr_entry", 0.0) or 0.0)
-    eval_horizons = sorted(set(int(x) for x in (eval_horizons_min or [horizon_min]) if int(x) > 0))
-    if not eval_horizons:
-        eval_horizons = [max(1, int(horizon_min))]
-    primary_horizon = int(eval_horizons[0])
+    default_eval_horizons = sorted(
+        set(int(x) for x in (eval_horizons_min or [horizon_min]) if int(x) > 0)
+    )
+    if not default_eval_horizons:
+        default_eval_horizons = [max(1, int(horizon_min))]
     market_changes = market_indicators.get("market", {}).get("changes", {}) or {}
     btc_changes = market_indicators.get("btc", {}).get("changes", {}) or {}
     eth_changes = market_indicators.get("eth", {}).get("changes", {}) or {}
@@ -1534,10 +1645,17 @@ def make_recommendations(
         mid = str(row["model_id"])
         score = float(row["score"])
         base_score = float(getattr(c, "score", 0.0) or 0.0)
+        row_eval_horizons = eval_horizons_for_model(
+            model_id=mid,
+            default_horizons=default_eval_horizons,
+            fallback_horizon=horizon_min,
+        )
+        primary_horizon = int(row_eval_horizons[0])
         plan = compute_entry_plan_fields(
             c=c,
             side=str(c.side),
             score=score,
+            model_id=mid,
         )
         plan_target_pct = safe_float(plan.get("plan_target_pct"))
         plan_rr_entry = safe_float(plan.get("rr_entry"))
@@ -1558,7 +1676,7 @@ def make_recommendations(
                 "model_name": model_name_from_id(mid),
                 "created_at": iso_z(run_ts),
                 "horizon_min": primary_horizon,
-                "eval_horizons_min": list(eval_horizons),
+                "eval_horizons_min": list(row_eval_horizons),
                 "evaluated_horizons": [],
                 "entry_bithumb_price": c.b_close_krw,
                 "entry_bitget_price": c.g_last_price,
