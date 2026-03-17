@@ -99,6 +99,10 @@ MODEL_EVOLUTION_PATH: Dict[str, List[str]] = {
     "LONG": [MODEL_LONG_ID, MODEL_LONG_V2_ID, MODEL_LONG_V3_ID],
     "SHORT": [MODEL_SHORT_ID, MODEL_SHORT_V2_ID, MODEL_SHORT_V3_ID],
 }
+MODEL_VERSIONS_BY_SIDE: Dict[str, Tuple[str, str, str]] = {
+    "LONG": (MODEL_LONG_ID, MODEL_LONG_V2_ID, MODEL_LONG_V3_ID),
+    "SHORT": (MODEL_SHORT_ID, MODEL_SHORT_V2_ID, MODEL_SHORT_V3_ID),
+}
 MODEL_EXPANSION_MIN_COUNT = 24
 MODEL_EXPANSION_WIN_RATE_FLOOR = 0.45
 MODEL_EXPANSION_COOLDOWN_HOURS = 6
@@ -107,6 +111,9 @@ MODEL_RECOMMEND_WIN_RATE_FLOOR = 0.48
 MODEL_RECOMMEND_AVG_RETURN_FLOOR = -0.001
 MODEL_DIAG_MIN_COUNT = 24
 MODEL_DIAG_MIN_BUCKET = 8
+MODEL_V2_MIGRATION_MIN_COUNT = 36
+MODEL_V2_MIGRATION_WIN_GAP = 0.05
+MODEL_V2_MIGRATION_AVG_GAP = 0.0010
 DEFAULT_EXECUTION_PROFILE = 1
 EXECUTION_PROFILE_RULES: Dict[int, Dict[str, Any]] = {
     1: {"name": "conservative", "min_target_pct": 0.90, "min_rr_entry": 1.35},
@@ -331,6 +338,39 @@ def eval_horizons_for_model(
     return base
 
 
+def default_v3_tuning() -> Dict[str, Dict[str, float]]:
+    return {
+        MODEL_LONG_V3_ID: {
+            "inverse_guard": 1.0,
+            "crowding_guard": 1.0,
+            "low_momo_penalty": 1.0,
+            "obstacle_guard": 1.0,
+        },
+        MODEL_SHORT_V3_ID: {
+            "inverse_guard": 1.0,
+            "crowding_guard": 1.0,
+            "low_momo_penalty": 1.0,
+            "obstacle_guard": 1.0,
+        },
+    }
+
+
+def sanitize_v3_tuning(raw: Dict[str, Any] | None) -> Dict[str, Dict[str, float]]:
+    out = default_v3_tuning()
+    src = raw or {}
+    for mid in (MODEL_LONG_V3_ID, MODEL_SHORT_V3_ID):
+        row_src = src.get(mid, {})
+        if not isinstance(row_src, dict):
+            continue
+        row = out[mid]
+        for k in ("inverse_guard", "crowding_guard", "low_momo_penalty", "obstacle_guard"):
+            val = safe_float(row_src.get(k))
+            if val is None:
+                continue
+            row[k] = round(clamp(float(val), 0.70, 2.00), 4)
+    return out
+
+
 def sanitize_dynamic_config(cfg: Dict[str, float]) -> Dict[str, float]:
     out = dict(DEFAULT_DYNAMIC_CONFIG)
     out.update(cfg or {})
@@ -368,6 +408,7 @@ def load_state(path: Path) -> Dict[str, Any]:
             "market_series": [],
             "calibration_events": [],
             "model_governance_events": [],
+            "model_transition_events": [],
             "daily_review_events": [],
             "meta": {
                 "no_candidate_streak": 0,
@@ -381,6 +422,7 @@ def load_state(path: Path) -> Dict[str, Any]:
                 "execution_profile_updated_at": None,
                 "last_daily_review_at": None,
                 "last_daily_review_event_id": None,
+                "v3_tuning": default_v3_tuning(),
             },
         }
     with path.open("r", encoding="utf-8") as f:
@@ -407,6 +449,7 @@ def load_state(path: Path) -> Dict[str, Any]:
     data.setdefault("market_series", [])
     data.setdefault("calibration_events", [])
     data.setdefault("model_governance_events", [])
+    data.setdefault("model_transition_events", [])
     data.setdefault("daily_review_events", [])
     data.setdefault("model_registry", sanitize_model_registry(DEFAULT_MODEL_REGISTRY))
     data["model_registry"] = sanitize_model_registry(data.get("model_registry"))
@@ -424,6 +467,7 @@ def load_state(path: Path) -> Dict[str, Any]:
     data["meta"].setdefault("execution_profile_updated_at", None)
     data["meta"].setdefault("last_daily_review_at", None)
     data["meta"].setdefault("last_daily_review_event_id", None)
+    data["meta"]["v3_tuning"] = sanitize_v3_tuning(data["meta"].get("v3_tuning"))
     data["meta"]["execution_profile"] = sanitize_execution_profile(
         data["meta"].get("execution_profile", DEFAULT_EXECUTION_PROFILE),
         default=DEFAULT_EXECUTION_PROFILE,
@@ -931,12 +975,18 @@ def score_candidate_for_model(
     c: Any,
     model_id: str,
     market_indicators: Dict[str, Dict[str, Any]],
+    model_tuning: Dict[str, Dict[str, float]] | None = None,
 ) -> float:
     base = float(getattr(c, "score", 0.0) or 0.0)
     if model_id in {MODEL_LONG_ID, MODEL_SHORT_ID}:
         return round(base, 4)
 
     is_swing = model_id in {MODEL_LONG_V3_ID, MODEL_SHORT_V3_ID}
+    tune_row = (model_tuning or {}).get(model_id, {}) if model_tuning else {}
+    inverse_guard = clamp(float(safe_float(tune_row.get("inverse_guard")) or 1.0), 0.70, 2.00)
+    crowding_guard = clamp(float(safe_float(tune_row.get("crowding_guard")) or 1.0), 0.70, 2.00)
+    low_momo_penalty = clamp(float(safe_float(tune_row.get("low_momo_penalty")) or 1.0), 0.70, 2.00)
+    obstacle_guard = clamp(float(safe_float(tune_row.get("obstacle_guard")) or 1.0), 0.70, 2.00)
     side = model_side_from_id(model_id)
     direction = -1.0 if side == "SHORT" else 1.0
 
@@ -987,7 +1037,7 @@ def score_candidate_for_model(
         elif funding > (0.0006 if is_swing else 0.0008):
             limit = 0.08 if is_swing else 0.06
             cutoff = 0.0006 if is_swing else 0.0008
-            adjust -= min(limit, (funding - cutoff) * 45.0)
+            adjust -= min(limit * crowding_guard, (funding - cutoff) * 45.0 * crowding_guard)
     else:
         if funding > 0:
             k = 36.0 if is_swing else 30.0
@@ -996,7 +1046,7 @@ def score_candidate_for_model(
         elif funding < -(0.0006 if is_swing else 0.0008):
             limit = 0.08 if is_swing else 0.06
             cutoff = 0.0006 if is_swing else 0.0008
-            adjust -= min(limit, ((-funding) - cutoff) * 45.0)
+            adjust -= min(limit * crowding_guard, ((-funding) - cutoff) * 45.0 * crowding_guard)
 
     oi = safe_float(getattr(c, "g_open_interest", None))
     change24h = safe_float(getattr(c, "g_change24h_pct", None)) or 0.0
@@ -1008,7 +1058,7 @@ def score_candidate_for_model(
         dir_trend24 = direction * clamp(change24h / 12.0, -1.0, 1.0)
         adjust += 0.04 * dir_trend24
         if abs(change24h) < 1.0:
-            adjust -= 0.02
+            adjust -= 0.02 * low_momo_penalty
 
     concentration = market_indicators.get("concentration", {}) or {}
     regime = str(concentration.get("regime", "balanced"))
@@ -1030,12 +1080,12 @@ def score_candidate_for_model(
     if is_swing:
         if side == "LONG" and market_swing is not None:
             if market_swing < -0.25:
-                adjust -= 0.06
+                adjust -= 0.06 * inverse_guard
             elif market_swing > 0.35:
                 adjust += 0.04
         if side == "SHORT" and market_swing is not None:
             if market_swing > 0.25:
-                adjust -= 0.06
+                adjust -= 0.06 * inverse_guard
             elif market_swing < -0.35:
                 adjust += 0.04
 
@@ -1050,14 +1100,14 @@ def score_candidate_for_model(
     if side == "LONG":
         if ob_resist is not None and ob_resist < near_band:
             penalty = 0.05 if is_swing else 0.03
-            adjust -= penalty * (1.0 - (ob_resist / near_band))
+            adjust -= penalty * obstacle_guard * (1.0 - (ob_resist / near_band))
         if ob_support is not None and ob_support < near_band:
             bonus = 0.03 if is_swing else 0.02
             adjust += bonus * (1.0 - (ob_support / near_band))
     else:
         if ob_support is not None and ob_support < near_band:
             penalty = 0.05 if is_swing else 0.03
-            adjust -= penalty * (1.0 - (ob_support / near_band))
+            adjust -= penalty * obstacle_guard * (1.0 - (ob_support / near_band))
         if ob_resist is not None and ob_resist < near_band:
             bonus = 0.03 if is_swing else 0.02
             adjust += bonus * (1.0 - (ob_resist / near_band))
@@ -1312,6 +1362,145 @@ def maybe_expand_models(
     return notes
 
 
+def _diagnostic_item_by_model(
+    diagnostics: Dict[str, Any],
+    model_id: str,
+) -> Dict[str, Any] | None:
+    items = diagnostics.get("items", []) if isinstance(diagnostics, dict) else []
+    if not isinstance(items, list):
+        return None
+    for it in items:
+        if not isinstance(it, dict):
+            continue
+        if str(it.get("model_id", "")) == str(model_id):
+            return it
+    return None
+
+
+def migrate_v2_to_v3_by_gap(
+    state: Dict[str, Any],
+    model_metrics: Dict[str, Dict[str, float | int]],
+    model_diagnostics: Dict[str, Any],
+    now: datetime,
+    min_count: int = MODEL_V2_MIGRATION_MIN_COUNT,
+    min_win_gap: float = MODEL_V2_MIGRATION_WIN_GAP,
+    min_avg_gap: float = MODEL_V2_MIGRATION_AVG_GAP,
+) -> Tuple[Dict[str, float], Dict[str, Dict[str, float]], List[str]]:
+    registry = sanitize_model_registry(state.get("model_registry", {}))
+    meta = state.setdefault("meta", {})
+    current_tuning = sanitize_v3_tuning(meta.get("v3_tuning"))
+    score_bias: Dict[str, float] = {}
+    tuning_updates: Dict[str, Dict[str, float]] = {}
+    notes: List[str] = []
+
+    for side in ("LONG", "SHORT"):
+        mids = MODEL_VERSIONS_BY_SIDE.get(side)
+        if not mids:
+            continue
+        v1_mid, v2_mid, v3_mid = mids
+        m1 = model_metrics.get(v1_mid, {}) or {}
+        m2 = model_metrics.get(v2_mid, {}) or {}
+        n1 = int(m1.get("count", 0) or 0)
+        n2 = int(m2.get("count", 0) or 0)
+        if n1 < max(1, int(min_count)) or n2 < max(1, int(min_count)):
+            continue
+
+        w1 = float(m1.get("win_rate", 0.0) or 0.0)
+        w2 = float(m2.get("win_rate", 0.0) or 0.0)
+        a1 = float(m1.get("avg_return", 0.0) or 0.0)
+        a2 = float(m2.get("avg_return", 0.0) or 0.0)
+        win_gap = w1 - w2
+        avg_gap = a1 - a2
+        if win_gap < float(min_win_gap) and avg_gap < float(min_avg_gap):
+            continue
+
+        # Keep v1 online, but shift traffic from v2 to v3 via score-bias migration.
+        penalty = clamp(
+            0.04 + (max(0.0, win_gap - float(min_win_gap)) * 0.90)
+            + (max(0.0, avg_gap - float(min_avg_gap)) * 10.0),
+            0.04,
+            0.16,
+        )
+        bonus = clamp(0.03 + (penalty * 0.70), 0.03, 0.12)
+        score_bias[v2_mid] = -round(float(penalty), 4)
+        score_bias[v3_mid] = round(float(bonus), 4)
+
+        registry.setdefault(v3_mid, {"enabled": False, "side": side})
+        registry[v3_mid]["enabled"] = True
+        registry[v3_mid]["side"] = side
+
+        diag_item = _diagnostic_item_by_model(model_diagnostics, v2_mid)
+        issues = (diag_item or {}).get("issues", []) if isinstance(diag_item, dict) else []
+        issue_bits: List[str] = []
+        tune = dict(current_tuning.get(v3_mid, default_v3_tuning().get(v3_mid, {})))
+        for it in (issues or [])[:3]:
+            if not isinstance(it, dict):
+                continue
+            dim = str(it.get("dimension", ""))
+            bucket = str(it.get("bucket", ""))
+            issue_bits.append(f"{dim}:{bucket}")
+            if dim == "alignment" and bucket == "inverse":
+                tune["inverse_guard"] = clamp(float(tune.get("inverse_guard", 1.0)) + 0.25, 0.70, 2.00)
+            if dim == "funding" and "crowded" in bucket:
+                tune["crowding_guard"] = clamp(float(tune.get("crowding_guard", 1.0)) + 0.25, 0.70, 2.00)
+            if dim == "momentum" and bucket == "low-momentum":
+                tune["low_momo_penalty"] = clamp(float(tune.get("low_momo_penalty", 1.0)) + 0.20, 0.70, 2.00)
+            if dim == "momentum" and bucket == "high-momentum":
+                tune["obstacle_guard"] = clamp(float(tune.get("obstacle_guard", 1.0)) + 0.20, 0.70, 2.00)
+            if dim == "open_interest" and bucket == "low-oi":
+                tune["low_momo_penalty"] = clamp(float(tune.get("low_momo_penalty", 1.0)) + 0.10, 0.70, 2.00)
+
+        tuning_updates[v3_mid] = {
+            "inverse_guard": round(float(tune.get("inverse_guard", 1.0)), 4),
+            "crowding_guard": round(float(tune.get("crowding_guard", 1.0)), 4),
+            "low_momo_penalty": round(float(tune.get("low_momo_penalty", 1.0)), 4),
+            "obstacle_guard": round(float(tune.get("obstacle_guard", 1.0)), 4),
+        }
+        issue_txt = ", ".join(issue_bits) if issue_bits else "no-dominant-bucket"
+        notes.append(
+            f"{side} v2->v3 migration: v1({n1},{w1*100:.1f}%/{a1*100:.2f}%) "
+            f"vs v2({n2},{w2*100:.1f}%/{a2*100:.2f}%), bias(v2 {score_bias[v2_mid]:+.3f}, "
+            f"v3 {score_bias[v3_mid]:+.3f}), issues={issue_txt}"
+        )
+
+        state.setdefault("model_transition_events", []).append(
+            {
+                "id": f"migrate-{side.lower()}-{int(now.timestamp())}",
+                "at": iso_z(now),
+                "side": side,
+                "v1_model": v1_mid,
+                "v2_model": v2_mid,
+                "v3_model": v3_mid,
+                "v1_count": n1,
+                "v2_count": n2,
+                "v1_win_rate": w1,
+                "v2_win_rate": w2,
+                "v1_avg_return": a1,
+                "v2_avg_return": a2,
+                "score_bias_v2": score_bias[v2_mid],
+                "score_bias_v3": score_bias[v3_mid],
+                "tuning": dict(tuning_updates[v3_mid]),
+                "issues": issue_bits,
+            }
+        )
+
+    if tuning_updates:
+        merged = dict(current_tuning)
+        for mid, row in tuning_updates.items():
+            cur = dict(merged.get(mid, default_v3_tuning().get(mid, {})))
+            for k, v in row.items():
+                old = float(safe_float(cur.get(k)) or 1.0)
+                cur[k] = round(clamp((old * 0.60) + (float(v) * 0.40), 0.70, 2.00), 4)
+            merged[mid] = cur
+        meta["v3_tuning"] = sanitize_v3_tuning(merged)
+    else:
+        meta["v3_tuning"] = sanitize_v3_tuning(current_tuning)
+
+    state["model_registry"] = registry
+    state["model_transition_events"] = state.get("model_transition_events", [])[-500:]
+    return score_bias, dict(meta.get("v3_tuning", {})), notes
+
+
 def _market_context_snapshot(market_indicators: Dict[str, Dict[str, Any]]) -> Dict[str, Any]:
     concentration = market_indicators.get("concentration", {}) or {}
     return {
@@ -1508,10 +1697,14 @@ def make_recommendations(
     horizon_min: int,
     eval_horizons_min: List[int] | None = None,
     execution_profile: int = DEFAULT_EXECUTION_PROFILE,
+    model_score_bias: Dict[str, float] | None = None,
+    model_tuning: Dict[str, Dict[str, float]] | None = None,
 ) -> Tuple[List[Dict[str, Any]], Dict[str, Any]]:
     selected: List[Dict[str, Any]] = []
     top_n = max(0, int(top_n))
     min_short_picks = max(0, int(min_short_picks))
+    model_score_bias = dict(model_score_bias or {})
+    model_tuning = dict(model_tuning or {})
     if top_n > 0 and candidates:
         registry = sanitize_model_registry(model_registry)
         all_rows: List[Dict[str, Any]] = []
@@ -1526,8 +1719,11 @@ def make_recommendations(
                     c=c,
                     model_id=mid,
                     market_indicators=market_indicators,
+                    model_tuning=model_tuning,
                 )
-                row = {"candidate": c, "model_id": mid, "score": scored}
+                bias = clamp(float(safe_float(model_score_bias.get(mid)) or 0.0), -0.30, 0.30)
+                scored = round(float(scored) + float(bias), 4)
+                row = {"candidate": c, "model_id": mid, "score": scored, "score_bias": bias}
                 all_rows.append(row)
                 per_model.setdefault(mid, []).append(row)
 
@@ -1645,6 +1841,7 @@ def make_recommendations(
         mid = str(row["model_id"])
         score = float(row["score"])
         base_score = float(getattr(c, "score", 0.0) or 0.0)
+        bias_applied = float(safe_float(row.get("score_bias")) or 0.0)
         row_eval_horizons = eval_horizons_for_model(
             model_id=mid,
             default_horizons=default_eval_horizons,
@@ -1683,6 +1880,7 @@ def make_recommendations(
                 "score": score,
                 "base_score": base_score,
                 "model_score_delta": score - base_score,
+                "model_score_bias": bias_applied,
                 "b_rate24h": c.b_rate24h,
                 "g_rate24h": c.g_change24h_pct,
                 "b_value24h": c.b_krw_value24h,
@@ -3410,14 +3608,27 @@ def run_cycle(args: argparse.Namespace, state: Dict[str, Any]) -> int:
     if requested_profile is not None and execution_profile != saved_profile:
         state["meta"]["execution_profile_updated_at"] = iso_z(run_ts)
     state["model_registry"] = sanitize_model_registry(state.get("model_registry"))
+    pre_model_metrics = compute_model_metrics(
+        state.get("results", []),
+        window=max(120, args.metric_window * 2),
+    )
+    pre_model_diagnostics = diagnose_underperforming_models(
+        results=state.get("results", []),
+        model_metrics=pre_model_metrics,
+    )
     model_governance_notes = maybe_expand_models(
         state=state,
-        model_metrics=compute_model_metrics(
-            state.get("results", []),
-            window=max(120, args.metric_window * 2),
-        ),
+        model_metrics=pre_model_metrics,
         now=run_ts,
     )
+    model_score_bias, v3_tuning, transition_notes = migrate_v2_to_v3_by_gap(
+        state=state,
+        model_metrics=pre_model_metrics,
+        model_diagnostics=pre_model_diagnostics,
+        now=run_ts,
+    )
+    if transition_notes:
+        model_governance_notes.extend(transition_notes)
 
     try:
         bithumb, bitget, _ = fetch_market_snapshot()
@@ -3477,6 +3688,8 @@ def run_cycle(args: argparse.Namespace, state: Dict[str, Any]) -> int:
         horizon_min=args.horizon_min,
         eval_horizons_min=args.eval_horizons_min,
         execution_profile=execution_profile,
+        model_score_bias=model_score_bias,
+        model_tuning=v3_tuning,
     )
     filter_stats["removed_execution_profile"] = int(
         pick_filter_stats.get("removed_execution_profile", 0) or 0
@@ -3756,6 +3969,8 @@ def run_cycle(args: argparse.Namespace, state: Dict[str, Any]) -> int:
             "calibrated": calibrated,
             "calibration_notes": calibrate_notes,
             "model_governance_notes": model_governance_notes,
+            "model_score_bias": dict(model_score_bias),
+            "v3_tuning": dict(v3_tuning),
             "loss_alert_count": len(loss_alerts),
             "loss_cooldown_symbols": len(state["meta"].get("loss_cooldowns", {})),
             "execution_profile": execution_profile,

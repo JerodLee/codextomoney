@@ -101,6 +101,8 @@
           <li>조건: 모델 평가수 24 이상 + 승률 45% 미만</li>
           <li>LONG/SHORT 모두 현재 활성 모델이 저성과이면 다음 버전 <code>vN+1</code>을 자동 활성화합니다.</li>
           <li>예시: <code>momentum_long_v2 → momentum_long_v3</code>, <code>momentum_short_v3 → momentum_short_v4</code></li>
+          <li>운영 원칙: <strong>v1 롤백(비활성화)은 자동으로 하지 않고</strong>, v1 대비 v2 저하가 크면 <code>v2 점수 패널티 + v3 점수 보너스</code>로 트래픽을 v3로 이동시킵니다.</li>
+          <li>저하 원인 버킷(예: inverse/funding crowded/high-momentum)은 v3 튜닝값(<code>inverse_guard</code> 등)에 반영해 신규버전 품질을 보정합니다.</li>
           <li>확장 이벤트는 run_history/model_governance_events에 기록</li>
         </ul>
       </article>
