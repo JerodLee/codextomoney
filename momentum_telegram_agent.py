@@ -969,7 +969,6 @@ def compute_entry_plan_fields(
     stop_pct = clamp(0.45 + (vol24 * 0.08), 0.45, 2.80)
     rr_base = clamp(1.10 + (float(score) * 1.50), 1.10, 2.60)
     target_rr_pct = stop_pct * rr_base
-    entry_offset_pct = clamp(0.10 + (vol24 * 0.02), 0.10, 0.80)
 
     # Method 1) volatility+score RR target.
     # Method 2) orderblock distance target (closest wall distance).
@@ -999,6 +998,36 @@ def compute_entry_plan_fields(
     )
     target_pct = clamp(float(target_pct), 0.35, 6.00)
     target_basis = "rr+orderblock+flow" if target_ob_pct is not None else "rr+flow"
+
+    # Method 1) volatility baseline entry pullback.
+    # Method 2) orderblock distance guided entry pullback.
+    # Method 3) funding/OI crowding-adjusted entry pullback.
+    entry_base_offset_pct = clamp(0.10 + (vol24 * 0.02), 0.10, 0.80)
+    entry_ob_dist = ob_resist if side_u == "SHORT" else ob_support
+    entry_ob_offset_pct: float | None = None
+    if entry_ob_dist is not None and entry_ob_dist > 0:
+        entry_ob_offset_pct = clamp(float(entry_ob_dist) * 0.75, 0.08, 1.20)
+    entry_funding_mult = clamp(1.0 + (direction * funding * 60.0), 0.80, 1.25)
+    entry_oi_mult = clamp(0.95 + (oi_norm * 0.20), 0.90, 1.15)
+    entry_flow_offset_pct = clamp(
+        entry_base_offset_pct * entry_funding_mult * entry_oi_mult,
+        0.08,
+        1.20,
+    )
+    entry_terms: List[Tuple[float, float]] = [
+        (entry_base_offset_pct, 0.55),
+        (entry_flow_offset_pct, 0.20),
+    ]
+    if entry_ob_offset_pct is not None:
+        entry_terms.append((entry_ob_offset_pct, 0.25))
+    entry_w_sum = sum(w for _, w in entry_terms)
+    entry_offset_pct = (
+        sum(v * w for v, w in entry_terms) / max(entry_w_sum, 1e-9)
+        if entry_terms
+        else entry_base_offset_pct
+    )
+    entry_offset_pct = clamp(float(entry_offset_pct), 0.08, 1.20)
+    entry_basis = "vol+orderblock+flow" if entry_ob_offset_pct is not None else "vol+flow"
 
     def rec_entry(px: float | None) -> float | None:
         if px is None or px <= 0:
@@ -1040,6 +1069,12 @@ def compute_entry_plan_fields(
         "entry_reco_bithumb_price": None if b_reco is None else round(float(b_reco), 8),
         "entry_reco_bitget_price": None if g_reco is None else round(float(g_reco), 8),
         "entry_reco_offset_pct": round(float(entry_offset_pct), 4),
+        "entry_reco_basis": entry_basis,
+        "entry_reco_base_offset_pct": round(float(entry_base_offset_pct), 4),
+        "entry_reco_ob_offset_pct": None
+        if entry_ob_offset_pct is None
+        else round(float(entry_ob_offset_pct), 4),
+        "entry_reco_flow_offset_pct": round(float(entry_flow_offset_pct), 4),
         "plan_stop_pct": round(float(stop_pct), 4),
         "plan_target_pct": round(float(target_pct), 4),
         "plan_target_basis": target_basis,
