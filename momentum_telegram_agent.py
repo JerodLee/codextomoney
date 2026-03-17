@@ -101,6 +101,12 @@ MODEL_RECOMMEND_WIN_RATE_FLOOR = 0.48
 MODEL_RECOMMEND_AVG_RETURN_FLOOR = -0.001
 MODEL_DIAG_MIN_COUNT = 24
 MODEL_DIAG_MIN_BUCKET = 8
+DEFAULT_EXECUTION_PROFILE = 1
+EXECUTION_PROFILE_RULES: Dict[int, Dict[str, Any]] = {
+    1: {"name": "conservative", "min_target_pct": 0.90, "min_rr_entry": 1.35},
+    2: {"name": "balanced", "min_target_pct": 0.70, "min_rr_entry": 1.25},
+    3: {"name": "aggressive", "min_target_pct": 0.50, "min_rr_entry": 1.15},
+}
 DEFAULT_EVAL_HORIZONS = [5, 15, 30, 60]
 MISSED_MOVE_THRESHOLDS = {
     5: 0.015,
@@ -259,6 +265,21 @@ def parse_eval_horizons(raw: str | None, fallback_horizon: int) -> List[int]:
     return out
 
 
+def sanitize_execution_profile(v: Any, default: int = DEFAULT_EXECUTION_PROFILE) -> int:
+    try:
+        n = int(v)
+    except Exception:  # noqa: BLE001
+        n = int(default)
+    if n not in EXECUTION_PROFILE_RULES:
+        n = int(default)
+    return n
+
+
+def execution_profile_rule(profile: int) -> Dict[str, Any]:
+    p = sanitize_execution_profile(profile)
+    return dict(EXECUTION_PROFILE_RULES.get(p, EXECUTION_PROFILE_RULES[DEFAULT_EXECUTION_PROFILE]))
+
+
 def parse_pick_eval_horizons(p: Dict[str, Any]) -> List[int]:
     raw = p.get("eval_horizons_min")
     out: List[int] = []
@@ -324,6 +345,8 @@ def load_state(path: Path) -> Dict[str, Any]:
                 "model_governance_cooldown_until": None,
                 "last_model_recommendation": None,
                 "last_model_diagnostics": None,
+                "execution_profile": DEFAULT_EXECUTION_PROFILE,
+                "execution_profile_updated_at": None,
             },
         }
     with path.open("r", encoding="utf-8") as f:
@@ -363,6 +386,11 @@ def load_state(path: Path) -> Dict[str, Any]:
     data["meta"].setdefault("model_governance_cooldown_until", None)
     data["meta"].setdefault("last_model_recommendation", None)
     data["meta"].setdefault("last_model_diagnostics", None)
+    data["meta"].setdefault("execution_profile_updated_at", None)
+    data["meta"]["execution_profile"] = sanitize_execution_profile(
+        data["meta"].get("execution_profile", DEFAULT_EXECUTION_PROFILE),
+        default=DEFAULT_EXECUTION_PROFILE,
+    )
     data.setdefault("version", 3)
     return data
 
@@ -1359,7 +1387,8 @@ def make_recommendations(
     run_ts: datetime,
     horizon_min: int,
     eval_horizons_min: List[int] | None = None,
-) -> List[Dict[str, Any]]:
+    execution_profile: int = DEFAULT_EXECUTION_PROFILE,
+) -> Tuple[List[Dict[str, Any]], Dict[str, Any]]:
     selected: List[Dict[str, Any]] = []
     top_n = max(0, int(top_n))
     min_short_picks = max(0, int(min_short_picks))
@@ -1471,6 +1500,14 @@ def make_recommendations(
         )
 
     out: List[Dict[str, Any]] = []
+    removed_execution_profile = 0
+    execution_profile = sanitize_execution_profile(
+        execution_profile,
+        default=DEFAULT_EXECUTION_PROFILE,
+    )
+    execution_rule = execution_profile_rule(execution_profile)
+    min_target_pct = float(execution_rule.get("min_target_pct", 0.0) or 0.0)
+    min_rr_entry = float(execution_rule.get("min_rr_entry", 0.0) or 0.0)
     eval_horizons = sorted(set(int(x) for x in (eval_horizons_min or [horizon_min]) if int(x) > 0))
     if not eval_horizons:
         eval_horizons = [max(1, int(horizon_min))]
@@ -1492,6 +1529,16 @@ def make_recommendations(
             side=str(c.side),
             score=score,
         )
+        plan_target_pct = safe_float(plan.get("plan_target_pct"))
+        plan_rr_entry = safe_float(plan.get("rr_entry"))
+        if (
+            plan_target_pct is None
+            or plan_rr_entry is None
+            or float(plan_target_pct) < min_target_pct
+            or float(plan_rr_entry) < min_rr_entry
+        ):
+            removed_execution_profile += 1
+            continue
         out.append(
             {
                 "id": f"{c.symbol}-{c.side}-{mid}-{int(run_ts.timestamp())}",
@@ -1533,10 +1580,18 @@ def make_recommendations(
                 "market_trend_market": market_trend,
                 "market_trend_btc": btc_trend,
                 "market_trend_eth": eth_trend,
+                "execution_profile": execution_profile,
+                "execution_profile_name": str(execution_rule.get("name", "")),
+                "execution_min_target_pct": min_target_pct,
+                "execution_min_rr_entry": min_rr_entry,
                 **plan,
             }
         )
-    return out
+    return out, {
+        "execution_profile": execution_profile,
+        "execution_rule": execution_rule,
+        "removed_execution_profile": int(removed_execution_profile),
+    }
 
 
 def pick_side(p: Dict[str, Any]) -> str:
@@ -2599,7 +2654,11 @@ def format_pick_line(index: int, p: Dict[str, Any]) -> str:
     side = pick_side(p)
     fr = float(p.get("g_funding_rate", 0.0) or 0.0)
     oi = format_oi(p.get("g_open_interest"))
-    return f"{index}) {p['symbol']} | {side} | score {p['score']:.3f} | fr {fr:.4f} | oi {oi}"
+    prof = sanitize_execution_profile(
+        p.get("execution_profile", DEFAULT_EXECUTION_PROFILE),
+        default=DEFAULT_EXECUTION_PROFILE,
+    )
+    return f"{index}) {p['symbol']} | {side} | P{prof} | score {p['score']:.3f} | fr {fr:.4f} | oi {oi}"
 
 
 def evaluate_live_return(
@@ -2769,8 +2828,10 @@ def make_message(
     run_ts: datetime,
     picks: List[Dict[str, Any]],
     metrics: Dict[str, float],
-    filter_stats: Dict[str, int],
+    filter_stats: Dict[str, Any],
     cfg: Dict[str, float],
+    execution_profile: int,
+    execution_rule: Dict[str, Any],
     new_results_count: int,
     calibrate_notes: List[str],
     model_governance_notes: List[str],
@@ -2780,11 +2841,16 @@ def make_message(
     message_style: str,
 ) -> str:
     ts_kst = run_ts.astimezone(KST).strftime("%Y-%m-%d %H:%M:%S KST")
+    prof = sanitize_execution_profile(execution_profile, default=DEFAULT_EXECUTION_PROFILE)
+    prof_rule = execution_rule or execution_profile_rule(prof)
+    min_target = float(prof_rule.get("min_target_pct", 0.0) or 0.0)
+    min_rr = float(prof_rule.get("min_rr_entry", 0.0) or 0.0)
+    removed_prof = int(filter_stats.get("removed_execution_profile", 0) or 0)
     lines: List[str] = []
     if message_style == "compact":
         lines.append(f"Momentum Scan | {ts_kst}")
         lines.append(
-            f"Rules: overheat<{cfg['max_overheat_rate']:.0f}% | gLong>={cfg['min_bitget_rate']:.1f}% | gShort<=-{cfg['min_bitget_short_rate']:.1f}% | bShort<={cfg['short_max_bithumb_rate']:.1f}% | fShort>={cfg['short_min_funding_rate']:.4f} | bVal>={format_money_k(cfg['min_bithumb_value'])} | gVol>={format_money_u(cfg['min_bitget_volume'])}"
+            f"Rules: overheat<{cfg['max_overheat_rate']:.0f}% | gLong>={cfg['min_bitget_rate']:.1f}% | gShort<=-{cfg['min_bitget_short_rate']:.1f}% | bShort<={cfg['short_max_bithumb_rate']:.1f}% | fShort>={cfg['short_min_funding_rate']:.4f} | bVal>={format_money_k(cfg['min_bithumb_value'])} | gVol>={format_money_u(cfg['min_bitget_volume'])} | P{prof}(tp>={min_target:.2f}%, rr>={min_rr:.2f})"
         )
         if picks:
             lines.append("Picks:")
@@ -2808,6 +2874,8 @@ def make_message(
             )
         if int(filter_stats.get("removed_loss_cooldown", 0)) > 0:
             lines.append(f"Risk block: cooldown filtered {int(filter_stats['removed_loss_cooldown'])} symbols")
+        if removed_prof > 0:
+            lines.append(f"Execution profile P{prof}: filtered {removed_prof} symbols (tp/rr)")
         ob_checked = int(filter_stats.get("orderblock_checked", 0) or 0)
         ob_assigned = int(filter_stats.get("orderblock_assigned", 0) or 0)
         if ob_checked > 0:
@@ -2830,9 +2898,12 @@ def make_message(
     lines.append(
         f"Filters: overheat<{cfg['max_overheat_rate']:.2f}%, gLong>={cfg['min_bitget_rate']:.2f}%, gShort<=-{cfg['min_bitget_short_rate']:.2f}%, bShort<={cfg['short_max_bithumb_rate']:.2f}%, fShort>={cfg['short_min_funding_rate']:.4f}, bValue>={format_money_k(cfg['min_bithumb_value'])}, gVol>={format_money_u(cfg['min_bitget_volume'])}"
     )
+    lines.append(f"Execution profile: P{prof} (tp>={min_target:.2f}%, rr_entry>={min_rr:.2f})")
     lines.append(
         f"Candidates: base={filter_stats['base_universe']}, removed(cooldown={filter_stats.get('removed_loss_cooldown', 0)}, overheat={filter_stats['removed_overheat']}, conservative={filter_stats['removed_conservative']}, orderable={filter_stats['removed_orderable']})"
     )
+    if removed_prof > 0:
+        lines.append(f"Execution profile filter: removed {removed_prof}")
     if int(filter_stats.get("orderblock_checked", 0) or 0) > 0:
         lines.append(
             f"Orderblock: assigned={int(filter_stats.get('orderblock_assigned', 0) or 0)}/{int(filter_stats.get('orderblock_checked', 0) or 0)}"
@@ -2915,6 +2986,19 @@ def run_cycle(args: argparse.Namespace, state: Dict[str, Any]) -> int:
     run_ts = utc_now()
     cfg = dict(state["dynamic_config"])
     pre_cfg = dict(state["dynamic_config"])
+    saved_profile = sanitize_execution_profile(
+        state.get("meta", {}).get("execution_profile", DEFAULT_EXECUTION_PROFILE),
+        default=DEFAULT_EXECUTION_PROFILE,
+    )
+    requested_profile = getattr(args, "execution_profile", None)
+    execution_profile = sanitize_execution_profile(
+        requested_profile if requested_profile is not None else saved_profile,
+        default=saved_profile,
+    )
+    execution_rule = execution_profile_rule(execution_profile)
+    state.setdefault("meta", {})["execution_profile"] = execution_profile
+    if requested_profile is not None and execution_profile != saved_profile:
+        state["meta"]["execution_profile_updated_at"] = iso_z(run_ts)
     state["model_registry"] = sanitize_model_registry(state.get("model_registry"))
     model_governance_notes = maybe_expand_models(
         state=state,
@@ -2973,7 +3057,7 @@ def run_cycle(args: argparse.Namespace, state: Dict[str, Any]) -> int:
         max_orderblock_checks=args.max_orderblock_checks,
     )
 
-    picks = make_recommendations(
+    picks, pick_filter_stats = make_recommendations(
         candidates=candidates,
         top_n=args.top,
         min_short_picks=args.min_short_picks,
@@ -2982,6 +3066,10 @@ def run_cycle(args: argparse.Namespace, state: Dict[str, Any]) -> int:
         run_ts=run_ts,
         horizon_min=args.horizon_min,
         eval_horizons_min=args.eval_horizons_min,
+        execution_profile=execution_profile,
+    )
+    filter_stats["removed_execution_profile"] = int(
+        pick_filter_stats.get("removed_execution_profile", 0) or 0
     )
     if picks:
         state["recommendation_history"].extend(picks)
@@ -3156,6 +3244,8 @@ def run_cycle(args: argparse.Namespace, state: Dict[str, Any]) -> int:
         metrics=metrics,
         filter_stats=filter_stats,
         cfg=state["dynamic_config"],
+        execution_profile=execution_profile,
+        execution_rule=execution_rule,
         new_results_count=len(finalized),
         calibrate_notes=calibrate_notes,
         model_governance_notes=model_governance_notes,
@@ -3206,6 +3296,8 @@ def run_cycle(args: argparse.Namespace, state: Dict[str, Any]) -> int:
             "model_governance_notes": model_governance_notes,
             "loss_alert_count": len(loss_alerts),
             "loss_cooldown_symbols": len(state["meta"].get("loss_cooldowns", {})),
+            "execution_profile": execution_profile,
+            "execution_rule": dict(execution_rule),
             "market_indicators": market_indicators,
             "market_alignment_now": alignment_now,
             "market_alignment_history": alignment_history,
@@ -3335,6 +3427,7 @@ def parse_args() -> argparse.Namespace:
     p.add_argument("--loss-alert-threshold", type=float, default=0.0)
     p.add_argument("--loss-cooldown-min", type=int, default=60)
     p.add_argument("--min-short-picks", type=int, default=1)
+    p.add_argument("--execution-profile", type=int, choices=(1, 2, 3), default=None)
     p.add_argument("--alerts-only", action="store_true")
     return p.parse_args()
 

@@ -231,6 +231,12 @@ function statusLabel(done) {
   return done ? "\uAC80\uC99D\uC644\uB8CC" : "\uB300\uAE30";
 }
 
+function executionProfileOf(row) {
+  const p = Number(row?.execution_profile);
+  if (Number.isFinite(p) && p >= 1 && p <= 3) return Math.trunc(p);
+  return 1;
+}
+
 function resultLabel(win) {
   return win ? "\uC2B9" : "\uD328";
 }
@@ -558,7 +564,7 @@ function renderPicks(state) {
 
   if (!picks.length) {
     const tr = document.createElement("tr");
-    tr.innerHTML = `<td colspan="16" class="muted">추천 이력이 아직 없습니다.</td>`;
+    tr.innerHTML = `<td colspan="17" class="muted">추천 이력이 아직 없습니다.</td>`;
     body.appendChild(tr);
     return;
   }
@@ -584,6 +590,7 @@ function renderPicks(state) {
       <td>${symbolCellHtml(symbol, recN, evalN, winN)}</td>
       <td>${sideBadgeHtml(side)}</td>
       <td class="mono">${modelLabel(modelOf(p))}</td>
+      <td class="mono">P${executionProfileOf(p)}</td>
       <td>${Number.isFinite(Number(p.score)) ? fmtNum(p.score, 3) : "-"}</td>
       <td>${pricePairCellHtml(plan.bNow, plan.gNow)}</td>
       <td>${rrCellHtml(plan.rrNow)}</td>

@@ -45,6 +45,29 @@
 
     <section class="card compact-card">
       <div class="card-head">
+        <h2>실행 프로필</h2>
+        <p class="muted">P1(보수) / P2(균형) / P3(공격)</p>
+      </div>
+      <p id="profileCurrent" class="muted">현재 프로필: -</p>
+      <div class="source-row">
+        <label>프로필
+          <select id="profileSelect">
+            <option value="1">P1 보수형 (추천)</option>
+            <option value="2">P2 균형형</option>
+            <option value="3">P3 공격형</option>
+          </select>
+        </label>
+        <label>GitHub PAT
+          <input id="ghTokenInput" type="password" placeholder="repo/workflow 권한 토큰" />
+        </label>
+        <button id="applyProfileBtn" class="btn">프로필 적용</button>
+      </div>
+      <p class="muted">대시보드에서 적용하면 workflow_dispatch로 즉시 실행되며, 이후 정기 실행에도 유지됩니다.</p>
+      <p id="profileApplyStatus" class="status muted">-</p>
+    </section>
+
+    <section class="card compact-card">
+      <div class="card-head">
         <h2>보관 정책</h2>
         <p class="muted">state/jsonl 적재 기준</p>
       </div>
@@ -96,6 +119,6 @@
   </nav>
 
   <script src="./pwa.js?v=20260316-1"></script>
-  <script src="./ops.js?v=20260316-3"></script>
+  <script src="./ops.js?v=20260318-1"></script>
 </body>
 </html>

@@ -15,6 +15,11 @@ const source = detectRepo();
 $("ownerInput").value = source.owner;
 $("repoInput").value = source.repo;
 $("branchInput").value = source.branch;
+const PROFILE_RULES = {
+  1: { name: "P1 보수형", minTargetPct: 0.9, minRrEntry: 1.35 },
+  2: { name: "P2 균형형", minTargetPct: 0.7, minRrEntry: 1.25 },
+  3: { name: "P3 공격형", minTargetPct: 0.5, minRrEntry: 1.15 },
+};
 
 function fmtPct(v) {
   const x = Number(v);
@@ -131,6 +136,51 @@ function modelLabel(id) {
   return map[id] || id || "-";
 }
 
+function profileOfState(state) {
+  const p = Number(state?.meta?.execution_profile);
+  if (Number.isFinite(p) && p >= 1 && p <= 3) return Math.trunc(p);
+  return 1;
+}
+
+function profileRuleText(profile) {
+  const p = Number(profile);
+  const r = PROFILE_RULES[p] || PROFILE_RULES[1];
+  return `${r.name} | tp>=${r.minTargetPct.toFixed(2)}% | rr>=${r.minRrEntry.toFixed(2)}`;
+}
+
+function renderExecutionProfile(state) {
+  const p = profileOfState(state);
+  const updatedAt = String(state?.meta?.execution_profile_updated_at || "");
+  $("profileSelect").value = String(p);
+  const suffix = updatedAt ? ` | updated ${updatedAt}` : "";
+  $("profileCurrent").textContent = `현재 프로필: P${p} (${profileRuleText(p)})${suffix}`;
+}
+
+async function dispatchExecutionProfile(owner, repo, branch, token, profile) {
+  const url = `https://api.github.com/repos/${owner}/${repo}/actions/workflows/momentum-telegram-bot.yml/dispatches`;
+  const res = await fetch(url, {
+    method: "POST",
+    headers: {
+      Accept: "application/vnd.github+json",
+      Authorization: `Bearer ${token}`,
+      "X-GitHub-Api-Version": "2022-11-28",
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      ref: branch,
+      inputs: { execution_profile: String(profile) },
+    }),
+  });
+  if (res.status === 204) return;
+  let detail = "";
+  try {
+    detail = await res.text();
+  } catch (_) {
+    detail = "";
+  }
+  throw new Error(`dispatch failed: HTTP ${res.status} ${detail}`);
+}
+
 function renderModelSnapshot(state) {
   const body = $("modelSnapBody");
   body.innerHTML = "";
@@ -181,6 +231,7 @@ async function loadAndRender() {
     ]);
     renderStorage(state, evalText);
     renderModelSnapshot(state);
+    renderExecutionProfile(state);
     $("loadStatus").textContent = `불러오기 성공: state=${stateUrl} | eval=${evalUrl}`;
     $("loadStatus").className = "status good";
   } catch (e) {
@@ -189,8 +240,38 @@ async function loadAndRender() {
   }
 }
 
+async function onApplyProfile() {
+  const owner = $("ownerInput").value.trim();
+  const repo = $("repoInput").value.trim();
+  const branch = $("branchInput").value.trim() || "main";
+  const token = String($("ghTokenInput").value || "").trim();
+  const profile = Number($("profileSelect").value || 1);
+  const st = $("profileApplyStatus");
+  if (!token) {
+    st.textContent = "PAT를 입력해 주세요. (repo + workflow 권한 필요)";
+    st.className = "status bad";
+    return;
+  }
+  if (![1, 2, 3].includes(profile)) {
+    st.textContent = "프로필 값이 올바르지 않습니다.";
+    st.className = "status bad";
+    return;
+  }
+  st.textContent = `프로필 P${profile} 적용 요청 중...`;
+  st.className = "status muted";
+  try {
+    await dispatchExecutionProfile(owner, repo, branch, token, profile);
+    st.textContent = `프로필 P${profile} 적용 요청 완료. 1~2분 내 반영됩니다.`;
+    st.className = "status good";
+  } catch (e) {
+    st.textContent = `프로필 적용 실패: ${String(e)}`;
+    st.className = "status bad";
+  }
+}
+
 $("refreshBtn").addEventListener("click", loadAndRender);
 $("applySourceBtn").addEventListener("click", loadAndRender);
+$("applyProfileBtn").addEventListener("click", onApplyProfile);
 
 loadAndRender();
 setInterval(loadAndRender, 60000);

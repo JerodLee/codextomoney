@@ -9,6 +9,17 @@ on:
     paths-ignore:
       - "state/**"
   workflow_dispatch:
+    inputs:
+      execution_profile:
+        description: "Execution profile (keep/1/2/3)"
+        required: false
+        default: "keep"
+        type: choice
+        options:
+          - keep
+          - "1"
+          - "2"
+          - "3"
 
 permissions:
   contents: write
@@ -35,10 +46,17 @@ jobs:
         env:
           TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
           TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+          EXECUTION_PROFILE_INPUT: ${{ github.event.inputs.execution_profile || '' }}
         run: |
+          EXTRA_ARGS=()
+          if [ -n "${EXECUTION_PROFILE_INPUT}" ] && [ "${EXECUTION_PROFILE_INPUT}" != "keep" ]; then
+            EXTRA_ARGS+=(--execution-profile "${EXECUTION_PROFILE_INPUT}")
+            echo "Applying execution profile: ${EXECUTION_PROFILE_INPUT}"
+          fi
           python momentum_telegram_agent.py \
             --state-file state/bot_state.json \
-            --history-file state/eval_history.jsonl
+            --history-file state/eval_history.jsonl \
+            "${EXTRA_ARGS[@]}"
 
       - name: Commit and push state (after recommendation run)
         run: |
