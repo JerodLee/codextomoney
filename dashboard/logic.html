@@ -170,7 +170,20 @@
     </section>
 
     <section class="card logic-card">
-      <h3>12) 텔레그램 출력 규칙(컴팩트)</h3>
+      <h3>12) 일일 점검 및 일괄 보정</h3>
+      <ul class="timeline">
+        <li>주기: 기본 24시간마다 1회(최근 24h 추천/검증 집계).</li>
+        <li>집계: 추천 수, 검증 수, 승률, 평균수익률, 모델별 일간 승률.</li>
+        <li>저성과 시: 리스크/유동성 필터를 보수적으로 조정하고, 필요 시 실행 프로필을 1단계 하향(P3→P2→P1)합니다.</li>
+        <li>성과 우수 시: 탐색 범위를 소폭 확장하고, 필요 시 실행 프로필을 1단계 상향(P1→P2→P3)합니다.</li>
+        <li>모델 저성과 시: LONG/SHORT별 저성과 활성 모델의 다음 버전을 자동 활성화합니다.</li>
+        <li>기록: <code>daily_review_events</code>, <code>meta.last_daily_review_at</code>, <code>run_history.daily_review</code>에 저장합니다.</li>
+        <li>롤백 쿨다운 중에는 점검만 수행하고 자동 적용은 보류합니다.</li>
+      </ul>
+    </section>
+
+    <section class="card logic-card">
+      <h3>13) 텔레그램 출력 규칙(컴팩트)</h3>
       <ul class="timeline">
         <li>추천 라인: <code>심볼 | LONG/SHORT | score | funding | OI</code> 형식으로 전송합니다.</li>
         <li>손실 발생 시 별도 경고 메시지(종목/방향/실시간 손익률)를 추가 전송합니다.</li>
@@ -179,7 +192,7 @@
     </section>
 
     <section class="card logic-card">
-      <h3>13) 문서 동기화 원칙</h3>
+      <h3>14) 문서 동기화 원칙</h3>
       <ul class="timeline">
         <li>추천/검증/보정/알림 로직 변경 시 본 페이지(<code>docs/logic.html</code>)를 같은 커밋에서 동시 업데이트합니다.</li>
         <li>대시보드 노출용 문서(<code>dashboard/logic.html</code>)도 동일 내용으로 동기화합니다.</li>
@@ -187,7 +200,7 @@
     </section>
 
     <section class="card logic-card">
-      <h3>14) 저성과 원인 진단 (ModelLab)</h3>
+      <h3>15) 저성과 원인 진단 (ModelLab)</h3>
       <ul class="timeline">
         <li>트리거: 모델별 표본 24건 이상 + 승률 <code>48%</code> 또는 평균수익률 <code>-0.10%</code>.</li>
         <li>진단 축: <code>시장정합(alignment)</code>, <code>funding</code>, <code>momentum</code>, <code>OI</code>, <code>regime</code>.</li>

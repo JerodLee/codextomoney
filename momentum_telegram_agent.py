@@ -107,6 +107,10 @@ EXECUTION_PROFILE_RULES: Dict[int, Dict[str, Any]] = {
     2: {"name": "balanced", "min_target_pct": 0.70, "min_rr_entry": 1.25},
     3: {"name": "aggressive", "min_target_pct": 0.50, "min_rr_entry": 1.15},
 }
+DAILY_REVIEW_INTERVAL_HOURS = 24
+DAILY_REVIEW_LOOKBACK_HOURS = 24
+DAILY_REVIEW_MIN_RESULTS = 10
+DAILY_REVIEW_MIN_MODEL_RESULTS = 8
 DEFAULT_EVAL_HORIZONS = [5, 15, 30, 60]
 MISSED_MOVE_THRESHOLDS = {
     5: 0.015,
@@ -337,6 +341,7 @@ def load_state(path: Path) -> Dict[str, Any]:
             "market_series": [],
             "calibration_events": [],
             "model_governance_events": [],
+            "daily_review_events": [],
             "meta": {
                 "no_candidate_streak": 0,
                 "last_calibrated_at": None,
@@ -347,6 +352,8 @@ def load_state(path: Path) -> Dict[str, Any]:
                 "last_model_diagnostics": None,
                 "execution_profile": DEFAULT_EXECUTION_PROFILE,
                 "execution_profile_updated_at": None,
+                "last_daily_review_at": None,
+                "last_daily_review_event_id": None,
             },
         }
     with path.open("r", encoding="utf-8") as f:
@@ -373,6 +380,7 @@ def load_state(path: Path) -> Dict[str, Any]:
     data.setdefault("market_series", [])
     data.setdefault("calibration_events", [])
     data.setdefault("model_governance_events", [])
+    data.setdefault("daily_review_events", [])
     data.setdefault("model_registry", sanitize_model_registry(DEFAULT_MODEL_REGISTRY))
     data["model_registry"] = sanitize_model_registry(data.get("model_registry"))
     data.setdefault("meta", {})
@@ -387,6 +395,8 @@ def load_state(path: Path) -> Dict[str, Any]:
     data["meta"].setdefault("last_model_recommendation", None)
     data["meta"].setdefault("last_model_diagnostics", None)
     data["meta"].setdefault("execution_profile_updated_at", None)
+    data["meta"].setdefault("last_daily_review_at", None)
+    data["meta"].setdefault("last_daily_review_event_id", None)
     data["meta"]["execution_profile"] = sanitize_execution_profile(
         data["meta"].get("execution_profile", DEFAULT_EXECUTION_PROFILE),
         default=DEFAULT_EXECUTION_PROFILE,
@@ -2277,6 +2287,265 @@ def compute_model_metrics(
     return out
 
 
+def _rows_within_hours(
+    rows: List[Dict[str, Any]],
+    ts_key: str,
+    now: datetime,
+    lookback_hours: int,
+) -> List[Dict[str, Any]]:
+    cutoff = now - timedelta(hours=max(1, int(lookback_hours)))
+    out: List[Dict[str, Any]] = []
+    for r in rows:
+        raw = r.get(ts_key)
+        if not raw:
+            continue
+        try:
+            ts = parse_iso(str(raw))
+        except Exception:  # noqa: BLE001
+            continue
+        if cutoff <= ts <= now:
+            out.append(r)
+    return out
+
+
+def _config_change_rows(before: Dict[str, float], after: Dict[str, float]) -> List[Dict[str, float]]:
+    out: List[Dict[str, float]] = []
+    keys = sorted(set(before.keys()) | set(after.keys()))
+    for k in keys:
+        b = safe_float(before.get(k))
+        a = safe_float(after.get(k))
+        if b is None or a is None:
+            continue
+        if abs(float(a) - float(b)) < 1e-12:
+            continue
+        out.append({"key": str(k), "before": float(b), "after": float(a)})
+    return out
+
+
+def _daily_review_due(last_daily_review_at: str | None, now: datetime, interval_hours: int) -> bool:
+    if not last_daily_review_at:
+        return True
+    try:
+        prev = parse_iso(str(last_daily_review_at))
+    except Exception:  # noqa: BLE001
+        return True
+    return (now - prev) >= timedelta(hours=max(1, int(interval_hours)))
+
+
+def run_daily_batch_review(
+    state: Dict[str, Any],
+    now: datetime,
+    cfg: Dict[str, float],
+    execution_profile: int,
+    lookback_hours: int = DAILY_REVIEW_LOOKBACK_HOURS,
+    interval_hours: int = DAILY_REVIEW_INTERVAL_HOURS,
+    min_results: int = DAILY_REVIEW_MIN_RESULTS,
+    min_model_results: int = DAILY_REVIEW_MIN_MODEL_RESULTS,
+    allow_apply: bool = True,
+) -> Dict[str, Any]:
+    meta = state.setdefault("meta", {})
+    last_daily_review_at = meta.get("last_daily_review_at")
+    if not _daily_review_due(
+        last_daily_review_at=str(last_daily_review_at or ""),
+        now=now,
+        interval_hours=interval_hours,
+    ):
+        return {
+            "due": False,
+            "ran": False,
+            "applied": False,
+            "summary": "",
+            "notes": [],
+            "config": dict(cfg),
+            "execution_profile": sanitize_execution_profile(execution_profile),
+            "event": None,
+        }
+
+    lookback_h = max(1, int(lookback_hours))
+    min_eval_n = max(1, int(min_results))
+    min_model_n = max(1, int(min_model_results))
+    current_profile = sanitize_execution_profile(execution_profile, default=DEFAULT_EXECUTION_PROFILE)
+    next_profile = current_profile
+
+    day_results = _rows_within_hours(
+        rows=state.get("results", []),
+        ts_key="evaluated_at",
+        now=now,
+        lookback_hours=lookback_h,
+    )
+    day_recommendations = _rows_within_hours(
+        rows=state.get("recommendation_history", []),
+        ts_key="created_at",
+        now=now,
+        lookback_hours=lookback_h,
+    )
+
+    eval_n = len(day_results)
+    rec_n = len(day_recommendations)
+    day_metrics = compute_metrics(day_results, window=max(1, eval_n))
+    day_model_metrics = compute_model_metrics(day_results, window=max(1, eval_n))
+    day_diagnostics = diagnose_underperforming_models(
+        results=day_results,
+        model_metrics=day_model_metrics,
+        min_count=max(6, min_eval_n // 2),
+        min_bucket_count=4,
+    )
+
+    new_cfg = dict(cfg)
+    notes: List[str] = []
+    model_expansions: List[Dict[str, Any]] = []
+    registry = sanitize_model_registry(state.get("model_registry"))
+
+    win_rate = float(day_metrics.get("win_rate", 0.0) or 0.0)
+    avg_return = float(day_metrics.get("avg_return", 0.0) or 0.0)
+    if not bool(allow_apply):
+        notes.append(
+            f"Daily review executed in cooldown mode: rec={rec_n}, eval={eval_n}, "
+            f"win={win_rate * 100:.2f}%, avg={avg_return * 100:.2f}% (no auto-change)."
+        )
+    elif eval_n < max(4, min_eval_n // 2):
+        notes.append(
+            f"Daily review sample is still small: eval={eval_n}, rec={rec_n}. "
+            "Kept major risk thresholds unchanged."
+        )
+        if rec_n < 4:
+            new_cfg["min_bithumb_value"] = max(1_000_000_000, new_cfg["min_bithumb_value"] * 0.92)
+            new_cfg["min_bitget_volume"] = max(5_000_000, new_cfg["min_bitget_volume"] * 0.92)
+            new_cfg["min_bithumb_rate"] = max(0.5, new_cfg["min_bithumb_rate"] - 0.10)
+            new_cfg["min_bitget_rate"] = max(0.5, new_cfg["min_bitget_rate"] - 0.10)
+            new_cfg["min_bitget_short_rate"] = max(0.5, new_cfg["min_bitget_short_rate"] - 0.10)
+            notes.append("Daily low-flow adjustment: relaxed liquidity/momentum floors slightly.")
+    elif win_rate < 0.45 or avg_return < -0.0010:
+        new_cfg["max_overheat_rate"] = max(20.0, new_cfg["max_overheat_rate"] - 2.0)
+        new_cfg["conservative_max_rate"] = max(10.0, new_cfg["conservative_max_rate"] - 1.0)
+        new_cfg["min_bithumb_value"] = min(20_000_000_000, new_cfg["min_bithumb_value"] * 1.08)
+        new_cfg["min_bitget_volume"] = min(60_000_000, new_cfg["min_bitget_volume"] * 1.08)
+        new_cfg["conservative_max_abs_funding"] = max(
+            0.0005, new_cfg["conservative_max_abs_funding"] * 0.92
+        )
+        notes.append(
+            f"Daily underperformance adjustment: win={win_rate * 100:.2f}% "
+            f"avg={avg_return * 100:.2f}% -> tightened risk/liquidity filters."
+        )
+        if current_profile > 1:
+            next_profile = current_profile - 1
+            notes.append(f"Execution profile auto-step: P{current_profile} -> P{next_profile}.")
+    elif win_rate > 0.58 and avg_return > 0.0015 and rec_n >= min_eval_n:
+        new_cfg["max_overheat_rate"] = min(50.0, new_cfg["max_overheat_rate"] + 1.5)
+        new_cfg["conservative_max_rate"] = min(25.0, new_cfg["conservative_max_rate"] + 1.0)
+        new_cfg["min_bithumb_value"] = max(1_000_000_000, new_cfg["min_bithumb_value"] * 0.95)
+        new_cfg["min_bitget_volume"] = max(5_000_000, new_cfg["min_bitget_volume"] * 0.95)
+        new_cfg["conservative_max_abs_funding"] = min(
+            0.0025, new_cfg["conservative_max_abs_funding"] * 1.05
+        )
+        notes.append(
+            f"Daily strong-performance adjustment: win={win_rate * 100:.2f}% "
+            f"avg={avg_return * 100:.2f}% -> widened search slightly."
+        )
+        if current_profile < 3:
+            next_profile = current_profile + 1
+            notes.append(f"Execution profile auto-step: P{current_profile} -> P{next_profile}.")
+    else:
+        notes.append(
+            f"Daily review stable: win={win_rate * 100:.2f}%, avg={avg_return * 100:.2f}%, "
+            "no major threshold change."
+        )
+
+    if bool(allow_apply):
+        for side in ("LONG", "SHORT"):
+            active = active_model_ids(registry, side)
+            weak_mid = ""
+            weak_win = 1.0
+            weak_cnt = 0
+            for mid in active:
+                mm = day_model_metrics.get(mid, {}) or {}
+                cnt = int(mm.get("count", 0) or 0)
+                if cnt < min_model_n:
+                    continue
+                wr = float(mm.get("win_rate", 0.0) or 0.0)
+                if wr < weak_win:
+                    weak_mid = str(mid)
+                    weak_win = wr
+                    weak_cnt = cnt
+            if weak_mid and weak_win < 0.40:
+                nxt = next_model_id(weak_mid)
+                if not bool(registry.get(nxt, {}).get("enabled", False)):
+                    registry.setdefault(nxt, {"enabled": False, "side": side})
+                    registry[nxt]["enabled"] = True
+                    registry[nxt]["side"] = side
+                    model_expansions.append(
+                        {
+                            "side": side,
+                            "from_model": weak_mid,
+                            "to_model": nxt,
+                            "count": weak_cnt,
+                            "win_rate": weak_win,
+                        }
+                    )
+                    notes.append(
+                        f"Daily model expansion: {model_name_from_id(weak_mid)} "
+                        f"({weak_cnt} eval, win {weak_win * 100:.2f}%) -> {model_name_from_id(nxt)} enabled."
+                    )
+
+    if day_diagnostics.get("triggered"):
+        items = day_diagnostics.get("items", []) or []
+        chunks = [
+            f"{str(x.get('model_label', '-'))}:{str(x.get('summary', 'no-signal'))}"
+            for x in items[:2]
+        ]
+        if chunks:
+            notes.append("Daily model diagnosis: " + " | ".join(chunks))
+
+    new_cfg = sanitize_dynamic_config(new_cfg)
+    cfg_changes = _config_change_rows(cfg, new_cfg)
+    applied = bool(cfg_changes or model_expansions or (next_profile != current_profile))
+
+    state["model_registry"] = registry
+    event_id = f"daily-review-{int(now.timestamp())}"
+    event = {
+        "id": event_id,
+        "at": iso_z(now),
+        "lookback_hours": lookback_h,
+        "recommendations": rec_n,
+        "evaluations": eval_n,
+        "metrics": dict(day_metrics),
+        "model_metrics": day_model_metrics,
+        "config_changes": cfg_changes,
+        "execution_profile_from": current_profile,
+        "execution_profile_to": next_profile,
+        "model_expansions": model_expansions,
+        "notes": notes,
+        "applied": applied,
+    }
+    state.setdefault("daily_review_events", []).append(event)
+    state["daily_review_events"] = state["daily_review_events"][-500:]
+    meta["last_daily_review_at"] = iso_z(now)
+    meta["last_daily_review_event_id"] = event_id
+
+    summary = (
+        f"Daily review({lookback_h}h): rec {rec_n}, eval {eval_n}, "
+        f"win {format_pct(win_rate)}, avg {format_pct(avg_return)}"
+    )
+    if applied:
+        summary += (
+            f" | cfgΔ {len(cfg_changes)} | modelΔ {len(model_expansions)} "
+            f"| profile P{current_profile}->P{next_profile}"
+        )
+    else:
+        summary += " | no-change"
+
+    return {
+        "due": True,
+        "ran": True,
+        "applied": applied,
+        "summary": summary,
+        "notes": notes,
+        "config": dict(new_cfg),
+        "execution_profile": next_profile,
+        "event": event,
+    }
+
+
 def _bucket_stats(
     rows: List[Dict[str, Any]],
     bucket_fn: Any,
@@ -3207,20 +3476,71 @@ def run_cycle(args: argparse.Namespace, state: Dict[str, Any]) -> int:
             state["calibration_events"] = state["calibration_events"][-500:]
             in_cooldown = True
 
+    daily_pre_cfg = dict(cfg)
+    daily_review = run_daily_batch_review(
+        state=state,
+        now=run_ts,
+        cfg=cfg,
+        execution_profile=execution_profile,
+        lookback_hours=int(args.daily_review_lookback_hours),
+        interval_hours=int(args.daily_review_hours),
+        min_results=int(args.daily_review_min_results),
+        min_model_results=int(args.daily_review_min_model_results),
+        allow_apply=not in_cooldown,
+    )
+    if daily_review.get("ran"):
+        if daily_review.get("summary"):
+            calibrate_notes.append(str(daily_review.get("summary")))
+        for n in (daily_review.get("notes") or [])[:3]:
+            calibrate_notes.append(f"Daily: {str(n)}")
+        if bool(daily_review.get("applied")):
+            cfg = sanitize_dynamic_config(daily_review.get("config", cfg))
+            state["dynamic_config"] = cfg
+            state["meta"]["last_calibrated_at"] = iso_z(run_ts)
+            calibrated = True
+            next_profile = sanitize_execution_profile(
+                daily_review.get("execution_profile", execution_profile),
+                default=execution_profile,
+            )
+            if next_profile != execution_profile:
+                execution_profile = next_profile
+                execution_rule = execution_profile_rule(execution_profile)
+                state["meta"]["execution_profile"] = execution_profile
+                state["meta"]["execution_profile_updated_at"] = iso_z(run_ts)
+            state["calibration_events"].append(
+                {
+                    "id": f"daily-cal-{int(run_ts.timestamp())}",
+                    "at": iso_z(run_ts),
+                    "type": "daily_review",
+                    "notes": list(daily_review.get("notes") or []),
+                    "summary": str(daily_review.get("summary") or ""),
+                    "pre_config": daily_pre_cfg,
+                    "post_config": dict(cfg),
+                    "metrics": dict(metrics),
+                    "new_results_count": len(finalized),
+                    "no_candidate_streak": state["meta"]["no_candidate_streak"],
+                    "daily_review_event_id": str(
+                        (daily_review.get("event") or {}).get("id") or ""
+                    ),
+                }
+            )
+            state["calibration_events"] = state["calibration_events"][-500:]
+
     if in_cooldown:
         calibrate_notes.append("Calibration cooldown active: tuning is paused for 6 hours after rollback.")
-    elif should_calibrate(
+    elif not bool(daily_review.get("applied")) and should_calibrate(
         metrics=metrics,
         new_results_count=len(finalized),
         last_calibrated_at=state["meta"].get("last_calibrated_at"),
         now=run_ts,
         no_candidate_streak=state["meta"]["no_candidate_streak"],
     ):
-        cfg, calibrate_notes = auto_calibrate(
+        cfg, auto_notes = auto_calibrate(
             cfg=cfg,
             metrics=metrics,
             no_candidate_streak=state["meta"]["no_candidate_streak"],
         )
+        calibrate_notes.extend(auto_notes)
         state["dynamic_config"] = cfg
         state["meta"]["last_calibrated_at"] = iso_z(run_ts)
         calibrated = True
@@ -3228,7 +3548,7 @@ def run_cycle(args: argparse.Namespace, state: Dict[str, Any]) -> int:
             {
                 "id": f"cal-{int(run_ts.timestamp())}",
                 "at": iso_z(run_ts),
-                "notes": calibrate_notes,
+                "notes": auto_notes,
                 "pre_config": pre_cfg,
                 "post_config": dict(cfg),
                 "metrics": dict(metrics),
@@ -3305,6 +3625,12 @@ def run_cycle(args: argparse.Namespace, state: Dict[str, Any]) -> int:
             "model_recommendation": model_recommendation,
             "model_diagnostics": model_diagnostics,
             "missed_audit": missed_summary,
+            "daily_review": {
+                "ran": bool(daily_review.get("ran")),
+                "applied": bool(daily_review.get("applied")),
+                "summary": str(daily_review.get("summary") or ""),
+                "event_id": str((daily_review.get("event") or {}).get("id") or "") or None,
+            },
         }
     )
     state["run_history"] = state["run_history"][-5000:]
@@ -3428,6 +3754,10 @@ def parse_args() -> argparse.Namespace:
     p.add_argument("--loss-cooldown-min", type=int, default=60)
     p.add_argument("--min-short-picks", type=int, default=1)
     p.add_argument("--execution-profile", type=int, choices=(1, 2, 3), default=None)
+    p.add_argument("--daily-review-hours", type=int, default=24)
+    p.add_argument("--daily-review-lookback-hours", type=int, default=24)
+    p.add_argument("--daily-review-min-results", type=int, default=10)
+    p.add_argument("--daily-review-min-model-results", type=int, default=8)
     p.add_argument("--alerts-only", action="store_true")
     return p.parse_args()
 
