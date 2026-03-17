@@ -77,13 +77,29 @@ jobs:
           TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
           TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
         run: |
-          python momentum_telegram_agent.py \
-            --state-file state/bot_state.json \
-            --history-file state/eval_history.jsonl \
-            --alerts-only \
-            --watch \
-            --interval-sec 15 \
-            --cycles 14
+          set +e
+          RC=1
+          for TRY in 1 2 3; do
+            echo "Watchdog attempt ${TRY}/3"
+            python momentum_telegram_agent.py \
+              --state-file state/bot_state.json \
+              --history-file state/eval_history.jsonl \
+              --alerts-only \
+              --watch \
+              --interval-sec 15 \
+              --cycles 14
+            RC=$?
+            if [ "${RC}" -eq 0 ]; then
+              echo "Watchdog succeeded."
+              break
+            fi
+            echo "[WARN] watchdog failed (attempt ${TRY}, rc=${RC})"
+            sleep 5
+          done
+          if [ "${RC}" -ne 0 ]; then
+            echo "[WARN] watchdog failed after retries; recommendation run already completed, so workflow continues."
+            exit 0
+          fi
 
       - name: Commit and push state (after watchdog)
         run: |
