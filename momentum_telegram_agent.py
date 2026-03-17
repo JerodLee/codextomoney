@@ -957,7 +957,7 @@ def compute_entry_plan_fields(
     c: Any,
     side: str,
     score: float,
-) -> Dict[str, float | None]:
+) -> Dict[str, Any]:
     side_u = str(side).upper()
     direction = -1.0 if side_u == "SHORT" else 1.0
     b_px = safe_float(getattr(c, "b_close_krw", None))
@@ -968,8 +968,37 @@ def compute_entry_plan_fields(
 
     stop_pct = clamp(0.45 + (vol24 * 0.08), 0.45, 2.80)
     rr_base = clamp(1.10 + (float(score) * 1.50), 1.10, 2.60)
-    target_pct = stop_pct * rr_base
+    target_rr_pct = stop_pct * rr_base
     entry_offset_pct = clamp(0.10 + (vol24 * 0.02), 0.10, 0.80)
+
+    # Method 1) volatility+score RR target.
+    # Method 2) orderblock distance target (closest wall distance).
+    # Method 3) funding/OI crowding-adjusted target.
+    ob_support = safe_float(getattr(c, "b_ob_support_dist_pct", None))
+    ob_resist = safe_float(getattr(c, "b_ob_resist_dist_pct", None))
+    ob_dist = ob_support if side_u == "SHORT" else ob_resist
+    target_ob_pct: float | None = None
+    if ob_dist is not None and ob_dist > 0:
+        target_ob_pct = clamp(float(ob_dist) * 0.85, 0.35, 6.00)
+
+    funding = safe_float(getattr(c, "g_funding_rate", None)) or 0.0
+    oi = safe_float(getattr(c, "g_open_interest", None)) or 0.0
+    oi_norm = clamp(math.log10(1.0 + max(0.0, oi)) / 7.0, 0.0, 1.0)
+    funding_mult = clamp(1.0 + (-direction * funding * 80.0), 0.80, 1.20)
+    oi_mult = clamp(1.02 - (oi_norm * 0.10), 0.90, 1.05)
+    target_flow_pct = clamp(target_rr_pct * funding_mult * oi_mult, 0.35, 6.00)
+
+    weighted_terms: List[Tuple[float, float]] = [(target_rr_pct, 0.50), (target_flow_pct, 0.20)]
+    if target_ob_pct is not None:
+        weighted_terms.append((target_ob_pct, 0.30))
+    w_sum = sum(w for _, w in weighted_terms)
+    target_pct = (
+        sum(v * w for v, w in weighted_terms) / max(w_sum, 1e-9)
+        if weighted_terms
+        else target_rr_pct
+    )
+    target_pct = clamp(float(target_pct), 0.35, 6.00)
+    target_basis = "rr+orderblock+flow" if target_ob_pct is not None else "rr+flow"
 
     def rec_entry(px: float | None) -> float | None:
         if px is None or px <= 0:
@@ -978,6 +1007,16 @@ def compute_entry_plan_fields(
 
     b_reco = rec_entry(b_px)
     g_reco = rec_entry(g_px)
+
+    def target_price(px: float | None) -> float | None:
+        if px is None or px <= 0:
+            return None
+        return px * (1.0 + direction * target_pct / 100.0)
+
+    target_now_b = target_price(b_px)
+    target_now_g = target_price(g_px)
+    target_entry_b = target_price(b_reco if b_reco and b_reco > 0 else b_px)
+    target_entry_g = target_price(g_reco if g_reco and g_reco > 0 else g_px)
 
     ref_px = g_px if g_px and g_px > 0 else b_px
     rr_now: float | None = None
@@ -1003,6 +1042,14 @@ def compute_entry_plan_fields(
         "entry_reco_offset_pct": round(float(entry_offset_pct), 4),
         "plan_stop_pct": round(float(stop_pct), 4),
         "plan_target_pct": round(float(target_pct), 4),
+        "plan_target_basis": target_basis,
+        "plan_target_rr_pct": round(float(target_rr_pct), 4),
+        "plan_target_ob_pct": None if target_ob_pct is None else round(float(target_ob_pct), 4),
+        "plan_target_flow_pct": round(float(target_flow_pct), 4),
+        "target_now_bithumb_price": None if target_now_b is None else round(float(target_now_b), 8),
+        "target_now_bitget_price": None if target_now_g is None else round(float(target_now_g), 8),
+        "target_entry_bithumb_price": None if target_entry_b is None else round(float(target_entry_b), 8),
+        "target_entry_bitget_price": None if target_entry_g is None else round(float(target_entry_g), 8),
         "rr_now": None if rr_now is None else round(float(rr_now), 6),
         "rr_entry": None if rr_entry is None else round(float(rr_entry), 6),
     }

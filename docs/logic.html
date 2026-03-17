@@ -131,13 +131,16 @@
         <li>방향 정의: LONG은 +1, SHORT는 -1 방향 계수를 사용합니다.</li>
         <li>변동성 입력: <code>vol24 = clamp((|b_rate24h| + |g_rate24h|)/2, 0.5, 25.0)</code></li>
         <li>손절폭(%): <code>stop_pct = clamp(0.45 + vol24*0.08, 0.45, 2.80)</code></li>
-        <li>기본 손익비 배수: <code>rr_base = clamp(1.10 + score*1.50, 1.10, 2.60)</code></li>
-        <li>목표폭(%): <code>target_pct = stop_pct * rr_base</code></li>
+        <li>기법1(RR): <code>target_rr_pct = stop_pct * clamp(1.10 + score*1.50, 1.10, 2.60)</code></li>
+        <li>기법2(ORDERBLOCK): LONG은 저항거리, SHORT는 지지거리 기반 <code>target_ob_pct = clamp(ob_dist*0.85, 0.35, 6.00)</code></li>
+        <li>기법3(Flow): 펀딩비/OI 과열도 기반 <code>target_flow_pct = target_rr_pct * funding_mult * oi_mult</code></li>
+        <li>최종 목표폭(%): <code>target_pct = weighted_mean(target_rr_pct, target_ob_pct?, target_flow_pct)</code> (기본 가중치 rr 50% / ob 30% / flow 20%)</li>
         <li>진입 오프셋(%): <code>entry_offset_pct = clamp(0.10 + vol24*0.02, 0.10, 0.80)</code></li>
         <li>진입 추천가: <code>entry_reco = now_price * (1 - direction*entry_offset_pct/100)</code></li>
+        <li>진입 목표가: <code>target_entry = entry_reco * (1 + direction*target_pct/100)</code></li>
         <li>시점 손익비(<code>rr_now</code>): 현재가 기준 <code>|target-now| / |now-stop|</code></li>
         <li>진입 손익비(<code>rr_entry</code>): 추천 진입가 기준 <code>|target-entry| / |entry-stop|</code></li>
-        <li>표시 기준: 대시보드에는 <code>시점가(KRW/USDT)</code>, <code>시점 손익비</code>, <code>진입 추천가(KRW/USDT)</code>, <code>진입 손익비</code>를 함께 표기합니다.</li>
+        <li>표시 기준: 대시보드에는 <code>진입 목표가(KRW/USDT)</code>와 <code>목표가 근거(rr/orderblock/flow)</code>를 함께 표기합니다.</li>
       </ul>
     </section>
 

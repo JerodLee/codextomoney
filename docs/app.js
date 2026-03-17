@@ -250,20 +250,52 @@ function computePlanFields(row) {
   const vol24 = clampNum((bRate + gRate) / 2, 0.5, 25);
   const stopPct = clampNum(0.45 + (vol24 * 0.08), 0.45, 2.8);
   const rrBase = clampNum(1.10 + (score * 1.50), 1.10, 2.60);
-  const targetPct = stopPct * rrBase;
+  const targetPctCalc = stopPct * rrBase;
   const entryOffsetPct = clampNum(0.10 + (vol24 * 0.02), 0.10, 0.80);
 
   const recoCalc = (px) => (Number.isFinite(px) && px > 0
     ? px * (1 - (dir * entryOffsetPct / 100))
+    : null);
+  const targetCalc = (px, pct) => (Number.isFinite(px) && px > 0 && Number.isFinite(pct) && pct > 0
+    ? px * (1 + (dir * pct / 100))
     : null);
 
   const bRecoStored = Number(row?.entry_reco_bithumb_price);
   const gRecoStored = Number(row?.entry_reco_bitget_price);
   const rrNowStored = Number(row?.rr_now);
   const rrEntryStored = Number(row?.rr_entry);
+  const targetPctStored = Number(row?.plan_target_pct);
+  const targetRrPctStored = Number(row?.plan_target_rr_pct);
+  const targetObPctStored = Number(row?.plan_target_ob_pct);
+  const targetFlowPctStored = Number(row?.plan_target_flow_pct);
+  const targetBasis = String(row?.plan_target_basis || "");
+  const bTargetNowStored = Number(row?.target_now_bithumb_price);
+  const gTargetNowStored = Number(row?.target_now_bitget_price);
+  const bTargetEntryStored = Number(row?.target_entry_bithumb_price);
+  const gTargetEntryStored = Number(row?.target_entry_bitget_price);
 
   const bReco = Number.isFinite(bRecoStored) && bRecoStored > 0 ? bRecoStored : recoCalc(bNow);
   const gReco = Number.isFinite(gRecoStored) && gRecoStored > 0 ? gRecoStored : recoCalc(gNow);
+  const targetPct = Number.isFinite(targetPctStored) && targetPctStored > 0 ? targetPctStored : targetPctCalc;
+  const targetRrPct = Number.isFinite(targetRrPctStored) && targetRrPctStored > 0
+    ? targetRrPctStored
+    : targetPctCalc;
+  const targetObPct = Number.isFinite(targetObPctStored) && targetObPctStored > 0 ? targetObPctStored : null;
+  const targetFlowPct = Number.isFinite(targetFlowPctStored) && targetFlowPctStored > 0
+    ? targetFlowPctStored
+    : targetPctCalc;
+  const bTargetNow = Number.isFinite(bTargetNowStored) && bTargetNowStored > 0
+    ? bTargetNowStored
+    : targetCalc(bNow, targetPct);
+  const gTargetNow = Number.isFinite(gTargetNowStored) && gTargetNowStored > 0
+    ? gTargetNowStored
+    : targetCalc(gNow, targetPct);
+  const bTargetEntry = Number.isFinite(bTargetEntryStored) && bTargetEntryStored > 0
+    ? bTargetEntryStored
+    : targetCalc(Number.isFinite(Number(bReco)) ? Number(bReco) : bNow, targetPct);
+  const gTargetEntry = Number.isFinite(gTargetEntryStored) && gTargetEntryStored > 0
+    ? gTargetEntryStored
+    : targetCalc(Number.isFinite(Number(gReco)) ? Number(gReco) : gNow, targetPct);
 
   let rrNow = Number.isFinite(rrNowStored) && rrNowStored > 0 ? rrNowStored : null;
   let rrEntry = Number.isFinite(rrEntryStored) && rrEntryStored > 0 ? rrEntryStored : null;
@@ -291,6 +323,15 @@ function computePlanFields(row) {
     gNow: Number.isFinite(gNow) && gNow > 0 ? gNow : null,
     bReco: Number.isFinite(Number(bReco)) && Number(bReco) > 0 ? Number(bReco) : null,
     gReco: Number.isFinite(Number(gReco)) && Number(gReco) > 0 ? Number(gReco) : null,
+    bTargetNow: Number.isFinite(Number(bTargetNow)) && Number(bTargetNow) > 0 ? Number(bTargetNow) : null,
+    gTargetNow: Number.isFinite(Number(gTargetNow)) && Number(gTargetNow) > 0 ? Number(gTargetNow) : null,
+    bTargetEntry: Number.isFinite(Number(bTargetEntry)) && Number(bTargetEntry) > 0 ? Number(bTargetEntry) : null,
+    gTargetEntry: Number.isFinite(Number(gTargetEntry)) && Number(gTargetEntry) > 0 ? Number(gTargetEntry) : null,
+    targetPct: Number.isFinite(targetPct) && targetPct > 0 ? targetPct : null,
+    targetRrPct: Number.isFinite(targetRrPct) && targetRrPct > 0 ? targetRrPct : null,
+    targetObPct,
+    targetFlowPct: Number.isFinite(targetFlowPct) && targetFlowPct > 0 ? targetFlowPct : null,
+    targetBasis,
     rrNow,
     rrEntry,
   };
@@ -307,6 +348,24 @@ function pricePairCellHtml(krw, usdt) {
 
 function rrCellHtml(rr) {
   return `<span class="rr-badge">${fmtRr(rr)}</span>`;
+}
+
+function targetBasisCellHtml(plan) {
+  const basis = String(plan?.targetBasis || "");
+  const rr = Number(plan?.targetRrPct);
+  const ob = Number(plan?.targetObPct);
+  const flow = Number(plan?.targetFlowPct);
+  const parts = [];
+  if (Number.isFinite(rr) && rr > 0) parts.push(`rr ${fmtPctValue(rr, 2)}`);
+  if (Number.isFinite(ob) && ob > 0) parts.push(`ob ${fmtPctValue(ob, 2)}`);
+  if (Number.isFinite(flow) && flow > 0) parts.push(`flow ${fmtPctValue(flow, 2)}`);
+  return `
+    <div class="plan-cell">
+      <div class="mono plan-line">TP ${fmtPctValue(plan?.targetPct, 2)}</div>
+      <div class="plan-line">${basis || "-"}</div>
+      <div class="plan-line">${parts.length ? parts.join(" | ") : "-"}</div>
+    </div>
+  `;
 }
 
 function relationText(v) {
@@ -499,7 +558,7 @@ function renderPicks(state) {
 
   if (!picks.length) {
     const tr = document.createElement("tr");
-    tr.innerHTML = `<td colspan="14" class="muted">추천 이력이 아직 없습니다.</td>`;
+    tr.innerHTML = `<td colspan="16" class="muted">추천 이력이 아직 없습니다.</td>`;
     body.appendChild(tr);
     return;
   }
@@ -530,6 +589,8 @@ function renderPicks(state) {
       <td>${rrCellHtml(plan.rrNow)}</td>
       <td>${pricePairCellHtml(plan.bReco, plan.gReco)}</td>
       <td>${rrCellHtml(plan.rrEntry)}</td>
+      <td>${pricePairCellHtml(plan.bTargetEntry, plan.gTargetEntry)}</td>
+      <td>${targetBasisCellHtml(plan)}</td>
       <td>${fmtFunding(p.g_funding_rate)}</td>
       <td>${fmtOi(p.g_open_interest)}</td>
       <td>${fmtPctValue(p.b_rate24h, 2)}</td>
@@ -1288,3 +1349,4 @@ setupTabs();
 
 loadAndRender();
 setInterval(loadAndRender, 60000);
+
