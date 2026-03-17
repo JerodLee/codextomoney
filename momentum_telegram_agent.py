@@ -3355,18 +3355,41 @@ def telegram_api_post(token: str, method: str, payload: Dict[str, Any]) -> Dict[
     return result
 
 
-def send_telegram(token: str, chat_id: str, text: str) -> None:
-    # Preflight makes invalid token failures explicit in CI logs.
-    telegram_api_post(token=token, method="getMe", payload={})
-    telegram_api_post(
-        token=token,
-        method="sendMessage",
-        payload={
-            "chat_id": chat_id,
-            "text": text,
-            "disable_web_page_preview": True,
-        },
-    )
+def send_telegram(
+    token: str,
+    chat_id: str,
+    text: str,
+    retries: int = 3,
+    preflight: bool = True,
+) -> None:
+    attempts = max(1, int(retries))
+    last_exc: Exception | None = None
+    for i in range(attempts):
+        try:
+            # Preflight once so auth errors are explicit in CI logs.
+            if preflight and i == 0:
+                telegram_api_post(token=token, method="getMe", payload={})
+            telegram_api_post(
+                token=token,
+                method="sendMessage",
+                payload={
+                    "chat_id": chat_id,
+                    "text": text,
+                    "disable_web_page_preview": True,
+                },
+            )
+            return
+        except Exception as exc:  # noqa: BLE001
+            last_exc = exc
+            if i + 1 >= attempts:
+                break
+            backoff = min(10, 2 + (i * 2))
+            print(
+                f"[WARN] telegram send retry {i + 1}/{attempts - 1} failed: {exc}; "
+                f"sleep {backoff}s"
+            )
+            time.sleep(backoff)
+    raise RuntimeError(f"telegram send failed after {attempts} attempts: {last_exc}")
 
 
 def run_cycle(args: argparse.Namespace, state: Dict[str, Any]) -> int:
@@ -3711,6 +3734,7 @@ def run_cycle(args: argparse.Namespace, state: Dict[str, Any]) -> int:
                     token=token,
                     chat_id=chat_id,
                     text=make_loss_alert_message(run_ts, loss_alerts),
+                    preflight=False,
                 )
                 print(f"[INFO] loss alert sent ({len(loss_alerts)})")
         except Exception as exc:  # noqa: BLE001
@@ -3830,6 +3854,7 @@ def run_alerts_only_cycle(args: argparse.Namespace, state: Dict[str, Any]) -> in
                 token=token,
                 chat_id=chat_id,
                 text=make_loss_alert_message(run_ts, loss_alerts),
+                preflight=False,
             )
             print(f"[INFO] loss alert sent ({len(loss_alerts)})")
         except Exception as exc:  # noqa: BLE001
