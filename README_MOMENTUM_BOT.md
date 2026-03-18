@@ -82,7 +82,7 @@ Validation:
 
 1. Save entry prices at recommendation time
 2. After horizon, load exit prices
-3. Compute returns for Bithumb, Bitget, and blended average
+3. Compute net returns for Bithumb/Bitget/blended with round-trip fee + slippage assumptions
 4. Mark as win when `return_blended > 0`
 
 Calibration:
@@ -102,6 +102,14 @@ Profitability controls:
 2. Apply setup-aware entry/target/stop adjustments (`trend` / `balanced` / `contrarian` modes).
 3. Compute `expected_edge_pct` from model historical win rate (reliability-weighted) and current target/stop plan.
 4. Execution profiles now gate by target%, RR, setup quality, and expected edge.
+5. Position sizing fields are generated per pick: `position_size_pct` and `risk_per_trade_pct`.
+
+Risk management + A/B:
+
+1. RiskGuard pauses new recommendations when 24h cumulative net return breaches a loss limit or consecutive losses exceed a threshold.
+2. During pause, alert/watchdog and validation continue, but new picks are temporarily blocked.
+3. Weekly-window A/B review (7-day lookback) compares execution profiles and model performance.
+4. Clear winners can be auto-promoted (profile switch + model enable/disable guardrails).
 
 ## State files
 
@@ -117,6 +125,13 @@ python momentum_telegram_agent.py \
   --horizon-min 15 \
   --message-style compact \
   --metric-window 120 \
+  --fee-bps-bithumb 4 \
+  --fee-bps-bitget 6 \
+  --slippage-bps-bithumb 4 \
+  --slippage-bps-bitget 5 \
+  --risk-max-daily-loss-pct 3.0 \
+  --risk-max-consecutive-losses 5 \
+  --risk-cooldown-min 120 \
   --watch \
   --interval-sec 300
 ```

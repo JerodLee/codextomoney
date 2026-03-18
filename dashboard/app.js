@@ -283,6 +283,8 @@ function computePlanFields(row) {
   const setupQualityLabel = String(row?.setup_quality_label || "").toUpperCase();
   const setupEntryMode = String(row?.setup_entry_mode || "").toLowerCase();
   const expectedEdgePctStored = Number(row?.expected_edge_pct);
+  const sizePctStored = Number(row?.position_size_pct);
+  const riskPctStored = Number(row?.risk_per_trade_pct);
   const bTargetNowStored = Number(row?.target_now_bithumb_price);
   const gTargetNowStored = Number(row?.target_now_bitget_price);
   const bTargetEntryStored = Number(row?.target_entry_bithumb_price);
@@ -350,6 +352,8 @@ function computePlanFields(row) {
     setupQualityLabel: setupQualityLabel || null,
     setupEntryMode: setupEntryMode || null,
     expectedEdgePct: Number.isFinite(expectedEdgePctStored) ? expectedEdgePctStored : null,
+    sizePct: Number.isFinite(sizePctStored) ? sizePctStored : null,
+    riskPct: Number.isFinite(riskPctStored) ? riskPctStored : null,
     rrNow,
     rrEntry,
   };
@@ -376,11 +380,15 @@ function targetBasisCellHtml(plan) {
   const q = Number(plan?.setupQuality);
   const qLabel = String(plan?.setupQualityLabel || "");
   const edge = Number(plan?.expectedEdgePct);
+  const sizePct = Number(plan?.sizePct);
+  const riskPct = Number(plan?.riskPct);
   const mode = String(plan?.setupEntryMode || "");
   const modeMap = { trend: "trend", balanced: "balanced", contrarian: "contrarian" };
   const modeText = modeMap[mode] || "-";
   const edgeText = Number.isFinite(edge) ? `${edge >= 0 ? "+" : ""}${edge.toFixed(2)}%` : "-";
   const qText = Number.isFinite(q) ? `${(q * 100).toFixed(0)}` : "-";
+  const sizeText = Number.isFinite(sizePct) ? `${sizePct.toFixed(2)}%` : "-";
+  const riskText = Number.isFinite(riskPct) ? `${riskPct.toFixed(2)}%` : "-";
   const parts = [];
   if (Number.isFinite(rr) && rr > 0) parts.push(`rr ${fmtPctValue(rr, 2)}`);
   if (Number.isFinite(ob) && ob > 0) parts.push(`ob ${fmtPctValue(ob, 2)}`);
@@ -392,6 +400,7 @@ function targetBasisCellHtml(plan) {
       <div class="plan-line">${parts.length ? parts.join(" | ") : "-"}</div>
       <div class="plan-line">Q ${qLabel || "-"} (${qText}) | edge ${edgeText}</div>
       <div class="plan-line">mode ${modeText}</div>
+      <div class="plan-line">size ${sizeText} | risk ${riskText}</div>
     </div>
   `;
 }

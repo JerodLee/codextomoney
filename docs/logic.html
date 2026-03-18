@@ -75,6 +75,7 @@
           <li>추천마다 <code>5m/15m/30m/60m</code> 다중 검증 주기를 저장합니다.</li>
           <li>v3(보유형) 추천은 검증 주기를 <code>30m/60m/120m</code> 중심으로 자동 확장해 단기 노이즈 영향을 줄입니다.</li>
           <li>각 주기 경과 시점마다 blended 수익률을 별도 평가해 결과 1건씩 누적합니다.</li>
+          <li>검증 수익률은 왕복 수수료/슬리피지 가정(순수익률, net)을 반영해 계산합니다.</li>
           <li>SHORT는 비트겟 수익률을 우선 평가(없을 때만 빗썸 대체)</li>
           <li>양 거래소 데이터가 모두 비면 최대 주기의 2배 시점까지 유예 후 확정합니다.</li>
           <li>대시보드 상태는 <code>대기 → 검증중 x/y → 검증완료</code>로 표시합니다.</li>
@@ -155,6 +156,7 @@
         <li>기대엣지(<code>expected_edge_pct</code>): 모델 최근 승률(신뢰도 가중)과 현재 계획의 목표폭/손절폭으로 기대값(%)을 산출합니다.</li>
         <li>실행 프로필 게이트: P1(<code>tp>=0.90%</code>, <code>rr_entry>=1.35</code>, <code>q>=0.58</code>, <code>edge>=0.12%</code>) / P2(<code>tp>=0.70%</code>, <code>rr_entry>=1.25</code>, <code>q>=0.52</code>, <code>edge>=0.05%</code>) / P3(<code>tp>=0.50%</code>, <code>rr_entry>=1.15</code>, <code>q>=0.46</code>, <code>edge>=-0.03%</code>).</li>
         <li>프로필 변경: 운영 탭에서 P1/P2/P3를 선택해 즉시 적용(workflow_dispatch)할 수 있습니다.</li>
+        <li>포지션 사이징: <code>position_size_pct</code>를 품질/기대엣지/변동성(손절폭) 기반으로 자동 제안하고, <code>risk_per_trade_pct</code>를 함께 표시합니다.</li>
       </ul>
     </section>
 
@@ -186,6 +188,7 @@
         <li>저성과 시: 리스크/유동성 필터를 보수적으로 조정하고, 필요 시 실행 프로필을 1단계 하향(P3→P2→P1)합니다.</li>
         <li>성과 우수 시: 탐색 범위를 소폭 확장하고, 필요 시 실행 프로필을 1단계 상향(P1→P2→P3)합니다.</li>
         <li>모델 저성과 시: LONG/SHORT별 저성과 활성 모델의 다음 버전을 자동 활성화합니다.</li>
+        <li>7일 창 A/B 리뷰: 프로필(P1/P2/P3)과 모델별 성과를 비교해 우승안이 유의하게 우수하면 자동 승격합니다.</li>
         <li>기록: <code>daily_review_events</code>, <code>meta.last_daily_review_at</code>, <code>run_history.daily_review</code>에 저장합니다.</li>
         <li>롤백 쿨다운 중에는 점검만 수행하고 자동 적용은 보류합니다.</li>
       </ul>
@@ -217,6 +220,15 @@
         <li>진단 표본이 아직 부족하면, 상단 모델제안의 시장적합도(fit edge) 기반 fallback 제안을 대시보드에 먼저 표시합니다.</li>
         <li>다음 후보 모델 ID는 <code>vN+1</code> 형태로 제안됩니다(예: <code>momentum_long_v2 → momentum_long_v3</code>).</li>
         <li>진단 결과와 성과 게이트를 만족하면 v3/v4 이후 버전도 순차적으로 자동 확장됩니다.</li>
+      </ul>
+    </section>
+
+    <section class="card logic-card">
+      <h3>16) 자금관리 가드 (RiskGuard)</h3>
+      <ul class="timeline">
+        <li>트리거: 최근 24시간 누적 순수익률이 임계치 이하이거나 연속 손실 횟수가 임계치 이상일 때.</li>
+        <li>트리거 시 일정 시간 신규 추천을 일시 중지하고, 손실 경고/성과 검증은 계속 수행합니다.</li>
+        <li>중지 사유/표본/누적수익률/연속손실은 run_history 및 텔레그램 요약에 기록됩니다.</li>
       </ul>
     </section>
   </main>

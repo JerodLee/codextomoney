@@ -150,6 +150,19 @@ MISSED_MOVE_THRESHOLDS = {
     30: 0.035,
     60: 0.050,
 }
+DEFAULT_BITHUMB_FEE_BPS = 4.0
+DEFAULT_BITGET_FEE_BPS = 6.0
+DEFAULT_BITHUMB_SLIPPAGE_BPS = 4.0
+DEFAULT_BITGET_SLIPPAGE_BPS = 5.0
+DEFAULT_RISK_MAX_DAILY_LOSS_PCT = 3.0
+DEFAULT_RISK_MAX_CONSECUTIVE_LOSSES = 5
+DEFAULT_RISK_COOLDOWN_MIN = 120
+RISK_LOOKBACK_HOURS = 24
+WEEKLY_AB_LOOKBACK_HOURS = 24 * 7
+WEEKLY_AB_INTERVAL_HOURS = 24
+WEEKLY_AB_MIN_RESULTS = 30
+WEEKLY_AB_MIN_PROFILE_RESULTS = 18
+WEEKLY_AB_MIN_MODEL_RESULTS = 14
 
 
 def utc_now() -> datetime:
@@ -284,6 +297,316 @@ def norm01(v: float, lo: float, hi: float) -> float:
     if hi <= lo:
         return 0.0
     return clamp((float(v) - float(lo)) / (float(hi) - float(lo)), 0.0, 1.0)
+
+
+def bps_to_return(bps: float) -> float:
+    return float(bps) / 10_000.0
+
+
+def apply_roundtrip_cost(
+    gross_return: float | None,
+    fee_bps: float,
+    slippage_bps: float,
+) -> float | None:
+    if gross_return is None:
+        return None
+    rt_cost = 2.0 * (bps_to_return(fee_bps) + bps_to_return(slippage_bps))
+    return float(gross_return) - float(rt_cost)
+
+
+def _recent_rows_by_ts(
+    rows: List[Dict[str, Any]],
+    key: str,
+    now: datetime,
+    lookback_hours: int,
+) -> List[Dict[str, Any]]:
+    cutoff = now - timedelta(hours=max(1, int(lookback_hours)))
+    out: List[Dict[str, Any]] = []
+    for r in rows:
+        raw = r.get(key)
+        if not raw:
+            continue
+        try:
+            ts = parse_iso(str(raw))
+        except Exception:  # noqa: BLE001
+            continue
+        if cutoff <= ts <= now:
+            out.append(r)
+    out.sort(key=lambda x: parse_iso(str(x.get(key))))
+    return out
+
+
+def assess_risk_guard(
+    results: List[Dict[str, Any]],
+    now: datetime,
+    cooldown_until_raw: str | None,
+    max_daily_loss_pct: float,
+    max_consecutive_losses: int,
+    cooldown_min: int,
+    lookback_hours: int = RISK_LOOKBACK_HOURS,
+) -> Dict[str, Any]:
+    rows = _recent_rows_by_ts(
+        rows=results,
+        key="evaluated_at",
+        now=now,
+        lookback_hours=lookback_hours,
+    )
+    daily_return = sum(float(safe_float(r.get("return_blended")) or 0.0) for r in rows)
+    streak = 0
+    for r in reversed(rows):
+        if bool(r.get("win")):
+            break
+        streak += 1
+
+    reasons: List[str] = []
+    max_daily_loss = -abs(float(max_daily_loss_pct) / 100.0)
+    max_streak = max(1, int(max_consecutive_losses))
+    if daily_return <= max_daily_loss:
+        reasons.append(
+            f"24h net return {daily_return * 100:.2f}% <= -{abs(max_daily_loss_pct):.2f}%"
+        )
+    if streak >= max_streak:
+        reasons.append(f"consecutive losses {streak} >= {max_streak}")
+
+    in_cooldown = False
+    cooldown_until: datetime | None = None
+    if cooldown_until_raw:
+        try:
+            cooldown_until = parse_iso(str(cooldown_until_raw))
+            in_cooldown = now < cooldown_until
+        except Exception:  # noqa: BLE001
+            cooldown_until = None
+
+    triggered_new = bool(reasons) and not in_cooldown
+    if triggered_new:
+        cooldown_until = now + timedelta(minutes=max(1, int(cooldown_min)))
+        in_cooldown = True
+
+    status = {
+        "lookback_hours": int(lookback_hours),
+        "sample": len(rows),
+        "daily_return": float(daily_return),
+        "consecutive_losses": int(streak),
+        "max_daily_loss_pct": float(max_daily_loss_pct),
+        "max_consecutive_losses": int(max_streak),
+        "cooldown_min": int(max(1, int(cooldown_min))),
+        "triggered_new": bool(triggered_new),
+        "reasons": reasons,
+        "in_cooldown": bool(in_cooldown),
+        "allow_new_picks": not bool(in_cooldown),
+        "cooldown_until": iso_z(cooldown_until) if cooldown_until else None,
+    }
+    return status
+
+
+def _weekly_ab_due(last_weekly_ab_at: str | None, now: datetime, interval_hours: int) -> bool:
+    if not last_weekly_ab_at:
+        return True
+    try:
+        prev = parse_iso(str(last_weekly_ab_at))
+    except Exception:  # noqa: BLE001
+        return True
+    return (now - prev) >= timedelta(hours=max(1, int(interval_hours)))
+
+
+def run_weekly_ab_review(
+    state: Dict[str, Any],
+    now: datetime,
+    lookback_hours: int = WEEKLY_AB_LOOKBACK_HOURS,
+    interval_hours: int = WEEKLY_AB_INTERVAL_HOURS,
+    min_results: int = WEEKLY_AB_MIN_RESULTS,
+    min_profile_results: int = WEEKLY_AB_MIN_PROFILE_RESULTS,
+    min_model_results: int = WEEKLY_AB_MIN_MODEL_RESULTS,
+    allow_apply: bool = True,
+) -> Dict[str, Any]:
+    meta = state.setdefault("meta", {})
+    last_weekly_ab_at = meta.get("last_weekly_ab_at")
+    if not _weekly_ab_due(
+        last_weekly_ab_at=str(last_weekly_ab_at or ""),
+        now=now,
+        interval_hours=interval_hours,
+    ):
+        return {
+            "due": False,
+            "ran": False,
+            "applied": False,
+            "notes": [],
+            "summary": "",
+            "event": None,
+            "execution_profile": sanitize_execution_profile(meta.get("execution_profile")),
+            "model_registry": sanitize_model_registry(state.get("model_registry", {})),
+        }
+
+    rows = _recent_rows_by_ts(
+        rows=list(state.get("results", [])),
+        key="evaluated_at",
+        now=now,
+        lookback_hours=max(24, int(lookback_hours)),
+    )
+    notes: List[str] = []
+    event_id = f"weekly-ab-{int(now.timestamp())}"
+    reg = sanitize_model_registry(state.get("model_registry", {}))
+    current_profile = sanitize_execution_profile(meta.get("execution_profile", DEFAULT_EXECUTION_PROFILE))
+    next_profile = current_profile
+    applied = False
+
+    profile_stats: Dict[int, Dict[str, float]] = {}
+    for p in (1, 2, 3):
+        prof_rows: List[Dict[str, Any]] = []
+        for r in rows:
+            raw_prof = safe_float(r.get("execution_profile"))
+            if raw_prof is None:
+                row_prof = DEFAULT_EXECUTION_PROFILE
+            else:
+                row_prof = sanitize_execution_profile(raw_prof, default=DEFAULT_EXECUTION_PROFILE)
+            if row_prof == p:
+                prof_rows.append(r)
+        if len(prof_rows) < max(1, int(min_profile_results)):
+            continue
+        vals = [float(safe_float(r.get("return_blended")) or 0.0) for r in prof_rows]
+        wr = sum(1 for r in prof_rows if bool(r.get("win"))) / len(prof_rows)
+        avg = sum(vals) / len(vals) if vals else 0.0
+        score = avg + (0.0035 * (wr - 0.50))
+        profile_stats[p] = {
+            "count": float(len(prof_rows)),
+            "win_rate": float(wr),
+            "avg_return": float(avg),
+            "score": float(score),
+        }
+
+    if len(rows) >= max(1, int(min_results)) and profile_stats:
+        best_profile = max(profile_stats.keys(), key=lambda p: float(profile_stats[p]["score"]))
+        cur_stat = profile_stats.get(current_profile)
+        best_stat = profile_stats.get(best_profile)
+        if cur_stat and best_stat:
+            win_gap = float(best_stat["win_rate"]) - float(cur_stat["win_rate"])
+            avg_gap = float(best_stat["avg_return"]) - float(cur_stat["avg_return"])
+            if (
+                best_profile != current_profile
+                and (avg_gap >= 0.0008 or win_gap >= 0.03)
+                and allow_apply
+            ):
+                next_profile = int(best_profile)
+                applied = True
+                notes.append(
+                    "Weekly A/B profile promotion: "
+                    f"P{current_profile} -> P{next_profile} "
+                    f"(win {best_stat['win_rate'] * 100:.1f}% vs {cur_stat['win_rate'] * 100:.1f}%, "
+                    f"avg {best_stat['avg_return'] * 100:.2f}% vs {cur_stat['avg_return'] * 100:.2f}%)."
+                )
+
+    model_stats: Dict[str, Dict[str, float]] = {}
+    for mid in sorted({pick_model_id(r) for r in rows}):
+        m_rows = [r for r in rows if pick_model_id(r) == mid]
+        if len(m_rows) < max(1, int(min_model_results)):
+            continue
+        vals = [float(safe_float(r.get("return_blended")) or 0.0) for r in m_rows]
+        wr = sum(1 for r in m_rows if bool(r.get("win"))) / len(m_rows)
+        avg = sum(vals) / len(vals) if vals else 0.0
+        model_stats[mid] = {
+            "count": float(len(m_rows)),
+            "win_rate": float(wr),
+            "avg_return": float(avg),
+            "score": float(avg + (0.0030 * (wr - 0.50))),
+        }
+
+    for side in ("LONG", "SHORT"):
+        mids = [m for m in model_stats if model_side_from_id(m) == side]
+        if len(mids) < 2:
+            continue
+        mids.sort(key=lambda m: float(model_stats[m]["score"]), reverse=True)
+        best_mid = mids[0]
+        best_row = model_stats[best_mid]
+        active_side = active_model_ids(reg, side)
+        if best_mid in active_side:
+            continue
+        base_mid = model_id_from_side(side)
+        baseline = model_stats.get(base_mid)
+        if not baseline:
+            continue
+        win_gap = float(best_row["win_rate"]) - float(baseline["win_rate"])
+        avg_gap = float(best_row["avg_return"]) - float(baseline["avg_return"])
+        if (win_gap >= 0.05 or avg_gap >= 0.0012) and allow_apply:
+            reg.setdefault(best_mid, {"enabled": False, "side": side})
+            reg[best_mid]["enabled"] = True
+            reg[best_mid]["side"] = side
+            applied = True
+            notes.append(
+                "Weekly A/B model promotion: "
+                f"{model_name_from_id(base_mid)} -> {model_name_from_id(best_mid)} "
+                f"({side}, win +{win_gap * 100:.1f}%p, avg +{avg_gap * 100:.2f}%p)."
+            )
+            disable_mid: str | None = None
+            loser_rows = [
+                m for m in active_side
+                if m != best_mid and m != base_mid and model_stats.get(m)
+            ]
+            if loser_rows:
+                loser_rows.sort(key=lambda m: float(model_stats[m]["score"]))
+                worst_mid = loser_rows[0]
+                worst = model_stats[worst_mid]
+                worst_win_gap = float(best_row["win_rate"]) - float(worst["win_rate"])
+                worst_avg_gap = float(best_row["avg_return"]) - float(worst["avg_return"])
+                if worst_win_gap >= 0.06 and worst_avg_gap >= 0.0015:
+                    reg[worst_mid]["enabled"] = False
+                    disable_mid = worst_mid
+                    notes.append(
+                        f"Weekly A/B prune: disabled {model_name_from_id(worst_mid)} "
+                        f"(winner edge win +{worst_win_gap * 100:.1f}%p, avg +{worst_avg_gap * 100:.2f}%p)."
+                    )
+            state.setdefault("model_governance_events", []).append(
+                {
+                    "id": f"{event_id}-{side.lower()}",
+                    "at": iso_z(now),
+                    "type": "weekly_ab_promotion",
+                    "side": side,
+                    "from_model": base_mid,
+                    "to_model": best_mid,
+                    "disabled_model": disable_mid,
+                    "baseline": baseline,
+                    "winner": best_row,
+                }
+            )
+
+    summary = (
+        "; ".join(notes)
+        if notes
+        else "Weekly A/B review: no promotion (insufficient edge or sample)."
+    )
+    event = {
+        "id": event_id,
+        "at": iso_z(now),
+        "lookback_hours": int(lookback_hours),
+        "interval_hours": int(interval_hours),
+        "results_count": len(rows),
+        "profile_from": int(current_profile),
+        "profile_to": int(next_profile),
+        "profile_stats": profile_stats,
+        "model_stats_sample": {k: v for k, v in list(model_stats.items())[:12]},
+        "applied": bool(applied and allow_apply),
+        "notes": list(notes),
+        "summary": summary,
+    }
+    state.setdefault("weekly_ab_events", []).append(event)
+    state["weekly_ab_events"] = state["weekly_ab_events"][-400:]
+    meta["last_weekly_ab_at"] = iso_z(now)
+    meta["last_weekly_ab_event_id"] = event_id
+
+    if applied and allow_apply:
+        meta["execution_profile"] = int(next_profile)
+        meta["execution_profile_updated_at"] = iso_z(now)
+        state["model_registry"] = sanitize_model_registry(reg)
+
+    return {
+        "due": True,
+        "ran": True,
+        "applied": bool(applied and allow_apply),
+        "notes": notes,
+        "summary": summary,
+        "event": event,
+        "execution_profile": int(meta.get("execution_profile", current_profile)),
+        "model_registry": sanitize_model_registry(state.get("model_registry", reg)),
+    }
 
 
 def parse_eval_horizons(raw: str | None, fallback_horizon: int) -> List[int]:
@@ -434,6 +757,7 @@ def _default_state() -> Dict[str, Any]:
         "model_governance_events": [],
         "model_transition_events": [],
         "daily_review_events": [],
+        "weekly_ab_events": [],
         "state_recovery_events": [],
         "meta": {
             "no_candidate_streak": 0,
@@ -447,6 +771,11 @@ def _default_state() -> Dict[str, Any]:
             "execution_profile_updated_at": None,
             "last_daily_review_at": None,
             "last_daily_review_event_id": None,
+            "last_weekly_ab_at": None,
+            "last_weekly_ab_event_id": None,
+            "risk_guard_cooldown_until": None,
+            "last_risk_guard_at": None,
+            "last_risk_guard_status": None,
             "last_state_recovery_at": None,
             "v3_tuning": default_v3_tuning(),
         },
@@ -553,6 +882,7 @@ def _normalize_state(data: Dict[str, Any]) -> Dict[str, Any]:
     data.setdefault("model_governance_events", [])
     data.setdefault("model_transition_events", [])
     data.setdefault("daily_review_events", [])
+    data.setdefault("weekly_ab_events", [])
     data.setdefault("state_recovery_events", [])
     if isinstance(data.get("model_transition_events"), list):
         data["model_transition_events"] = [
@@ -566,6 +896,12 @@ def _normalize_state(data: Dict[str, Any]) -> Dict[str, Any]:
         ][-200:]
     else:
         data["state_recovery_events"] = []
+    if isinstance(data.get("weekly_ab_events"), list):
+        data["weekly_ab_events"] = [
+            x for x in data["weekly_ab_events"] if isinstance(x, dict)
+        ][-400:]
+    else:
+        data["weekly_ab_events"] = []
     data.setdefault("model_registry", sanitize_model_registry(DEFAULT_MODEL_REGISTRY))
     data["model_registry"] = sanitize_model_registry(data.get("model_registry"))
     data.setdefault("meta", {})
@@ -582,6 +918,11 @@ def _normalize_state(data: Dict[str, Any]) -> Dict[str, Any]:
     data["meta"].setdefault("execution_profile_updated_at", None)
     data["meta"].setdefault("last_daily_review_at", None)
     data["meta"].setdefault("last_daily_review_event_id", None)
+    data["meta"].setdefault("last_weekly_ab_at", None)
+    data["meta"].setdefault("last_weekly_ab_event_id", None)
+    data["meta"].setdefault("risk_guard_cooldown_until", None)
+    data["meta"].setdefault("last_risk_guard_at", None)
+    data["meta"].setdefault("last_risk_guard_status", None)
     data["meta"].setdefault("last_state_recovery_at", None)
     data["meta"]["v3_tuning"] = sanitize_v3_tuning(data["meta"].get("v3_tuning"))
     data["meta"]["execution_profile"] = sanitize_execution_profile(
@@ -2286,6 +2627,21 @@ def make_recommendations(
         if expected_edge_pct is None or float(expected_edge_pct) < min_edge_pct:
             removed_expected_edge += 1
             continue
+        edge_for_size = float(expected_edge_pct)
+        stop_for_size = float(plan_stop_pct or 0.0)
+        profile_base_size = {1: 0.70, 2: 1.00, 3: 1.30}.get(
+            int(execution_profile),
+            1.0,
+        )
+        size_mult_quality = clamp(0.75 + (plan_setup_quality * 0.80), 0.60, 1.40)
+        size_mult_edge = clamp(0.85 + (edge_for_size * 1.40), 0.55, 1.50)
+        size_mult_vol = clamp(1.10 - (stop_for_size / 3.50), 0.55, 1.05)
+        position_size_pct = clamp(
+            profile_base_size * size_mult_quality * size_mult_edge * size_mult_vol,
+            0.25,
+            2.50,
+        )
+        risk_per_trade_pct = max(0.0, position_size_pct * (stop_for_size / 100.0))
         out.append(
             {
                 "id": f"{c.symbol}-{c.side}-{mid}-{int(run_ts.timestamp())}",
@@ -2340,6 +2696,8 @@ def make_recommendations(
                 else round(float(expected_edge_pct), 6),
                 "model_hist_win_rate": round(float(hist_win_rate), 6),
                 "model_hist_count": hist_count,
+                "position_size_pct": round(float(position_size_pct), 4),
+                "risk_per_trade_pct": round(float(risk_per_trade_pct), 6),
                 **plan,
             }
         )
@@ -2683,8 +3041,30 @@ def evaluate_pending(
         if g_now and p.get("entry_bitget_price", 0) > 0:
             g_market_ret = (g_now.last_price - p["entry_bitget_price"]) / p["entry_bitget_price"]
 
-        b_ret = trade_return_from_market_return(b_market_ret, side)
-        g_ret = trade_return_from_market_return(g_market_ret, side)
+        b_ret_gross = trade_return_from_market_return(b_market_ret, side)
+        g_ret_gross = trade_return_from_market_return(g_market_ret, side)
+        b_fee_bps = float(
+            safe_float(p.get("assumed_fee_bps_bithumb")) or DEFAULT_BITHUMB_FEE_BPS
+        )
+        g_fee_bps = float(
+            safe_float(p.get("assumed_fee_bps_bitget")) or DEFAULT_BITGET_FEE_BPS
+        )
+        b_slip_bps = float(
+            safe_float(p.get("assumed_slippage_bps_bithumb")) or DEFAULT_BITHUMB_SLIPPAGE_BPS
+        )
+        g_slip_bps = float(
+            safe_float(p.get("assumed_slippage_bps_bitget")) or DEFAULT_BITGET_SLIPPAGE_BPS
+        )
+        b_ret = apply_roundtrip_cost(
+            gross_return=b_ret_gross,
+            fee_bps=b_fee_bps,
+            slippage_bps=b_slip_bps,
+        )
+        g_ret = apply_roundtrip_cost(
+            gross_return=g_ret_gross,
+            fee_bps=g_fee_bps,
+            slippage_bps=g_slip_bps,
+        )
 
         if b_ret is None and g_ret is None:
             # Keep one extra horizon for temporary API mismatch.
@@ -2713,18 +3093,33 @@ def evaluate_pending(
                     "entry_bitget_price": p.get("entry_bitget_price"),
                     "exit_bithumb_price": b_now.close_krw if b_now else None,
                     "exit_bitget_price": g_now.last_price if g_now else None,
+                    "return_bithumb_gross": b_ret_gross,
+                    "return_bitget_gross": g_ret_gross,
                     "return_bithumb": b_ret,
                     "return_bitget": g_ret,
                     "return_blended": blended,
                     "win": blended > 0,
                     "available_legs": available,
+                    "assumed_fee_bps_bithumb": b_fee_bps,
+                    "assumed_fee_bps_bitget": g_fee_bps,
+                    "assumed_slippage_bps_bithumb": b_slip_bps,
+                    "assumed_slippage_bps_bitget": g_slip_bps,
                     "score": p.get("score"),
                     "base_score": p.get("base_score"),
                     "model_score_delta": p.get("model_score_delta"),
+                    "model_quality_boost": p.get("model_quality_boost"),
                     "b_rate24h": p.get("b_rate24h"),
                     "g_rate24h": p.get("g_rate24h"),
                     "g_funding_rate": p.get("g_funding_rate"),
                     "g_open_interest": p.get("g_open_interest"),
+                    "setup_quality": p.get("setup_quality"),
+                    "setup_quality_label": p.get("setup_quality_label"),
+                    "setup_entry_mode": p.get("setup_entry_mode"),
+                    "expected_edge_pct": p.get("expected_edge_pct"),
+                    "position_size_pct": p.get("position_size_pct"),
+                    "risk_per_trade_pct": p.get("risk_per_trade_pct"),
+                    "execution_profile": p.get("execution_profile"),
+                    "execution_profile_name": p.get("execution_profile_name"),
                     "ob_signal": p.get("ob_signal"),
                     "ob_bid_ask_ratio": p.get("ob_bid_ask_ratio"),
                     "ob_support_dist_pct": p.get("ob_support_dist_pct"),
@@ -3671,11 +4066,20 @@ def format_pick_line(index: int, p: Dict[str, Any]) -> str:
     side = pick_side(p)
     fr = float(p.get("g_funding_rate", 0.0) or 0.0)
     oi = format_oi(p.get("g_open_interest"))
+    q = clamp(float(safe_float(p.get("setup_quality")) or 0.0), 0.0, 1.0)
+    q_lbl = str(p.get("setup_quality_label", "")).strip().upper() or "-"
+    edge = safe_float(p.get("expected_edge_pct"))
+    size = safe_float(p.get("position_size_pct"))
     prof = sanitize_execution_profile(
         p.get("execution_profile", DEFAULT_EXECUTION_PROFILE),
         default=DEFAULT_EXECUTION_PROFILE,
     )
-    return f"{index}) {p['symbol']} | {side} | P{prof} | score {p['score']:.3f} | fr {fr:.4f} | oi {oi}"
+    edge_txt = "-" if edge is None else f"{edge:+.2f}%"
+    size_txt = "-" if size is None else f"{size:.2f}%"
+    return (
+        f"{index}) {p['symbol']} | {side} | P{prof} | score {p['score']:.3f} | "
+        f"q {q_lbl}/{q*100:.0f} | edge {edge_txt} | size {size_txt} | fr {fr:.4f} | oi {oi}"
+    )
 
 
 def evaluate_live_return(
@@ -3695,8 +4099,30 @@ def evaluate_live_return(
     if g_now and p.get("entry_bitget_price", 0) > 0:
         g_market_ret = (g_now.last_price - p["entry_bitget_price"]) / p["entry_bitget_price"]
 
-    b_ret = trade_return_from_market_return(b_market_ret, side)
-    g_ret = trade_return_from_market_return(g_market_ret, side)
+    b_ret_gross = trade_return_from_market_return(b_market_ret, side)
+    g_ret_gross = trade_return_from_market_return(g_market_ret, side)
+    b_fee_bps = float(
+        safe_float(p.get("assumed_fee_bps_bithumb")) or DEFAULT_BITHUMB_FEE_BPS
+    )
+    g_fee_bps = float(
+        safe_float(p.get("assumed_fee_bps_bitget")) or DEFAULT_BITGET_FEE_BPS
+    )
+    b_slip_bps = float(
+        safe_float(p.get("assumed_slippage_bps_bithumb")) or DEFAULT_BITHUMB_SLIPPAGE_BPS
+    )
+    g_slip_bps = float(
+        safe_float(p.get("assumed_slippage_bps_bitget")) or DEFAULT_BITGET_SLIPPAGE_BPS
+    )
+    b_ret = apply_roundtrip_cost(
+        gross_return=b_ret_gross,
+        fee_bps=b_fee_bps,
+        slippage_bps=b_slip_bps,
+    )
+    g_ret = apply_roundtrip_cost(
+        gross_return=g_ret_gross,
+        fee_bps=g_fee_bps,
+        slippage_bps=g_slip_bps,
+    )
     blended, _ = blend_returns(side, b_ret, g_ret)
     if b_ret is None and g_ret is None:
         return b_ret, g_ret, None
@@ -3855,6 +4281,7 @@ def make_message(
     model_recommendation: Dict[str, Any] | None,
     model_diagnostics: Dict[str, Any] | None,
     missed_summary: Dict[str, Any] | None,
+    risk_guard_status: Dict[str, Any] | None,
     message_style: str,
 ) -> str:
     ts_kst = run_ts.astimezone(KST).strftime("%Y-%m-%d %H:%M:%S KST")
@@ -3867,6 +4294,8 @@ def make_message(
     removed_prof = int(filter_stats.get("removed_execution_profile", 0) or 0)
     removed_quality = int(filter_stats.get("removed_setup_quality", 0) or 0)
     removed_edge = int(filter_stats.get("removed_expected_edge", 0) or 0)
+    removed_risk_guard = int(filter_stats.get("removed_risk_guard", 0) or 0)
+    risk_guard_status = dict(risk_guard_status or {})
     lines: List[str] = []
     if message_style == "compact":
         lines.append(f"Momentum Scan | {ts_kst}")
@@ -3895,6 +4324,12 @@ def make_message(
             )
         if int(filter_stats.get("removed_loss_cooldown", 0)) > 0:
             lines.append(f"Risk block: cooldown filtered {int(filter_stats['removed_loss_cooldown'])} symbols")
+        if removed_risk_guard > 0:
+            lines.append(
+                f"RiskGuard: paused new picks ({removed_risk_guard} blocked, "
+                f"24h {float(risk_guard_status.get('daily_return', 0.0))*100:.2f}%, "
+                f"streak {int(risk_guard_status.get('consecutive_losses', 0))})"
+            )
         if removed_prof > 0:
             lines.append(f"Execution profile P{prof}: filtered {removed_prof} symbols (tp/rr)")
         if removed_quality > 0:
@@ -3931,7 +4366,7 @@ def make_message(
         f"Execution profile: P{prof} (tp>={min_target:.2f}%, rr_entry>={min_rr:.2f}, q>={min_setup_q:.2f}, edge>={min_edge:.2f}%)"
     )
     lines.append(
-        f"Candidates: base={filter_stats['base_universe']}, removed(cooldown={filter_stats.get('removed_loss_cooldown', 0)}, overheat={filter_stats['removed_overheat']}, conservative={filter_stats['removed_conservative']}, orderable={filter_stats['removed_orderable']})"
+        f"Candidates: base={filter_stats['base_universe']}, removed(cooldown={filter_stats.get('removed_loss_cooldown', 0)}, risk_guard={filter_stats.get('removed_risk_guard', 0)}, overheat={filter_stats['removed_overheat']}, conservative={filter_stats['removed_conservative']}, orderable={filter_stats['removed_orderable']})"
     )
     if removed_prof > 0:
         lines.append(f"Execution profile filter: removed {removed_prof}")
@@ -3939,6 +4374,12 @@ def make_message(
         lines.append(f"Execution profile filter: removed {removed_quality} (timing quality)")
     if removed_edge > 0:
         lines.append(f"Execution profile filter: removed {removed_edge} (expected edge)")
+    if removed_risk_guard > 0:
+        lines.append(
+            "RiskGuard: new recommendations paused "
+            f"(blocked {removed_risk_guard}, 24h {float(risk_guard_status.get('daily_return', 0.0))*100:.2f}%, "
+            f"streak {int(risk_guard_status.get('consecutive_losses', 0))})."
+        )
     if int(filter_stats.get("orderblock_checked", 0) or 0) > 0:
         lines.append(
             f"Orderblock: assigned={int(filter_stats.get('orderblock_assigned', 0) or 0)}/{int(filter_stats.get('orderblock_checked', 0) or 0)}"
@@ -4079,6 +4520,30 @@ def run_cycle(args: argparse.Namespace, state: Dict[str, Any]) -> int:
     )
     if transition_notes:
         model_governance_notes.extend(transition_notes)
+    risk_guard_status = assess_risk_guard(
+        results=state.get("results", []),
+        now=run_ts,
+        cooldown_until_raw=state.get("meta", {}).get("risk_guard_cooldown_until"),
+        max_daily_loss_pct=float(args.risk_max_daily_loss_pct),
+        max_consecutive_losses=int(args.risk_max_consecutive_losses),
+        cooldown_min=int(args.risk_cooldown_min),
+        lookback_hours=RISK_LOOKBACK_HOURS,
+    )
+    state.setdefault("meta", {})["last_risk_guard_at"] = iso_z(run_ts)
+    state["meta"]["last_risk_guard_status"] = {
+        "sample": int(risk_guard_status.get("sample", 0)),
+        "daily_return": float(risk_guard_status.get("daily_return", 0.0)),
+        "consecutive_losses": int(risk_guard_status.get("consecutive_losses", 0)),
+        "in_cooldown": bool(risk_guard_status.get("in_cooldown", False)),
+        "allow_new_picks": bool(risk_guard_status.get("allow_new_picks", True)),
+        "cooldown_until": risk_guard_status.get("cooldown_until"),
+        "reasons": list(risk_guard_status.get("reasons", []) or []),
+    }
+    if risk_guard_status.get("triggered_new") and risk_guard_status.get("cooldown_until"):
+        state["meta"]["risk_guard_cooldown_until"] = str(risk_guard_status["cooldown_until"])
+    if not bool(risk_guard_status.get("allow_new_picks", True)):
+        reasons_txt = ", ".join(risk_guard_status.get("reasons", []) or ["cooldown"])
+        model_governance_notes.append(f"RiskGuard active: {reasons_txt}")
 
     try:
         bithumb, bitget, _ = fetch_market_snapshot_with_retry(attempts=3, base_sleep_sec=1.5)
@@ -4127,9 +4592,14 @@ def run_cycle(args: argparse.Namespace, state: Dict[str, Any]) -> int:
         orderblock_timeout_sec=args.orderblock_timeout_sec,
         max_orderblock_checks=args.max_orderblock_checks,
     )
+    filter_stats["removed_risk_guard"] = 0
+    candidates_for_reco = list(candidates)
+    if not bool(risk_guard_status.get("allow_new_picks", True)):
+        filter_stats["removed_risk_guard"] = len(candidates_for_reco)
+        candidates_for_reco = []
 
     picks, pick_filter_stats = make_recommendations(
-        candidates=candidates,
+        candidates=candidates_for_reco,
         top_n=args.top,
         min_short_picks=args.min_short_picks,
         model_registry=state["model_registry"],
@@ -4151,6 +4621,12 @@ def run_cycle(args: argparse.Namespace, state: Dict[str, Any]) -> int:
     filter_stats["removed_expected_edge"] = int(
         pick_filter_stats.get("removed_expected_edge", 0) or 0
     )
+    if picks:
+        for p in picks:
+            p["assumed_fee_bps_bithumb"] = float(args.fee_bps_bithumb)
+            p["assumed_fee_bps_bitget"] = float(args.fee_bps_bitget)
+            p["assumed_slippage_bps_bithumb"] = float(args.slippage_bps_bithumb)
+            p["assumed_slippage_bps_bitget"] = float(args.slippage_bps_bitget)
     if picks:
         state["recommendation_history"].extend(picks)
         state["recommendation_history"] = state["recommendation_history"][-5000:]
@@ -4337,6 +4813,34 @@ def run_cycle(args: argparse.Namespace, state: Dict[str, Any]) -> int:
             )
             state["calibration_events"] = state["calibration_events"][-500:]
 
+    weekly_ab = run_weekly_ab_review(
+        state=state,
+        now=run_ts,
+        lookback_hours=int(args.weekly_ab_lookback_hours),
+        interval_hours=int(args.weekly_ab_interval_hours),
+        min_results=int(args.weekly_ab_min_results),
+        min_profile_results=int(args.weekly_ab_min_profile_results),
+        min_model_results=int(args.weekly_ab_min_model_results),
+        allow_apply=not in_cooldown,
+    )
+    if weekly_ab.get("ran"):
+        if weekly_ab.get("summary"):
+            calibrate_notes.append(str(weekly_ab.get("summary")))
+        for n in (weekly_ab.get("notes") or [])[:3]:
+            model_governance_notes.append(f"WeeklyAB: {str(n)}")
+        next_profile = sanitize_execution_profile(
+            weekly_ab.get("execution_profile", execution_profile),
+            default=execution_profile,
+        )
+        if next_profile != execution_profile:
+            execution_profile = next_profile
+            execution_rule = execution_profile_rule(execution_profile)
+            state["meta"]["execution_profile"] = execution_profile
+            state["meta"]["execution_profile_updated_at"] = iso_z(run_ts)
+        state["model_registry"] = sanitize_model_registry(
+            weekly_ab.get("model_registry", state.get("model_registry", {}))
+        )
+
     if in_cooldown:
         calibrate_notes.append("Calibration cooldown active: tuning is paused for 6 hours after rollback.")
     elif not bool(daily_review.get("applied")) and should_calibrate(
@@ -4383,6 +4887,7 @@ def run_cycle(args: argparse.Namespace, state: Dict[str, Any]) -> int:
         model_recommendation=model_recommendation,
         model_diagnostics=model_diagnostics,
         missed_summary=missed_summary,
+        risk_guard_status=risk_guard_status,
         message_style=args.message_style,
     )
 
@@ -4439,11 +4944,24 @@ def run_cycle(args: argparse.Namespace, state: Dict[str, Any]) -> int:
             "model_recommendation": model_recommendation,
             "model_diagnostics": model_diagnostics,
             "missed_audit": missed_summary,
+            "risk_guard": dict(risk_guard_status),
+            "assumed_costs": {
+                "fee_bps_bithumb": float(args.fee_bps_bithumb),
+                "fee_bps_bitget": float(args.fee_bps_bitget),
+                "slippage_bps_bithumb": float(args.slippage_bps_bithumb),
+                "slippage_bps_bitget": float(args.slippage_bps_bitget),
+            },
             "daily_review": {
                 "ran": bool(daily_review.get("ran")),
                 "applied": bool(daily_review.get("applied")),
                 "summary": str(daily_review.get("summary") or ""),
                 "event_id": str((daily_review.get("event") or {}).get("id") or "") or None,
+            },
+            "weekly_ab": {
+                "ran": bool(weekly_ab.get("ran")),
+                "applied": bool(weekly_ab.get("applied")),
+                "summary": str(weekly_ab.get("summary") or ""),
+                "event_id": str((weekly_ab.get("event") or {}).get("id") or "") or None,
             },
         }
     )
@@ -4573,6 +5091,18 @@ def parse_args() -> argparse.Namespace:
     p.add_argument("--daily-review-lookback-hours", type=int, default=24)
     p.add_argument("--daily-review-min-results", type=int, default=10)
     p.add_argument("--daily-review-min-model-results", type=int, default=8)
+    p.add_argument("--fee-bps-bithumb", type=float, default=DEFAULT_BITHUMB_FEE_BPS)
+    p.add_argument("--fee-bps-bitget", type=float, default=DEFAULT_BITGET_FEE_BPS)
+    p.add_argument("--slippage-bps-bithumb", type=float, default=DEFAULT_BITHUMB_SLIPPAGE_BPS)
+    p.add_argument("--slippage-bps-bitget", type=float, default=DEFAULT_BITGET_SLIPPAGE_BPS)
+    p.add_argument("--risk-max-daily-loss-pct", type=float, default=DEFAULT_RISK_MAX_DAILY_LOSS_PCT)
+    p.add_argument("--risk-max-consecutive-losses", type=int, default=DEFAULT_RISK_MAX_CONSECUTIVE_LOSSES)
+    p.add_argument("--risk-cooldown-min", type=int, default=DEFAULT_RISK_COOLDOWN_MIN)
+    p.add_argument("--weekly-ab-lookback-hours", type=int, default=WEEKLY_AB_LOOKBACK_HOURS)
+    p.add_argument("--weekly-ab-interval-hours", type=int, default=WEEKLY_AB_INTERVAL_HOURS)
+    p.add_argument("--weekly-ab-min-results", type=int, default=WEEKLY_AB_MIN_RESULTS)
+    p.add_argument("--weekly-ab-min-profile-results", type=int, default=WEEKLY_AB_MIN_PROFILE_RESULTS)
+    p.add_argument("--weekly-ab-min-model-results", type=int, default=WEEKLY_AB_MIN_MODEL_RESULTS)
     p.add_argument("--alerts-only", action="store_true")
     return p.parse_args()
 
@@ -4584,6 +5114,36 @@ def main() -> int:
         fallback_horizon=int(args.horizon_min),
     )
     args.horizon_min = int(args.eval_horizons_min[0]) if args.eval_horizons_min else int(args.horizon_min)
+    args.fee_bps_bithumb = max(0.0, float(getattr(args, "fee_bps_bithumb", DEFAULT_BITHUMB_FEE_BPS)))
+    args.fee_bps_bitget = max(0.0, float(getattr(args, "fee_bps_bitget", DEFAULT_BITGET_FEE_BPS)))
+    args.slippage_bps_bithumb = max(
+        0.0,
+        float(getattr(args, "slippage_bps_bithumb", DEFAULT_BITHUMB_SLIPPAGE_BPS)),
+    )
+    args.slippage_bps_bitget = max(
+        0.0,
+        float(getattr(args, "slippage_bps_bitget", DEFAULT_BITGET_SLIPPAGE_BPS)),
+    )
+    args.risk_max_daily_loss_pct = max(
+        0.5,
+        float(getattr(args, "risk_max_daily_loss_pct", DEFAULT_RISK_MAX_DAILY_LOSS_PCT)),
+    )
+    args.risk_max_consecutive_losses = max(
+        2,
+        int(getattr(args, "risk_max_consecutive_losses", DEFAULT_RISK_MAX_CONSECUTIVE_LOSSES)),
+    )
+    args.risk_cooldown_min = max(
+        15,
+        int(getattr(args, "risk_cooldown_min", DEFAULT_RISK_COOLDOWN_MIN)),
+    )
+    args.weekly_ab_interval_hours = max(
+        6,
+        int(getattr(args, "weekly_ab_interval_hours", WEEKLY_AB_INTERVAL_HOURS)),
+    )
+    args.weekly_ab_lookback_hours = max(
+        24,
+        int(getattr(args, "weekly_ab_lookback_hours", WEEKLY_AB_LOOKBACK_HOURS)),
+    )
     state_path = Path(args.state_file)
     history_path = Path(args.history_file)
     state = load_state(state_path)
