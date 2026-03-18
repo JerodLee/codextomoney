@@ -55,10 +55,25 @@ jobs:
             EXTRA_ARGS+=(--execution-profile "${EXECUTION_PROFILE_INPUT}")
             echo "Applying execution profile: ${EXECUTION_PROFILE_INPUT}"
           fi
-          python momentum_telegram_agent.py \
-            --state-file state/bot_state.json \
-            --history-file state/eval_history.jsonl \
-            "${EXTRA_ARGS[@]}"
+          set +e
+          RC=1
+          for TRY in 1 2 3; do
+            echo "Recommendation run attempt ${TRY}/3"
+            python momentum_telegram_agent.py \
+              --state-file state/bot_state.json \
+              --history-file state/eval_history.jsonl \
+              "${EXTRA_ARGS[@]}"
+            RC=$?
+            if [ "${RC}" -eq 0 ]; then
+              echo "Recommendation run succeeded."
+              break
+            fi
+            echo "[WARN] recommendation run failed (attempt ${TRY}, rc=${RC})"
+            sleep 6
+          done
+          if [ "${RC}" -ne 0 ]; then
+            exit "${RC}"
+          fi
 
       - name: Commit and push state (after recommendation run)
         run: |
