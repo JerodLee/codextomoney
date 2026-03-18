@@ -878,9 +878,25 @@ function renderSocialBuzz(state) {
   }
 
   const rows = Array.isArray(latestBuzz?.top_symbols) ? latestBuzz.top_symbols : [];
+  const p = latestBuzz?.providers || {};
+  const x = p.x || {};
+  const t = p.threads || {};
+  const xEnabled = Boolean(x.enabled);
+  const tEnabled = Boolean(t.enabled);
+  const xOk = Boolean(x.ok);
+  const tOk = Boolean(t.ok);
+
   if (!rows.length) {
     const tr = document.createElement("tr");
-    tr.innerHTML = `<td colspan="7" class="muted">현재 구간에서 유의미한 회자 종목이 없습니다.</td>`;
+    let reason = "현재 구간에서 유의미한 회자 종목이 없습니다.";
+    if (!xEnabled && !tEnabled) {
+      reason = "X/Threads 토큰이 설정되지 않아 소셜 집계를 수집하지 못했습니다.";
+    } else if ((xEnabled && !xOk) && (tEnabled && !tOk)) {
+      reason = "X/Threads 소스 오류로 집계가 비어 있습니다. 소스 상태를 확인해 주세요.";
+    } else if ((xEnabled && !xOk) || (tEnabled && !tOk)) {
+      reason = "일부 소스 오류로 집계가 제한되었습니다. 소스 상태를 확인해 주세요.";
+    }
+    tr.innerHTML = `<td colspan="7" class="muted">${reason}</td>`;
     body.appendChild(tr);
   }
 
@@ -949,9 +965,6 @@ function renderSocialBuzz(state) {
     metaEl.textContent = `집계시각 ${tsTxt} · 집계대상 ${Number.isFinite(n) ? n : 0}종목`;
   }
   if (sourceEl) {
-    const p = latestBuzz?.providers || {};
-    const x = p.x || {};
-    const t = p.threads || {};
     const xTxt = !x.enabled
       ? "X off"
       : (x.ok ? `X ok(posts ${Number(x.sample_posts || 0)})` : `X err(${String(x.error || "unknown")})`);
