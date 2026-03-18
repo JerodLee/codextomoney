@@ -16,6 +16,7 @@ import argparse
 import json
 import math
 import os
+import shutil
 import statistics
 import time
 import urllib.error
@@ -393,40 +394,117 @@ def sanitize_dynamic_config(cfg: Dict[str, float]) -> Dict[str, float]:
     return out
 
 
-def load_state(path: Path) -> Dict[str, Any]:
-    if not path.exists():
-        return {
-            "version": 3,
-            "dynamic_config": dict(DEFAULT_DYNAMIC_CONFIG),
-            "model_registry": sanitize_model_registry(DEFAULT_MODEL_REGISTRY),
-            "pending": [],
-            "results": [],
-            "missed_queue": [],
-            "missed_results": [],
-            "recommendation_history": [],
-            "run_history": [],
-            "market_series": [],
-            "calibration_events": [],
-            "model_governance_events": [],
-            "model_transition_events": [],
-            "daily_review_events": [],
-            "meta": {
-                "no_candidate_streak": 0,
-                "last_calibrated_at": None,
-                "last_run_at": None,
-                "last_model_governance_at": None,
-                "model_governance_cooldown_until": None,
-                "last_model_recommendation": None,
-                "last_model_diagnostics": None,
-                "execution_profile": DEFAULT_EXECUTION_PROFILE,
-                "execution_profile_updated_at": None,
-                "last_daily_review_at": None,
-                "last_daily_review_event_id": None,
-                "v3_tuning": default_v3_tuning(),
-            },
-        }
-    with path.open("r", encoding="utf-8") as f:
-        data = json.load(f)
+def _default_state() -> Dict[str, Any]:
+    return {
+        "version": 3,
+        "dynamic_config": dict(DEFAULT_DYNAMIC_CONFIG),
+        "model_registry": sanitize_model_registry(DEFAULT_MODEL_REGISTRY),
+        "pending": [],
+        "results": [],
+        "missed_queue": [],
+        "missed_results": [],
+        "recommendation_history": [],
+        "run_history": [],
+        "market_series": [],
+        "calibration_events": [],
+        "model_governance_events": [],
+        "model_transition_events": [],
+        "daily_review_events": [],
+        "state_recovery_events": [],
+        "meta": {
+            "no_candidate_streak": 0,
+            "last_calibrated_at": None,
+            "last_run_at": None,
+            "last_model_governance_at": None,
+            "model_governance_cooldown_until": None,
+            "last_model_recommendation": None,
+            "last_model_diagnostics": None,
+            "execution_profile": DEFAULT_EXECUTION_PROFILE,
+            "execution_profile_updated_at": None,
+            "last_daily_review_at": None,
+            "last_daily_review_event_id": None,
+            "last_state_recovery_at": None,
+            "v3_tuning": default_v3_tuning(),
+        },
+    }
+
+
+def _state_backup_path(path: Path) -> Path:
+    return path.with_name(f"{path.stem}.backup{path.suffix}")
+
+
+def _load_state_json(path: Path) -> Dict[str, Any]:
+    txt = path.read_text(encoding="utf-8")
+    for marker in ("<<<<<<<", "=======", ">>>>>>>"):
+        if marker in txt:
+            raise ValueError(f"conflict marker detected in state file: {marker}")
+    obj = json.loads(txt)
+    if not isinstance(obj, dict):
+        raise ValueError("state root must be a JSON object")
+    return obj
+
+
+def _stamp_state_recovery(
+    data: Dict[str, Any],
+    *,
+    reason: str,
+    source: str,
+    corrupted_copy: str | None,
+    now: datetime,
+) -> None:
+    data.setdefault("state_recovery_events", [])
+    event = {
+        "at": iso_z(now),
+        "reason": str(reason)[:240],
+        "source": str(source),
+        "corrupted_copy": corrupted_copy,
+    }
+    data["state_recovery_events"].append(event)
+    data["state_recovery_events"] = [
+        x for x in data["state_recovery_events"] if isinstance(x, dict)
+    ][-200:]
+    data.setdefault("meta", {})
+    data["meta"]["last_state_recovery_at"] = iso_z(now)
+
+
+def _recover_state(path: Path, exc: Exception) -> Dict[str, Any]:
+    now = utc_now()
+    backup = _state_backup_path(path)
+    corrupted_copy: str | None = None
+
+    if path.exists():
+        ts = now.strftime("%Y%m%dT%H%M%SZ")
+        corrupted = path.with_name(f"{path.stem}.corrupt-{ts}{path.suffix}")
+        try:
+            shutil.copy2(path, corrupted)
+            corrupted_copy = str(corrupted.name)
+        except Exception as cp_exc:  # noqa: BLE001
+            print(f"[WARN] failed to copy corrupted state snapshot: {cp_exc}")
+
+    recovered: Dict[str, Any]
+    source = "default"
+    if backup.exists():
+        try:
+            recovered = _load_state_json(backup)
+            source = "backup"
+            print(f"[WARN] state recovery: loaded backup {backup.name}")
+        except Exception as backup_exc:  # noqa: BLE001
+            print(f"[WARN] backup state is also invalid: {backup_exc}")
+            recovered = _default_state()
+    else:
+        recovered = _default_state()
+
+    _stamp_state_recovery(
+        recovered,
+        reason=f"{type(exc).__name__}: {exc}",
+        source=source,
+        corrupted_copy=corrupted_copy,
+        now=now,
+    )
+    return recovered
+
+
+def _normalize_state(data: Dict[str, Any]) -> Dict[str, Any]:
     data.setdefault("dynamic_config", dict(DEFAULT_DYNAMIC_CONFIG))
     for k, v in DEFAULT_DYNAMIC_CONFIG.items():
         data["dynamic_config"].setdefault(k, v)
@@ -451,12 +529,19 @@ def load_state(path: Path) -> Dict[str, Any]:
     data.setdefault("model_governance_events", [])
     data.setdefault("model_transition_events", [])
     data.setdefault("daily_review_events", [])
+    data.setdefault("state_recovery_events", [])
     if isinstance(data.get("model_transition_events"), list):
         data["model_transition_events"] = [
             x for x in data["model_transition_events"] if isinstance(x, dict)
         ][-500:]
     else:
         data["model_transition_events"] = []
+    if isinstance(data.get("state_recovery_events"), list):
+        data["state_recovery_events"] = [
+            x for x in data["state_recovery_events"] if isinstance(x, dict)
+        ][-200:]
+    else:
+        data["state_recovery_events"] = []
     data.setdefault("model_registry", sanitize_model_registry(DEFAULT_MODEL_REGISTRY))
     data["model_registry"] = sanitize_model_registry(data.get("model_registry"))
     data.setdefault("meta", {})
@@ -473,6 +558,7 @@ def load_state(path: Path) -> Dict[str, Any]:
     data["meta"].setdefault("execution_profile_updated_at", None)
     data["meta"].setdefault("last_daily_review_at", None)
     data["meta"].setdefault("last_daily_review_event_id", None)
+    data["meta"].setdefault("last_state_recovery_at", None)
     data["meta"]["v3_tuning"] = sanitize_v3_tuning(data["meta"].get("v3_tuning"))
     data["meta"]["execution_profile"] = sanitize_execution_profile(
         data["meta"].get("execution_profile", DEFAULT_EXECUTION_PROFILE),
@@ -482,12 +568,34 @@ def load_state(path: Path) -> Dict[str, Any]:
     return data
 
 
+def load_state(path: Path) -> Dict[str, Any]:
+    if not path.exists():
+        return _normalize_state(_default_state())
+    try:
+        data = _load_state_json(path)
+    except Exception as exc:  # noqa: BLE001
+        print(f"[WARN] state load failed: {exc}")
+        data = _recover_state(path, exc)
+    return _normalize_state(data)
+
+
 def save_state(path: Path, state: Dict[str, Any]) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
+    state = _normalize_state(state)
+    payload = json.dumps(state, ensure_ascii=False, indent=2)
     tmp = path.with_suffix(".tmp")
     with tmp.open("w", encoding="utf-8") as f:
-        json.dump(state, f, ensure_ascii=False, indent=2)
+        f.write(payload)
     tmp.replace(path)
+
+    backup = _state_backup_path(path)
+    backup_tmp = backup.with_suffix(".tmp")
+    try:
+        with backup_tmp.open("w", encoding="utf-8") as f:
+            f.write(payload)
+        backup_tmp.replace(backup)
+    except Exception as exc:  # noqa: BLE001
+        print(f"[WARN] failed to write state backup: {exc}")
 
 
 def append_jsonl(path: Path, rows: List[Dict[str, Any]]) -> None:
