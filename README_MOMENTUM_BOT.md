@@ -80,6 +80,14 @@ Set repository secrets:
 - `THREADS_KEYWORD_SEARCH_URL_TEMPLATE` (optional, Threads 키워드 검색 URL 템플릿)
 - `THREADS_GRAPH_BASE_URL` (optional, default: `https://graph.threads.net/v1.0`)
 
+`THREADS_KEYWORD_SEARCH_URL_TEMPLATE` placeholders:
+
+- `{query}`: raw symbol keyword
+- `{query_urlencoded}`: URL-encoded query
+- `{token}`: access token
+- `{limit}`: per-symbol query limit
+- `{base_url}`: base URL (default `https://graph.threads.net/v1.0`)
+
 ## Validation and calibration
 
 Validation:

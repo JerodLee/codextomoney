@@ -271,6 +271,9 @@ Important:
   - `state.social_buzz_history`
   - `state.meta.last_social_buzz`
   - `state.run_history[*].social_buzz`
+- Resilience:
+  - social collector exceptions are isolated (main recommendation/validation loop keeps running)
+  - invalid Threads template placeholders fall back to default endpoint URL build
 - Telegram compact output:
   - append `SocialBuzz: SYMBOL(total, Xn/Tm) ...` when at least one source is enabled
 - Dashboard output:

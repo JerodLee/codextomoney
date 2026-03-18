@@ -1238,13 +1238,17 @@ def _build_threads_keyword_url(query: str, token: str, limit: int) -> str:
     q_enc = urllib.parse.quote_plus(query)
     base_url = THREADS_GRAPH_BASE_URL.rstrip("/")
     if template:
-        return template.format(
-            query=query,
-            query_urlencoded=q_enc,
-            token=token,
-            limit=int(limit),
-            base_url=base_url,
-        )
+        try:
+            return template.format(
+                query=query,
+                query_urlencoded=q_enc,
+                token=token,
+                limit=int(limit),
+                base_url=base_url,
+            )
+        except Exception:  # noqa: BLE001
+            # Fallback to default endpoint if template placeholders are invalid.
+            pass
     params = {
         "q": query,
         "search_type": os.getenv("THREADS_SEARCH_TYPE", "TOP"),
@@ -1310,14 +1314,37 @@ def collect_social_buzz_snapshot(
     threads_max_symbols: int,
 ) -> Dict[str, Any]:
     syms = [s for s in symbols if s]
-    x_res = collect_x_social_mentions(
-        syms,
-        max_results=x_max_results,
-    )
-    th_res = collect_threads_social_mentions(
-        syms,
-        max_symbols=threads_max_symbols,
-    )
+    try:
+        x_res = collect_x_social_mentions(
+            syms,
+            max_results=x_max_results,
+        )
+    except Exception as exc:  # noqa: BLE001
+        x_res = {
+            "enabled": bool(os.getenv("X_BEARER_TOKEN", "").strip()),
+            "ok": False,
+            "provider": "x",
+            "error": f"collector_exception:{exc}",
+            "mentions": {},
+            "sample_posts": 0,
+            "query": None,
+        }
+    try:
+        th_res = collect_threads_social_mentions(
+            syms,
+            max_symbols=threads_max_symbols,
+        )
+    except Exception as exc:  # noqa: BLE001
+        th_res = {
+            "enabled": bool(os.getenv("THREADS_ACCESS_TOKEN", "").strip()),
+            "ok": False,
+            "provider": "threads",
+            "error": f"collector_exception:{exc}",
+            "mentions": {},
+            "sample_posts": 0,
+            "queries": 0,
+            "ok_queries": 0,
+        }
     rows: List[Dict[str, Any]] = []
     for s in syms:
         x_row = (x_res.get("mentions", {}) or {}).get(s, {}) or {}
