@@ -61,6 +61,16 @@ What it does:
 2. Builds picks, validates old picks, applies auto-calibration
 3. Saves state files and commits them back
 
+Reliability safeguards (applied):
+
+1. Recommendation/watchdog steps retry up to 3 times on transient failures
+2. State push step retries (`pull --rebase` + `push`) up to 3 times
+3. State integrity check blocks conflicted/invalid JSON commits
+4. Bot state auto-recovery:
+   - if `state/bot_state.json` is broken, restore from `state/bot_state.backup.json`
+   - if backup is also broken, rebuild from safe defaults
+   - save corrupted snapshot as `state/bot_state.corrupt-<timestamp>.json`
+
 Set repository secrets:
 
 - `TELEGRAM_BOT_TOKEN`
@@ -89,6 +99,7 @@ Calibration:
 ## State files
 
 - `state/bot_state.json`: dynamic config + pending + results
+- `state/bot_state.backup.json`: latest valid backup for auto-recovery
 - `state/eval_history.jsonl`: evaluation history log
 
 ## Main options
