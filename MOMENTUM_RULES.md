@@ -236,8 +236,47 @@ Important:
 - Top picks per scan: 3
 - Validation horizons: `5,15,30,60` minutes
 - Message style: compact
+- Social buzz (optional): `X` + `Threads` mention aggregation per scan
 
-## 6) Notes
+## 6) X/Threads Social Buzz Aggregation
+
+### 6.1 Data Sources
+
+- X recent search API (`X_BEARER_TOKEN`)
+- Threads keyword search API (`THREADS_ACCESS_TOKEN`, optional URL template/base override)
+
+### 6.2 Symbol Universe
+
+- Merge symbols from:
+  - current market rows
+  - current candidate/pick rows
+  - default major symbol set (`BTC`, `ETH`, `SOL`, `XRP`, ...)
+- Cap by runtime option (`--social-max-symbols`, default 16)
+
+### 6.3 Mention Matching and Scoring
+
+- Count symbol mentions by:
+  - cashtag (`$BTC`)
+  - hashtag (`#BTC`)
+  - bare symbol text (major symbols only, word-boundary safe)
+- Apply engagement weight per post to build integrated score:
+  - base mention count + weighted social reactions (likes/reposts/replies/quotes)
+- Merge X + Threads into per-symbol totals:
+  - `mentions_total`, `x_mentions`, `threads_mentions`
+  - `score`
+
+### 6.4 Persistence and Output
+
+- Save snapshots in:
+  - `state.social_buzz_history`
+  - `state.meta.last_social_buzz`
+  - `state.run_history[*].social_buzz`
+- Telegram compact output:
+  - append `SocialBuzz: SYMBOL(total, Xn/Tm) ...` when at least one source is enabled
+- Dashboard output:
+  - market tab card shows rank, counts, and rank delta (NEW/UP/DOWN/SAME)
+
+## 7) Notes
 
 - This system is a momentum scanner and automation pipeline, not investment advice.
 - Sudden volatility, API gaps, or market microstructure can degrade short-term outcomes.

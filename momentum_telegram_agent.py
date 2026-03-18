@@ -16,6 +16,7 @@ import argparse
 import json
 import math
 import os
+import re
 import shutil
 import statistics
 import time
@@ -163,6 +164,40 @@ WEEKLY_AB_INTERVAL_HOURS = 24
 WEEKLY_AB_MIN_RESULTS = 30
 WEEKLY_AB_MIN_PROFILE_RESULTS = 18
 WEEKLY_AB_MIN_MODEL_RESULTS = 14
+SOCIAL_BUZZ_HISTORY_KEEP = 2000
+SOCIAL_BUZZ_TOP_KEEP = 12
+SOCIAL_DEFAULT_SYMBOLS: Tuple[str, ...] = (
+    "BTC",
+    "ETH",
+    "SOL",
+    "XRP",
+    "BNB",
+    "DOGE",
+    "ADA",
+    "TRX",
+    "LINK",
+    "TAO",
+)
+MAJOR_BARE_SYMBOLS = {
+    "BTC",
+    "ETH",
+    "SOL",
+    "XRP",
+    "BNB",
+    "DOGE",
+    "ADA",
+    "TRX",
+    "LINK",
+    "TAO",
+}
+X_RECENT_SEARCH_URL = os.getenv(
+    "X_RECENT_SEARCH_URL",
+    "https://api.x.com/2/tweets/search/recent",
+)
+THREADS_GRAPH_BASE_URL = os.getenv(
+    "THREADS_GRAPH_BASE_URL",
+    "https://graph.threads.net/v1.0",
+)
 
 
 def utc_now() -> datetime:
@@ -753,6 +788,7 @@ def _default_state() -> Dict[str, Any]:
         "recommendation_history": [],
         "run_history": [],
         "market_series": [],
+        "social_buzz_history": [],
         "calibration_events": [],
         "model_governance_events": [],
         "model_transition_events": [],
@@ -777,6 +813,8 @@ def _default_state() -> Dict[str, Any]:
             "last_risk_guard_at": None,
             "last_risk_guard_status": None,
             "last_state_recovery_at": None,
+            "last_social_buzz_at": None,
+            "last_social_buzz": None,
             "v3_tuning": default_v3_tuning(),
         },
     }
@@ -878,6 +916,7 @@ def _normalize_state(data: Dict[str, Any]) -> Dict[str, Any]:
     data.setdefault("recommendation_history", [])
     data.setdefault("run_history", [])
     data.setdefault("market_series", [])
+    data.setdefault("social_buzz_history", [])
     data.setdefault("calibration_events", [])
     data.setdefault("model_governance_events", [])
     data.setdefault("model_transition_events", [])
@@ -902,6 +941,12 @@ def _normalize_state(data: Dict[str, Any]) -> Dict[str, Any]:
         ][-400:]
     else:
         data["weekly_ab_events"] = []
+    if isinstance(data.get("social_buzz_history"), list):
+        data["social_buzz_history"] = [
+            x for x in data["social_buzz_history"] if isinstance(x, dict)
+        ][-SOCIAL_BUZZ_HISTORY_KEEP:]
+    else:
+        data["social_buzz_history"] = []
     data.setdefault("model_registry", sanitize_model_registry(DEFAULT_MODEL_REGISTRY))
     data["model_registry"] = sanitize_model_registry(data.get("model_registry"))
     data.setdefault("meta", {})
@@ -924,6 +969,8 @@ def _normalize_state(data: Dict[str, Any]) -> Dict[str, Any]:
     data["meta"].setdefault("last_risk_guard_at", None)
     data["meta"].setdefault("last_risk_guard_status", None)
     data["meta"].setdefault("last_state_recovery_at", None)
+    data["meta"].setdefault("last_social_buzz_at", None)
+    data["meta"].setdefault("last_social_buzz", None)
     data["meta"]["v3_tuning"] = sanitize_v3_tuning(data["meta"].get("v3_tuning"))
     data["meta"]["execution_profile"] = sanitize_execution_profile(
         data["meta"].get("execution_profile", DEFAULT_EXECUTION_PROFILE),
@@ -1005,6 +1052,330 @@ def fetch_market_snapshot_with_retry(
     if last_exc is None:
         raise RuntimeError("market fetch failed without exception")
     raise RuntimeError(f"market fetch failed after {tries} attempts: {last_exc}")
+
+
+def fetch_json_with_headers(
+    url: str,
+    *,
+    headers: Dict[str, str] | None = None,
+    timeout_sec: int = 15,
+) -> Dict[str, Any]:
+    req_headers = {
+        "User-Agent": "Mozilla/5.0 (MomentumScanner SocialBuzz)",
+        "Accept": "application/json",
+    }
+    if headers:
+        req_headers.update(headers)
+    req = urllib.request.Request(url, headers=req_headers)
+    with urllib.request.urlopen(req, timeout=timeout_sec) as resp:
+        data = resp.read()
+    return json.loads(data.decode("utf-8"))
+
+
+def _clean_symbol(sym: Any) -> str:
+    raw = str(sym or "").upper().strip()
+    out = re.sub(r"[^A-Z0-9]", "", raw)
+    if out.endswith("USDT"):
+        out = out[:-4]
+    return out
+
+
+def build_social_symbol_universe(
+    *,
+    picks: List[Dict[str, Any]],
+    candidates: List[Any],
+    bithumb: Dict[str, Any],
+    bitget: Dict[str, Any],
+    max_symbols: int,
+) -> List[str]:
+    max_n = max(3, int(max_symbols))
+    out: List[str] = []
+    seen: set[str] = set()
+
+    def push(sym: Any) -> None:
+        s = _clean_symbol(sym)
+        if not s:
+            return
+        if len(s) < 2 or len(s) > 12:
+            return
+        if s in seen:
+            return
+        seen.add(s)
+        out.append(s)
+
+    for s in SOCIAL_DEFAULT_SYMBOLS:
+        push(s)
+    for p in picks:
+        push(p.get("symbol"))
+    for c in sorted(candidates, key=lambda x: float(getattr(x, "score", 0.0) or 0.0), reverse=True):
+        push(getattr(c, "symbol", ""))
+        if len(out) >= max_n:
+            break
+    for sym, t in sorted(
+        bitget.items(),
+        key=lambda kv: float(getattr(kv[1], "usdt_volume", 0.0) or 0.0),
+        reverse=True,
+    ):
+        push(sym)
+        if len(out) >= max_n:
+            break
+    if len(out) < max_n:
+        for sym in bithumb.keys():
+            push(sym)
+            if len(out) >= max_n:
+                break
+    return out[:max_n]
+
+
+def _compile_symbol_patterns(symbols: List[str]) -> Dict[str, re.Pattern[str]]:
+    pats: Dict[str, re.Pattern[str]] = {}
+    for sym in symbols:
+        esc = re.escape(sym)
+        if sym in MAJOR_BARE_SYMBOLS:
+            # Major symbols allow bare-word mention matching.
+            patt = rf"(?<![A-Z0-9])(?:[$#])?{esc}(?![A-Z0-9])"
+        else:
+            # Non-major symbols require cashtag/hashtag to reduce false positives.
+            patt = rf"(?<![A-Z0-9])(?:[$#]){esc}(?![A-Z0-9])"
+        pats[sym] = re.compile(patt, re.IGNORECASE)
+    return pats
+
+
+def _x_post_weight(post: Dict[str, Any]) -> float:
+    pm = post.get("public_metrics", {}) or {}
+    likes = int(pm.get("like_count", 0) or 0)
+    reposts = int(pm.get("retweet_count", pm.get("repost_count", 0)) or 0)
+    replies = int(pm.get("reply_count", 0) or 0)
+    quotes = int(pm.get("quote_count", 0) or 0)
+    eng = max(0, likes + reposts + replies + quotes)
+    return 1.0 + min(4.0, eng / 25.0)
+
+
+def collect_x_social_mentions(
+    symbols: List[str],
+    *,
+    max_results: int,
+    timeout_sec: int = 15,
+) -> Dict[str, Any]:
+    token = os.getenv("X_BEARER_TOKEN", "").strip()
+    if not token:
+        return {
+            "enabled": False,
+            "ok": False,
+            "provider": "x",
+            "error": "token_missing",
+            "mentions": {},
+            "sample_posts": 0,
+            "query": None,
+        }
+
+    syms = [s for s in symbols if s]
+    query_terms: List[str] = []
+    for s in syms:
+        query_terms.extend([f"${s}", f"#{s}"])
+        if s in MAJOR_BARE_SYMBOLS:
+            query_terms.append(s)
+    if not query_terms:
+        return {
+            "enabled": True,
+            "ok": False,
+            "provider": "x",
+            "error": "no_query_terms",
+            "mentions": {},
+            "sample_posts": 0,
+            "query": None,
+        }
+    query = f"({' OR '.join(query_terms)}) -is:retweet"
+    params = {
+        "query": query,
+        "max_results": max(10, min(100, int(max_results))),
+        "tweet.fields": "created_at,lang,public_metrics",
+    }
+    url = f"{X_RECENT_SEARCH_URL}?{urllib.parse.urlencode(params)}"
+    try:
+        payload = fetch_json_with_headers(
+            url,
+            headers={"Authorization": f"Bearer {token}"},
+            timeout_sec=timeout_sec,
+        )
+        posts = payload.get("data", []) or []
+        pats = _compile_symbol_patterns(syms)
+        counts: Dict[str, Dict[str, float]] = {
+            s: {"mentions": 0.0, "score": 0.0} for s in syms
+        }
+        for post in posts:
+            text = str(post.get("text", "") or "")
+            if not text:
+                continue
+            weight = _x_post_weight(post)
+            for sym, pat in pats.items():
+                if pat.search(text):
+                    counts[sym]["mentions"] += 1.0
+                    counts[sym]["score"] += weight
+        return {
+            "enabled": True,
+            "ok": True,
+            "provider": "x",
+            "error": None,
+            "mentions": counts,
+            "sample_posts": len(posts),
+            "query": query,
+        }
+    except Exception as exc:  # noqa: BLE001
+        return {
+            "enabled": True,
+            "ok": False,
+            "provider": "x",
+            "error": str(exc),
+            "mentions": {},
+            "sample_posts": 0,
+            "query": query,
+        }
+
+
+def _build_threads_keyword_url(query: str, token: str, limit: int) -> str:
+    template = os.getenv("THREADS_KEYWORD_SEARCH_URL_TEMPLATE", "").strip()
+    q_enc = urllib.parse.quote_plus(query)
+    base_url = THREADS_GRAPH_BASE_URL.rstrip("/")
+    if template:
+        return template.format(
+            query=query,
+            query_urlencoded=q_enc,
+            token=token,
+            limit=int(limit),
+            base_url=base_url,
+        )
+    params = {
+        "q": query,
+        "search_type": os.getenv("THREADS_SEARCH_TYPE", "TOP"),
+        "limit": max(5, min(50, int(limit))),
+        "fields": "id,text,username,timestamp",
+        "access_token": token,
+    }
+    return f"{base_url}/keyword_search?{urllib.parse.urlencode(params)}"
+
+
+def collect_threads_social_mentions(
+    symbols: List[str],
+    *,
+    max_symbols: int,
+    per_symbol_limit: int = 20,
+    timeout_sec: int = 15,
+) -> Dict[str, Any]:
+    token = os.getenv("THREADS_ACCESS_TOKEN", "").strip()
+    if not token:
+        return {
+            "enabled": False,
+            "ok": False,
+            "provider": "threads",
+            "error": "token_missing",
+            "mentions": {},
+            "sample_posts": 0,
+            "queries": 0,
+        }
+    syms = [s for s in symbols if s][: max(1, int(max_symbols))]
+    counts: Dict[str, Dict[str, float]] = {s: {"mentions": 0.0, "score": 0.0} for s in syms}
+    ok_queries = 0
+    total_posts = 0
+    errs: List[str] = []
+    for s in syms:
+        url = _build_threads_keyword_url(s, token=token, limit=per_symbol_limit)
+        try:
+            payload = fetch_json_with_headers(url, timeout_sec=timeout_sec)
+            rows = payload.get("data", []) or []
+            total_posts += len(rows)
+            counts[s]["mentions"] += float(len(rows))
+            counts[s]["score"] += float(len(rows))
+            ok_queries += 1
+        except Exception as exc:  # noqa: BLE001
+            errs.append(f"{s}:{exc}")
+        time.sleep(0.12)
+    return {
+        "enabled": True,
+        "ok": ok_queries > 0,
+        "provider": "threads",
+        "error": "; ".join(errs[:4]) if errs else None,
+        "mentions": counts,
+        "sample_posts": total_posts,
+        "queries": len(syms),
+        "ok_queries": ok_queries,
+    }
+
+
+def collect_social_buzz_snapshot(
+    *,
+    now: datetime,
+    symbols: List[str],
+    x_max_results: int,
+    threads_max_symbols: int,
+) -> Dict[str, Any]:
+    syms = [s for s in symbols if s]
+    x_res = collect_x_social_mentions(
+        syms,
+        max_results=x_max_results,
+    )
+    th_res = collect_threads_social_mentions(
+        syms,
+        max_symbols=threads_max_symbols,
+    )
+    rows: List[Dict[str, Any]] = []
+    for s in syms:
+        x_row = (x_res.get("mentions", {}) or {}).get(s, {}) or {}
+        t_row = (th_res.get("mentions", {}) or {}).get(s, {}) or {}
+        x_mentions = int(round(float(x_row.get("mentions", 0.0) or 0.0)))
+        t_mentions = int(round(float(t_row.get("mentions", 0.0) or 0.0)))
+        x_score = float(x_row.get("score", 0.0) or 0.0)
+        t_score = float(t_row.get("score", 0.0) or 0.0)
+        score = x_score + t_score
+        mentions = x_mentions + t_mentions
+        if mentions <= 0 and score <= 0:
+            continue
+        rows.append(
+            {
+                "symbol": s,
+                "score": round(score, 3),
+                "mentions_total": int(mentions),
+                "x_mentions": int(x_mentions),
+                "threads_mentions": int(t_mentions),
+                "x_score": round(x_score, 3),
+                "threads_score": round(t_score, 3),
+            }
+        )
+    rows.sort(key=lambda r: (float(r.get("score", 0.0)), int(r.get("mentions_total", 0))), reverse=True)
+    rows = rows[:SOCIAL_BUZZ_TOP_KEEP]
+    return {
+        "at": iso_z(now),
+        "symbols_considered": len(syms),
+        "top_symbols": rows,
+        "providers": {
+            "x": {
+                "enabled": bool(x_res.get("enabled")),
+                "ok": bool(x_res.get("ok")),
+                "sample_posts": int(x_res.get("sample_posts", 0) or 0),
+                "error": x_res.get("error"),
+            },
+            "threads": {
+                "enabled": bool(th_res.get("enabled")),
+                "ok": bool(th_res.get("ok")),
+                "sample_posts": int(th_res.get("sample_posts", 0) or 0),
+                "queries": int(th_res.get("queries", 0) or 0),
+                "ok_queries": int(th_res.get("ok_queries", 0) or 0),
+                "error": th_res.get("error"),
+            },
+        },
+    }
+
+
+def append_social_buzz_history(
+    state: Dict[str, Any],
+    snapshot: Dict[str, Any],
+    keep: int = SOCIAL_BUZZ_HISTORY_KEEP,
+) -> None:
+    if not isinstance(snapshot, dict):
+        return
+    hist = list(state.get("social_buzz_history", []))
+    hist.append(snapshot)
+    state["social_buzz_history"] = hist[-max(50, int(keep)) :]
 
 
 def trend_sign(change24h: float | None) -> int:
@@ -4267,6 +4638,30 @@ def format_model_lab_line(model_diagnostics: Dict[str, Any] | None) -> str | Non
     return "ModelLab: " + " | ".join(parts)
 
 
+def format_social_buzz_line(social_buzz: Dict[str, Any] | None, top_n: int = 3) -> str | None:
+    row = dict(social_buzz or {})
+    top = row.get("top_symbols", []) or []
+    providers = row.get("providers", {}) or {}
+    x_enabled = bool((providers.get("x", {}) or {}).get("enabled", False))
+    t_enabled = bool((providers.get("threads", {}) or {}).get("enabled", False))
+    x_ok = bool((providers.get("x", {}) or {}).get("ok", False))
+    t_ok = bool((providers.get("threads", {}) or {}).get("ok", False))
+    if not top:
+        if not x_enabled and not t_enabled:
+            return None
+        if not x_ok and not t_ok:
+            return "SocialBuzz: unavailable (X/Threads credentials or API check needed)"
+        return "SocialBuzz: no dominant symbol mentions in current window"
+    parts: List[str] = []
+    for r in top[: max(1, int(top_n))]:
+        sym = str(r.get("symbol", "-"))
+        total = int(r.get("mentions_total", 0) or 0)
+        x_n = int(r.get("x_mentions", 0) or 0)
+        t_n = int(r.get("threads_mentions", 0) or 0)
+        parts.append(f"{sym}({total}, X{x_n}/T{t_n})")
+    return "SocialBuzz: " + " | ".join(parts)
+
+
 def make_message(
     run_ts: datetime,
     picks: List[Dict[str, Any]],
@@ -4280,6 +4675,7 @@ def make_message(
     model_governance_notes: List[str],
     model_recommendation: Dict[str, Any] | None,
     model_diagnostics: Dict[str, Any] | None,
+    social_buzz: Dict[str, Any] | None,
     missed_summary: Dict[str, Any] | None,
     risk_guard_status: Dict[str, Any] | None,
     message_style: str,
@@ -4354,6 +4750,9 @@ def make_message(
         lab_line = format_model_lab_line(model_diagnostics)
         if lab_line:
             lines.append(lab_line)
+        buzz_line = format_social_buzz_line(social_buzz, top_n=3)
+        if buzz_line:
+            lines.append(buzz_line)
         lines.append(f"Dashboard: {DASHBOARD_URL}")
         return "\n".join(lines)
 
@@ -4418,6 +4817,9 @@ def make_message(
     lab_line = format_model_lab_line(model_diagnostics)
     if lab_line:
         lines.append(lab_line)
+    buzz_line = format_social_buzz_line(social_buzz, top_n=5)
+    if buzz_line:
+        lines.append(buzz_line)
     lines.append(f"Dashboard: {DASHBOARD_URL}")
     return "\n".join(lines)
 
@@ -4630,6 +5032,33 @@ def run_cycle(args: argparse.Namespace, state: Dict[str, Any]) -> int:
     if picks:
         state["recommendation_history"].extend(picks)
         state["recommendation_history"] = state["recommendation_history"][-5000:]
+
+    social_buzz: Dict[str, Any] = {
+        "at": iso_z(run_ts),
+        "symbols_considered": 0,
+        "top_symbols": [],
+        "providers": {
+            "x": {"enabled": False, "ok": False, "error": "disabled"},
+            "threads": {"enabled": False, "ok": False, "error": "disabled"},
+        },
+    }
+    if not bool(getattr(args, "disable_social_buzz", False)):
+        social_symbols = build_social_symbol_universe(
+            picks=picks,
+            candidates=candidates,
+            bithumb=bithumb,
+            bitget=bitget,
+            max_symbols=int(getattr(args, "social_max_symbols", 16)),
+        )
+        social_buzz = collect_social_buzz_snapshot(
+            now=run_ts,
+            symbols=social_symbols,
+            x_max_results=int(getattr(args, "social_x_max_results", 80)),
+            threads_max_symbols=int(getattr(args, "social_threads_max_symbols", 8)),
+        )
+        append_social_buzz_history(state, social_buzz)
+        state.setdefault("meta", {})["last_social_buzz_at"] = iso_z(run_ts)
+        state["meta"]["last_social_buzz"] = social_buzz
 
     enrich_recommendations_with_market_signs(
         recommendation_history=state["recommendation_history"],
@@ -4886,6 +5315,7 @@ def run_cycle(args: argparse.Namespace, state: Dict[str, Any]) -> int:
         model_governance_notes=model_governance_notes,
         model_recommendation=model_recommendation,
         model_diagnostics=model_diagnostics,
+        social_buzz=social_buzz,
         missed_summary=missed_summary,
         risk_guard_status=risk_guard_status,
         message_style=args.message_style,
@@ -4943,6 +5373,7 @@ def run_cycle(args: argparse.Namespace, state: Dict[str, Any]) -> int:
             "model_metrics": model_metrics,
             "model_recommendation": model_recommendation,
             "model_diagnostics": model_diagnostics,
+            "social_buzz": social_buzz,
             "missed_audit": missed_summary,
             "risk_guard": dict(risk_guard_status),
             "assumed_costs": {
@@ -5103,6 +5534,10 @@ def parse_args() -> argparse.Namespace:
     p.add_argument("--weekly-ab-min-results", type=int, default=WEEKLY_AB_MIN_RESULTS)
     p.add_argument("--weekly-ab-min-profile-results", type=int, default=WEEKLY_AB_MIN_PROFILE_RESULTS)
     p.add_argument("--weekly-ab-min-model-results", type=int, default=WEEKLY_AB_MIN_MODEL_RESULTS)
+    p.add_argument("--disable-social-buzz", action="store_true")
+    p.add_argument("--social-max-symbols", type=int, default=16)
+    p.add_argument("--social-x-max-results", type=int, default=80)
+    p.add_argument("--social-threads-max-symbols", type=int, default=8)
     p.add_argument("--alerts-only", action="store_true")
     return p.parse_args()
 
@@ -5143,6 +5578,12 @@ def main() -> int:
     args.weekly_ab_lookback_hours = max(
         24,
         int(getattr(args, "weekly_ab_lookback_hours", WEEKLY_AB_LOOKBACK_HOURS)),
+    )
+    args.social_max_symbols = max(3, min(50, int(getattr(args, "social_max_symbols", 16))))
+    args.social_x_max_results = max(10, min(100, int(getattr(args, "social_x_max_results", 80))))
+    args.social_threads_max_symbols = max(
+        1,
+        min(args.social_max_symbols, int(getattr(args, "social_threads_max_symbols", 8))),
     )
     state_path = Path(args.state_file)
     history_path = Path(args.history_file)

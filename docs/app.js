@@ -856,6 +856,114 @@ function renderMarketScene(state) {
   }
 }
 
+function renderSocialBuzz(state) {
+  const body = $("socialBuzzBody");
+  const metaEl = $("socialBuzzMeta");
+  const sourceEl = $("socialBuzzSource");
+  if (!body) return;
+  body.innerHTML = "";
+
+  const runHistory = Array.isArray(state?.run_history) ? state.run_history : [];
+  const latestRun = runHistory[runHistory.length - 1] || {};
+  const buzzHistory = Array.isArray(state?.social_buzz_history) ? state.social_buzz_history : [];
+  const latestBuzz = latestRun?.social_buzz || state?.meta?.last_social_buzz || buzzHistory[buzzHistory.length - 1] || null;
+
+  if (!latestBuzz) {
+    const tr = document.createElement("tr");
+    tr.innerHTML = `<td colspan="7" class="muted">회자 종목 데이터가 아직 없습니다.</td>`;
+    body.appendChild(tr);
+    if (metaEl) metaEl.textContent = "최신 소셜 집계 없음";
+    if (sourceEl) sourceEl.textContent = "소스 상태: X/Threads 미수집";
+    return;
+  }
+
+  const rows = Array.isArray(latestBuzz?.top_symbols) ? latestBuzz.top_symbols : [];
+  if (!rows.length) {
+    const tr = document.createElement("tr");
+    tr.innerHTML = `<td colspan="7" class="muted">현재 구간에서 유의미한 회자 종목이 없습니다.</td>`;
+    body.appendChild(tr);
+  }
+
+  let prevBuzz = null;
+  const nowAt = String(latestBuzz?.at || "");
+  for (let i = buzzHistory.length - 1; i >= 0; i -= 1) {
+    const b = buzzHistory[i];
+    if (!b || !Array.isArray(b.top_symbols)) continue;
+    if (nowAt && String(b.at || "") === nowAt) continue;
+    prevBuzz = b;
+    break;
+  }
+  if (!prevBuzz && runHistory.length >= 2) {
+    for (let i = runHistory.length - 2; i >= 0; i -= 1) {
+      const b = runHistory[i]?.social_buzz;
+      if (b && Array.isArray(b.top_symbols)) {
+        prevBuzz = b;
+        break;
+      }
+    }
+  }
+  const prevRank = new Map();
+  if (prevBuzz && Array.isArray(prevBuzz.top_symbols)) {
+    prevBuzz.top_symbols.forEach((r, idx) => {
+      const sym = String(r?.symbol || "").toUpperCase();
+      if (!sym) return;
+      prevRank.set(sym, idx + 1);
+    });
+  }
+
+  for (let i = 0; i < rows.length; i += 1) {
+    const r = rows[i] || {};
+    const rankNow = i + 1;
+    const sym = String(r.symbol || "-").toUpperCase();
+    const score = Number(r.score);
+    const mention = Number(r.mentions_total);
+    const xMention = Number(r.x_mentions);
+    const tMention = Number(r.threads_mentions);
+    const oldRank = prevRank.has(sym) ? Number(prevRank.get(sym)) : null;
+
+    let deltaHtml = `<span class="delta-chip delta-flat">SAME</span>`;
+    if (!Number.isFinite(oldRank)) {
+      deltaHtml = `<span class="delta-chip delta-up">NEW</span>`;
+    } else if (oldRank > rankNow) {
+      deltaHtml = `<span class="delta-chip delta-up">UP ${oldRank - rankNow}</span>`;
+    } else if (oldRank < rankNow) {
+      deltaHtml = `<span class="delta-chip delta-down">DOWN ${rankNow - oldRank}</span>`;
+    }
+
+    const tr = document.createElement("tr");
+    tr.innerHTML = `
+      <td class="mono">${rankNow}</td>
+      <td class="mono">${sym} / ${symbolName(sym)}</td>
+      <td class="${Number.isFinite(score) && score > 0 ? "good" : ""}">${Number.isFinite(score) ? fmtNum(score, 3) : "-"}</td>
+      <td>${Number.isFinite(mention) ? Math.trunc(mention) : "-"}</td>
+      <td>${Number.isFinite(xMention) ? Math.trunc(xMention) : "-"}</td>
+      <td>${Number.isFinite(tMention) ? Math.trunc(tMention) : "-"}</td>
+      <td>${deltaHtml}</td>
+    `;
+    body.appendChild(tr);
+  }
+
+  if (metaEl) {
+    const tsTxt = fmtTime(latestBuzz?.at);
+    const n = Number(latestBuzz?.symbols_considered || 0);
+    metaEl.textContent = `집계시각 ${tsTxt} · 집계대상 ${Number.isFinite(n) ? n : 0}종목`;
+  }
+  if (sourceEl) {
+    const p = latestBuzz?.providers || {};
+    const x = p.x || {};
+    const t = p.threads || {};
+    const xTxt = !x.enabled
+      ? "X off"
+      : (x.ok ? `X ok(posts ${Number(x.sample_posts || 0)})` : `X err(${String(x.error || "unknown")})`);
+    const tTxt = !t.enabled
+      ? "Threads off"
+      : (t.ok
+        ? `Threads ok(posts ${Number(t.sample_posts || 0)}, q ${Number(t.ok_queries || 0)}/${Number(t.queries || 0)})`
+        : `Threads err(${String(t.error || "unknown")})`);
+    sourceEl.textContent = `소스 상태: ${xTxt} | ${tTxt}`;
+  }
+}
+
 function normalizeAnalyzeSymbol(raw) {
   const cleaned = String(raw || "")
     .toUpperCase()
@@ -1888,6 +1996,7 @@ async function loadAndRender() {
     const results = state.results || [];
     renderKpis(state, results);
     renderMarketScene(state);
+    renderSocialBuzz(state);
     renderMarketIndicators(state);
     renderSymbolCorrelations(state);
     renderTrend(state);

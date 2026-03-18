@@ -198,6 +198,7 @@
       <h3>13) 텔레그램 출력 규칙(컴팩트)</h3>
       <ul class="timeline">
         <li>추천 라인: <code>심볼 | LONG/SHORT | score | funding | OI</code> 형식으로 전송합니다.</li>
+        <li>소셜 라인: X/Threads 회자 상위 종목을 <code>SocialBuzz: 심볼(총언급, X/T)</code> 형식으로 추가 전송합니다.</li>
         <li>손실 발생 시 별도 경고 메시지(종목/방향/실시간 손익률)를 추가 전송합니다.</li>
         <li>쿨다운으로 제외된 종목 수는 <code>Risk block</code> 라인으로 함께 안내합니다.</li>
       </ul>
@@ -229,6 +230,19 @@
         <li>트리거: 최근 24시간 누적 순수익률이 임계치 이하이거나 연속 손실 횟수가 임계치 이상일 때.</li>
         <li>트리거 시 일정 시간 신규 추천을 일시 중지하고, 손실 경고/성과 검증은 계속 수행합니다.</li>
         <li>중지 사유/표본/누적수익률/연속손실은 run_history 및 텔레그램 요약에 기록됩니다.</li>
+      </ul>
+    </section>
+
+    <section class="card logic-card">
+      <h3>17) X/Threads 회자 종목 집계</h3>
+      <ul class="timeline">
+        <li>수집원: X Recent Search(<code>X_BEARER_TOKEN</code>), Threads 키워드 검색(<code>THREADS_ACCESS_TOKEN</code>).</li>
+        <li>심볼 유니버스: 최근 추천/후보/시장 심볼 + 기본 메이저 심볼 세트를 합쳐 상위 N개를 집계합니다.</li>
+        <li>매칭 규칙: <code>$BTC</code> 같은 cashtag, <code>#BTC</code> 해시태그, 메이저 bare-symbol 텍스트를 함께 카운트합니다.</li>
+        <li>점수화: 각 포스트의 언급 수에 소셜 반응(좋아요/리트윗/댓글 등) 가중치를 더해 통합점수를 만듭니다.</li>
+        <li>저장: <code>social_buzz_history</code>, <code>meta.last_social_buzz</code>, <code>run_history[*].social_buzz</code>에 누적합니다.</li>
+        <li>대시보드: 시장 탭에 <code>X/Threads 회자 종목</code> 카드로 랭크/언급수/이전 대비 순위 변화를 표시합니다.</li>
+        <li>API 키가 없으면 해당 소스는 <code>off</code>로 표기하고, 둘 다 미설정 시 텔레그램 소셜 라인은 생략합니다.</li>
       </ul>
     </section>
   </main>

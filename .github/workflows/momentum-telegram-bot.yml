@@ -48,6 +48,10 @@ jobs:
         env:
           TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
           TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+          X_BEARER_TOKEN: ${{ secrets.X_BEARER_TOKEN }}
+          THREADS_ACCESS_TOKEN: ${{ secrets.THREADS_ACCESS_TOKEN }}
+          THREADS_KEYWORD_SEARCH_URL_TEMPLATE: ${{ secrets.THREADS_KEYWORD_SEARCH_URL_TEMPLATE }}
+          THREADS_GRAPH_BASE_URL: ${{ secrets.THREADS_GRAPH_BASE_URL }}
           EXECUTION_PROFILE_INPUT: ${{ github.event.inputs.execution_profile || '' }}
         run: |
           EXTRA_ARGS=()
@@ -130,6 +134,10 @@ jobs:
         env:
           TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
           TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+          X_BEARER_TOKEN: ${{ secrets.X_BEARER_TOKEN }}
+          THREADS_ACCESS_TOKEN: ${{ secrets.THREADS_ACCESS_TOKEN }}
+          THREADS_KEYWORD_SEARCH_URL_TEMPLATE: ${{ secrets.THREADS_KEYWORD_SEARCH_URL_TEMPLATE }}
+          THREADS_GRAPH_BASE_URL: ${{ secrets.THREADS_GRAPH_BASE_URL }}
         run: |
           set +e
           RC=1

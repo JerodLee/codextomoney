@@ -75,6 +75,10 @@ Set repository secrets:
 
 - `TELEGRAM_BOT_TOKEN`
 - `TELEGRAM_CHAT_ID`
+- `X_BEARER_TOKEN` (optional, X 회자 종목 집계)
+- `THREADS_ACCESS_TOKEN` (optional, Threads 회자 종목 집계)
+- `THREADS_KEYWORD_SEARCH_URL_TEMPLATE` (optional, Threads 키워드 검색 URL 템플릿)
+- `THREADS_GRAPH_BASE_URL` (optional, default: `https://graph.threads.net/v1.0`)
 
 ## Validation and calibration
 
@@ -144,6 +148,15 @@ python momentum_telegram_agent.py \
   --watch \
   --interval-sec 15 \
   --cycles 14
+```
+
+Social buzz aggregation options:
+
+```bash
+python momentum_telegram_agent.py \
+  --social-max-symbols 16 \
+  --social-x-max-results 80 \
+  --social-threads-max-symbols 8
 ```
 
 ## Notes
