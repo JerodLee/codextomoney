@@ -55,6 +55,12 @@ function fmtPctValue(v, d = 2) {
   return `${x.toFixed(d)}%`;
 }
 
+function fmtSignedPctValue(v, d = 2) {
+  const x = Number(v);
+  if (!Number.isFinite(x)) return "-";
+  return `${x >= 0 ? "+" : ""}${x.toFixed(d)}%`;
+}
+
 function fmtFunding(v) {
   const x = Number(v);
   if (!Number.isFinite(x)) return "-";
@@ -559,6 +565,293 @@ function buildSvgLine(svgEl, points, stroke = "#0e8a7b", dot = "#ff9e57") {
     <path d="${path}" fill="none" stroke="${stroke}" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"></path>
     <circle cx="${xy[xy.length - 1].x.toFixed(2)}" cy="${xy[xy.length - 1].y.toFixed(2)}" r="4.8" fill="${dot}"></circle>
   `;
+}
+
+function renderMarketScene(state) {
+  const sceneEl = $("marketScene");
+  const legendEl = $("marketSceneLegend");
+  const metaEl = $("marketSceneMeta");
+  if (!sceneEl) return;
+
+  if (legendEl) legendEl.innerHTML = "";
+  if (metaEl) metaEl.textContent = "시장 입체 그래프를 계산 중입니다...";
+
+  const runHistory = Array.isArray(state?.run_history) ? state.run_history : [];
+  const latestRun = runHistory[runHistory.length - 1] || {};
+  const indicators = latestRun?.market_indicators || null;
+  const recs = Array.isArray(state?.recommendation_history) ? state.recommendation_history : [];
+
+  if (!indicators) {
+    sceneEl.innerHTML = `<text x="18" y="32" fill="#5c6a72" font-size="14">시장 데이터가 아직 없습니다.</text>`;
+    if (metaEl) metaEl.textContent = "최신 run에 market_indicators가 없어 그래프를 만들 수 없습니다.";
+    return;
+  }
+
+  const WEIGHTS = {
+    "24h": 0.22,
+    "12h": 0.18,
+    "6h": 0.16,
+    "1h": 0.14,
+    "15m": 0.12,
+    "5m": 0.10,
+    "1m": 0.08,
+  };
+  const clamp = (v, lo, hi) => Math.max(lo, Math.min(hi, v));
+  const finiteOrNull = (v) => {
+    const x = Number(v);
+    return Number.isFinite(x) ? x : null;
+  };
+  const avg = (arr) => {
+    const vals = (arr || []).map((x) => Number(x)).filter((x) => Number.isFinite(x));
+    if (!vals.length) return null;
+    return vals.reduce((a, b) => a + b, 0) / vals.length;
+  };
+  const normalize = (value, min, max, fallback = 0.5) => {
+    if (!Number.isFinite(value)) return fallback;
+    if (!Number.isFinite(min) || !Number.isFinite(max) || Math.abs(max - min) < 1e-9) {
+      return fallback;
+    }
+    return clamp((value - min) / (max - min), 0, 1);
+  };
+  const weightedMomentum = (entry) => {
+    if (!entry || typeof entry !== "object") return null;
+    const changes = { ...(entry.changes || {}) };
+    const c24 = finiteOrNull(entry.change24h);
+    if (!Number.isFinite(Number(changes["24h"])) && c24 != null) {
+      changes["24h"] = c24;
+    }
+    let num = 0;
+    let den = 0;
+    for (const [k, w] of Object.entries(WEIGHTS)) {
+      const v = finiteOrNull(changes[k]);
+      if (v == null) continue;
+      num += v * w;
+      den += w;
+    }
+    if (den <= 0) return null;
+    return num / den;
+  };
+  const turbulence = (entry, momentumFallback) => {
+    if (!entry || typeof entry !== "object") return momentumFallback == null ? 0 : Math.abs(momentumFallback) * 0.35;
+    const changes = { ...(entry.changes || {}) };
+    const c24 = finiteOrNull(entry.change24h);
+    if (!Number.isFinite(Number(changes["24h"])) && c24 != null) {
+      changes["24h"] = c24;
+    }
+    const vals = MARKET_CHANGE_KEYS
+      .map((k) => finiteOrNull(changes[k]))
+      .filter((x) => x != null);
+    if (!vals.length) return momentumFallback == null ? 0 : Math.abs(momentumFallback) * 0.35;
+    const mean = vals.reduce((a, b) => a + b, 0) / vals.length;
+    const mad = vals.reduce((a, b) => a + Math.abs(b - mean), 0) / vals.length;
+    return mad + (momentumFallback == null ? 0 : Math.abs(momentumFallback) * 0.2);
+  };
+
+  const concentration = indicators.concentration || {};
+  const marketMom = weightedMomentum(indicators.market || {});
+  const btcMom = weightedMomentum(indicators.btc || {});
+  const ethMom = weightedMomentum(indicators.eth || {});
+  const marketRisk = turbulence(indicators.market || {}, marketMom);
+  const btcRisk = turbulence(indicators.btc || {}, btcMom);
+  const ethRisk = turbulence(indicators.eth || {}, ethMom);
+
+  const baseNodes = [
+    {
+      id: "market",
+      label: "시장",
+      type: "core",
+      color: "#0e8a7b",
+      momentum: marketMom,
+      risk: marketRisk,
+      liquidity: 1,
+    },
+    {
+      id: "btc",
+      label: "BTC",
+      type: "core",
+      color: "#f59d28",
+      momentum: btcMom,
+      risk: btcRisk,
+      liquidity: finiteOrNull(concentration.btc_share) ?? 0.45,
+    },
+    {
+      id: "eth",
+      label: "ETH",
+      type: "core",
+      color: "#3668ff",
+      momentum: ethMom,
+      risk: ethRisk,
+      liquidity: finiteOrNull(concentration.eth_share) ?? 0.25,
+    },
+  ];
+  const altShare = finiteOrNull(concentration.alt_share);
+  if (altShare != null && altShare > 0.01) {
+    const coreMean = avg([marketMom, btcMom, ethMom]);
+    const altMom = marketMom != null && coreMean != null ? marketMom - coreMean * 0.45 : marketMom;
+    const altRisk = avg([marketRisk, btcRisk, ethRisk]) ?? 0;
+    baseNodes.push({
+      id: "alt",
+      label: "ALT",
+      type: "core",
+      color: "#7f8f2f",
+      momentum: altMom,
+      risk: altRisk,
+      liquidity: altShare,
+    });
+  }
+
+  const sortedPicks = [...recs].sort((a, b) => new Date(b?.created_at || 0) - new Date(a?.created_at || 0));
+  const seenSymbols = new Set();
+  const pickNodes = [];
+  for (const p of sortedPicks) {
+    const symbol = String(p?.symbol || "").toUpperCase().trim();
+    if (!symbol || seenSymbols.has(symbol)) continue;
+    seenSymbols.add(symbol);
+
+    const bRate = finiteOrNull(p?.b_rate24h);
+    const gRate = finiteOrNull(p?.g_rate24h);
+    const momentum = avg([bRate, gRate]);
+    if (momentum == null) continue;
+
+    const funding = Math.abs(finiteOrNull(p?.g_funding_rate) ?? 0) * 10000;
+    const oi = finiteOrNull(p?.g_open_interest);
+    const oiScore = oi != null && oi > 0 ? clamp(Math.log10(oi + 1) / 7, 0, 1) : 0;
+    const score = finiteOrNull(p?.score) ?? 0;
+    const confidence = clamp(score, 0, 1);
+    const risk = funding + Math.abs(momentum) * 0.08 + oiScore + confidence * 0.8;
+
+    const bValue = finiteOrNull(p?.b_value24h);
+    const gVol = finiteOrNull(p?.g_volume24h);
+    const liqB = bValue != null && bValue > 0 ? Math.log10(bValue + 1) : 0;
+    const liqG = gVol != null && gVol > 0 ? Math.log10(gVol + 1) : 0;
+    const liquidity = liqB * 0.55 + liqG * 0.45;
+
+    const side = sideOf(p);
+    pickNodes.push({
+      id: `pick-${symbol}`,
+      label: symbol,
+      type: "pick",
+      side,
+      color: side === "SHORT" ? "#d55252" : "#159a5b",
+      momentum,
+      risk,
+      liquidity,
+      score: confidence,
+    });
+    if (pickNodes.length >= 10) break;
+  }
+
+  const nodes = [...baseNodes, ...pickNodes].filter((n) => n.momentum != null);
+  if (!nodes.length) {
+    sceneEl.innerHTML = `<text x="18" y="32" fill="#5c6a72" font-size="14">시각화할 포인트가 아직 없습니다.</text>`;
+    if (metaEl) metaEl.textContent = "추천 또는 시장 인디케이터 축 데이터가 부족합니다.";
+    return;
+  }
+
+  const maxAbsMomentum = Math.max(1, ...nodes.map((n) => Math.abs(Number(n.momentum) || 0)));
+  const riskVals = nodes.map((n) => Number(n.risk) || 0);
+  const liqVals = nodes.map((n) => Number(n.liquidity) || 0);
+  const riskMin = Math.min(...riskVals);
+  const riskMax = Math.max(...riskVals);
+  const liqMin = Math.min(...liqVals);
+  const liqMax = Math.max(...liqVals);
+
+  for (const n of nodes) {
+    n.xn = clamp((Number(n.momentum) || 0) / maxAbsMomentum, -1, 1);
+    n.yn = normalize(Number(n.risk) || 0, riskMin, riskMax, 0.42);
+    n.zn = normalize(Number(n.liquidity) || 0, liqMin, liqMax, n.type === "core" ? 0.68 : 0.45);
+  }
+
+  const project = (x, y, z) => {
+    const px = 480 + x * 248 + (z - 0.5) * 190;
+    const py = 318 - y * 186 - (z - 0.5) * 108;
+    return { x: px, y: py };
+  };
+  const pointPath = (arr) => arr.map((p, idx) => `${idx ? "L" : "M"}${p.x.toFixed(2)} ${p.y.toFixed(2)}`).join(" ");
+
+  const floor = [
+    project(-1, 0, 0),
+    project(1, 0, 0),
+    project(1, 0, 1),
+    project(-1, 0, 1),
+  ];
+  const xAxisA = project(-1, 0, 0);
+  const xAxisB = project(1, 0, 0);
+  const yAxisA = project(-1, 0, 0);
+  const yAxisB = project(-1, 1, 0);
+  const zAxisA = project(1, 0, 0);
+  const zAxisB = project(1, 0, 1);
+
+  const gridParts = [];
+  for (const y of [0.25, 0.5, 0.75]) {
+    const p = [project(-1, y, 0), project(1, y, 0), project(1, y, 1), project(-1, y, 1), project(-1, y, 0)];
+    gridParts.push(`<path d="${pointPath(p)}" fill="none" stroke="#cfe0df" stroke-width="1" />`);
+  }
+  for (const x of [-0.5, 0, 0.5]) {
+    const p = [project(x, 0, 0), project(x, 1, 0), project(x, 1, 1), project(x, 0, 1)];
+    gridParts.push(`<path d="${pointPath(p)}" fill="none" stroke="#d9e7e7" stroke-width="1" />`);
+  }
+  for (const z of [0.25, 0.5, 0.75]) {
+    const p = [project(-1, 0, z), project(-1, 1, z), project(1, 1, z), project(1, 0, z)];
+    gridParts.push(`<path d="${pointPath(p)}" fill="none" stroke="#e0ecec" stroke-width="1" />`);
+  }
+
+  const nodesSorted = [...nodes].sort((a, b) => a.zn - b.zn);
+  const nodeParts = [];
+  for (const n of nodesSorted) {
+    const p = project(n.xn, n.yn, n.zn);
+    const shadow = project(n.xn, 0, n.zn);
+    const radius = (n.type === "core" ? 7 : 4.5) + n.zn * 4.8;
+    const label = n.type === "pick" ? `${n.label} ${n.side === "SHORT" ? "S" : "L"}` : n.label;
+    const tx = p.x + (n.xn >= 0 ? 10 : -10);
+    const ty = p.y - (n.type === "core" ? 12 : 8);
+    const anchor = n.xn >= 0 ? "start" : "end";
+    nodeParts.push(`<line x1="${p.x.toFixed(2)}" y1="${p.y.toFixed(2)}" x2="${shadow.x.toFixed(2)}" y2="${shadow.y.toFixed(2)}" stroke="#d2dddd" stroke-width="1" stroke-dasharray="3 3" />`);
+    nodeParts.push(`<circle cx="${p.x.toFixed(2)}" cy="${p.y.toFixed(2)}" r="${radius.toFixed(2)}" fill="${n.color}" fill-opacity="${n.type === "core" ? "0.92" : "0.82"}" stroke="#ffffff" stroke-width="1.6" />`);
+    nodeParts.push(`<text x="${tx.toFixed(2)}" y="${ty.toFixed(2)}" text-anchor="${anchor}" font-size="${n.type === "core" ? "13" : "11"}" font-weight="${n.type === "core" ? "700" : "600"}" fill="#243238">${label}</text>`);
+  }
+
+  sceneEl.innerHTML = `
+    <defs>
+      <linearGradient id="sceneFloorGrad" x1="0" y1="0" x2="0" y2="1">
+        <stop offset="0%" stop-color="#f4fbfa" />
+        <stop offset="100%" stop-color="#e9f2f1" />
+      </linearGradient>
+    </defs>
+    <rect x="0" y="0" width="960" height="400" fill="transparent"></rect>
+    <polygon points="${floor.map((p) => `${p.x.toFixed(2)},${p.y.toFixed(2)}`).join(" ")}" fill="url(#sceneFloorGrad)" stroke="#d3e1df" stroke-width="1.2"></polygon>
+    ${gridParts.join("")}
+    <line x1="${xAxisA.x.toFixed(2)}" y1="${xAxisA.y.toFixed(2)}" x2="${xAxisB.x.toFixed(2)}" y2="${xAxisB.y.toFixed(2)}" stroke="#97aeb3" stroke-width="2"></line>
+    <line x1="${yAxisA.x.toFixed(2)}" y1="${yAxisA.y.toFixed(2)}" x2="${yAxisB.x.toFixed(2)}" y2="${yAxisB.y.toFixed(2)}" stroke="#97aeb3" stroke-width="2"></line>
+    <line x1="${zAxisA.x.toFixed(2)}" y1="${zAxisA.y.toFixed(2)}" x2="${zAxisB.x.toFixed(2)}" y2="${zAxisB.y.toFixed(2)}" stroke="#97aeb3" stroke-width="2"></line>
+    <text x="${(xAxisB.x + 10).toFixed(2)}" y="${(xAxisB.y + 6).toFixed(2)}" font-size="12" fill="#526069">모멘텀</text>
+    <text x="${(yAxisB.x - 2).toFixed(2)}" y="${(yAxisB.y - 10).toFixed(2)}" font-size="12" fill="#526069">리스크</text>
+    <text x="${(zAxisB.x + 8).toFixed(2)}" y="${(zAxisB.y - 6).toFixed(2)}" font-size="12" fill="#526069">유동성</text>
+    ${nodeParts.join("")}
+  `;
+
+  if (legendEl) {
+    const hasAlt = nodes.some((n) => n.id === "alt");
+    const chips = [
+      { label: "시장/BTC/ETH", color: "#0e8a7b" },
+      ...(hasAlt ? [{ label: "ALT 클러스터", color: "#7f8f2f" }] : []),
+      { label: "추천 LONG", color: "#159a5b" },
+      { label: "추천 SHORT", color: "#d55252" },
+    ];
+    legendEl.innerHTML = chips
+      .map((c) => `<span class="scene-chip"><span class="scene-dot" style="background:${c.color}"></span>${c.label}</span>`)
+      .join("");
+  }
+
+  if (metaEl) {
+    const marketNode = nodes.find((n) => n.id === "market");
+    const riskiest = [...pickNodes].sort((a, b) => (Number(b.risk) || 0) - (Number(a.risk) || 0))[0];
+    const deepest = [...pickNodes].sort((a, b) => (Number(b.liquidity) || 0) - (Number(a.liquidity) || 0))[0];
+    const parts = [`시장 모멘텀 ${fmtSignedPctValue(marketNode?.momentum, 2)}`];
+    if (riskiest) parts.push(`리스크 상단 ${riskiest.label}(${riskiest.side})`);
+    if (deepest) parts.push(`유동성 상단 ${deepest.label}(${deepest.side})`);
+    metaEl.textContent = `입체 맵 해석: ${parts.join(" | ")}.`;
+  }
 }
 
 function renderRules(cfg) {
@@ -1362,6 +1655,7 @@ async function loadAndRender() {
     const { data: state, url } = await fetchJsonNewest(urls);
     const results = state.results || [];
     renderKpis(state, results);
+    renderMarketScene(state);
     renderMarketIndicators(state);
     renderSymbolCorrelations(state);
     renderTrend(state);
