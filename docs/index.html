@@ -63,6 +63,26 @@
         <article class="card kpi"><p class="k">최근 보정 효과</p><p id="kUplift" class="v">-</p></article>
       </section>
 
+      <section class="card compact-card">
+        <div class="card-head">
+          <h2>종목 즉시 분석 (Bitget)</h2>
+          <p class="muted">종목 입력 시 차트 + 성과/리스크 요약</p>
+        </div>
+        <div class="symbol-analyzer-form">
+          <label>종목
+            <input id="symbolAnalyzeInput" type="text" placeholder="예: BTC, ETH, TAO" />
+          </label>
+          <button id="symbolAnalyzeBtn" class="btn" type="button">분석</button>
+        </div>
+        <p id="symbolAnalyzeStatus" class="status muted">-</p>
+        <div class="symbol-analyzer-grid">
+          <div class="chart-frame-wrap">
+            <iframe id="bitgetChartFrame" title="Bitget Futures Chart" loading="lazy" referrerpolicy="no-referrer-when-downgrade"></iframe>
+          </div>
+          <div id="symbolAnalysisBody" class="symbol-analysis-body"></div>
+        </div>
+      </section>
+
       <section class="split">
         <article class="card compact-card">
           <div class="card-head">
@@ -239,6 +259,6 @@
   </nav>
 
   <script src="./pwa.js?v=20260316-2"></script>
-  <script src="./app.js?v=20260319-2"></script>
+  <script src="./app.js?v=20260319-3"></script>
 </body>
 </html>

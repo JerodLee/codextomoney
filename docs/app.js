@@ -32,6 +32,8 @@ const SYMBOL_NAME_MAP = {
   TRUMP: "Official Trump",
   RESOLV: "Resolv",
 };
+let latestLoadedState = null;
+let selectedAnalyzeSymbol = "BTC";
 
 function fmtPct(v) {
   return `${(v * 100).toFixed(2)}%`;
@@ -854,6 +856,235 @@ function renderMarketScene(state) {
   }
 }
 
+function normalizeAnalyzeSymbol(raw) {
+  const cleaned = String(raw || "")
+    .toUpperCase()
+    .trim()
+    .replace(/[^A-Z0-9]/g, "");
+  if (!cleaned) return "";
+  const noSuffix = cleaned.replace(/USDT(P|M)?$/, "");
+  return noSuffix || cleaned;
+}
+
+function buildBitgetChartEmbedUrl(symbolBase) {
+  const base = normalizeAnalyzeSymbol(symbolBase) || "BTC";
+  const tvSymbol = `BITGET:${base}USDT.P`;
+  const params = new URLSearchParams({
+    symbol: tvSymbol,
+    interval: "15",
+    theme: "light",
+    style: "1",
+    locale: "kr",
+    timezone: "Asia/Seoul",
+    withdateranges: "1",
+    hide_top_toolbar: "0",
+    hide_side_toolbar: "0",
+    allow_symbol_change: "0",
+    saveimage: "0",
+    toolbarbg: "f1f3f6",
+    hideideas: "1",
+  });
+  return `https://s.tradingview.com/widgetembed/?${params.toString()}`;
+}
+
+function analyzeSymbolFromState(state, symbolBase) {
+  const sym = normalizeAnalyzeSymbol(symbolBase);
+  const recsAll = Array.isArray(state?.recommendation_history) ? state.recommendation_history : [];
+  const resultsAll = Array.isArray(state?.results) ? state.results : [];
+  const recs = recsAll.filter((r) => String(r?.symbol || "").toUpperCase() === sym);
+  const results = resultsAll.filter((r) => String(r?.symbol || "").toUpperCase() === sym);
+
+  const sortedRecs = [...recs].sort((a, b) => new Date(b?.created_at || 0) - new Date(a?.created_at || 0));
+  const sortedResults = [...results].sort((a, b) => new Date(b?.evaluated_at || 0) - new Date(a?.evaluated_at || 0));
+  const latestRec = sortedRecs[0] || null;
+  const latestEval = sortedResults[0] || null;
+
+  const winCount = sortedResults.filter((r) => Boolean(r?.win)).length;
+  const winRateVal = sortedResults.length ? (winCount / sortedResults.length) : null;
+  const returns = sortedResults
+    .map((r) => Number(r?.return_blended))
+    .filter((x) => Number.isFinite(x));
+  const avgRet = returns.length ? (returns.reduce((a, b) => a + b, 0) / returns.length) : null;
+  const medianRet = (() => {
+    if (!returns.length) return null;
+    const arr = [...returns].sort((a, b) => a - b);
+    const m = Math.floor(arr.length / 2);
+    return arr.length % 2 === 1 ? arr[m] : (arr[m - 1] + arr[m]) / 2;
+  })();
+
+  const longCount = sortedRecs.filter((r) => sideOf(r) === "LONG").length;
+  const shortCount = sortedRecs.filter((r) => sideOf(r) === "SHORT").length;
+  let sideBias = "Balanced";
+  if (longCount > shortCount) sideBias = `LONG bias (${longCount}:${shortCount})`;
+  if (shortCount > longCount) sideBias = `SHORT bias (${longCount}:${shortCount})`;
+
+  const modelCounter = new Map();
+  for (const r of sortedRecs) {
+    const m = modelOf(r);
+    modelCounter.set(m, (modelCounter.get(m) || 0) + 1);
+  }
+  const topModels = [...modelCounter.entries()]
+    .sort((a, b) => b[1] - a[1])
+    .slice(0, 3)
+    .map(([m, n]) => `${modelShortLabel(m)}(${n})`);
+
+  const latestMomentum24h = latestRec
+    ? (() => {
+      const b = Number(latestRec?.b_rate24h);
+      const g = Number(latestRec?.g_rate24h);
+      const vals = [b, g].filter((x) => Number.isFinite(x));
+      if (!vals.length) return null;
+      return vals.reduce((a, b2) => a + b2, 0) / vals.length;
+    })()
+    : null;
+
+  const fundingAbs = latestRec ? Math.abs(Number(latestRec?.g_funding_rate || 0)) : null;
+  const moveAbs = latestMomentum24h == null ? null : Math.abs(latestMomentum24h);
+  let riskTag = "Neutral";
+  if (fundingAbs != null && moveAbs != null) {
+    if (fundingAbs >= 0.003 || moveAbs >= 20) riskTag = "Overheat / High";
+    else if (fundingAbs >= 0.001 || moveAbs >= 10) riskTag = "Caution";
+    else if (fundingAbs <= 0.0003 && moveAbs <= 4) riskTag = "Stable";
+  }
+
+  return {
+    symbol: sym,
+    recCount: sortedRecs.length,
+    evalCount: sortedResults.length,
+    winCount,
+    winRate: winRateVal,
+    avgReturn: avgRet,
+    medianReturn: medianRet,
+    longCount,
+    shortCount,
+    sideBias,
+    topModels,
+    latestRec,
+    latestEval,
+    latestMomentum24h,
+    riskTag,
+  };
+}
+
+function renderSymbolAnalyzer(state, rawSymbol) {
+  const inputEl = $("symbolAnalyzeInput");
+  const frameEl = $("bitgetChartFrame");
+  const statusEl = $("symbolAnalyzeStatus");
+  const bodyEl = $("symbolAnalysisBody");
+  if (!inputEl || !frameEl || !statusEl || !bodyEl) return;
+
+  const sym = normalizeAnalyzeSymbol(rawSymbol || inputEl.value || selectedAnalyzeSymbol || "BTC");
+  if (!sym) {
+    statusEl.textContent = "Enter a symbol code like BTC, ETH, TAO.";
+    statusEl.className = "status bad";
+    bodyEl.innerHTML = `<p class="muted">Type a symbol and click Analyze.</p>`;
+    return;
+  }
+
+  selectedAnalyzeSymbol = sym;
+  if (inputEl.value !== sym) inputEl.value = sym;
+  try {
+    localStorage.setItem("momentum_symbol_analyzer", sym);
+  } catch (_) {
+    // no-op
+  }
+
+  const chartUrl = buildBitgetChartEmbedUrl(sym);
+  if (frameEl.src !== chartUrl) frameEl.src = chartUrl;
+
+  if (!state) {
+    statusEl.textContent = `${sym}USDT chart loaded. Waiting for dashboard state to complete analysis.`;
+    statusEl.className = "status muted";
+    bodyEl.innerHTML = `<p class="muted">State data is loading...</p>`;
+    return;
+  }
+
+  const stats = analyzeSymbolFromState(state, sym);
+  const wrTxt = stats.winRate == null ? "-" : fmtPct(stats.winRate);
+  const wrCls = stats.winRate == null ? "" : (stats.winRate >= 0.5 ? "good" : "bad");
+  const avgTxt = stats.avgReturn == null ? "-" : fmtPct(stats.avgReturn);
+  const avgCls = stats.avgReturn == null ? "" : (stats.avgReturn >= 0 ? "good" : "bad");
+  const medTxt = stats.medianReturn == null ? "-" : fmtPct(stats.medianReturn);
+  const medCls = stats.medianReturn == null ? "" : (stats.medianReturn >= 0 ? "good" : "bad");
+  const latestSide = stats.latestRec ? sideOf(stats.latestRec) : "-";
+  const latestSideCls = latestSide === "LONG" ? "good" : (latestSide === "SHORT" ? "bad" : "");
+  const latestScore = Number.isFinite(Number(stats.latestRec?.score)) ? fmtNum(Number(stats.latestRec.score), 3) : "-";
+  const latestFunding = Number.isFinite(Number(stats.latestRec?.g_funding_rate))
+    ? fmtFunding(stats.latestRec?.g_funding_rate)
+    : "-";
+  const latestOi = Number.isFinite(Number(stats.latestRec?.g_open_interest))
+    ? fmtOi(stats.latestRec?.g_open_interest)
+    : "-";
+  const latestMom24h = stats.latestMomentum24h == null ? "-" : fmtSignedPctValue(stats.latestMomentum24h, 2);
+  const latestEvalRet = Number.isFinite(Number(stats.latestEval?.return_blended))
+    ? fmtPct(Number(stats.latestEval.return_blended))
+    : "-";
+  const latestEvalCls = Number.isFinite(Number(stats.latestEval?.return_blended))
+    ? (Number(stats.latestEval.return_blended) >= 0 ? "good" : "bad")
+    : "";
+  const modelText = stats.topModels.length ? stats.topModels.join(", ") : "-";
+
+  const lines = [];
+  lines.push(`Recommendations ${stats.recCount}, evaluations ${stats.evalCount}, wins ${stats.winCount}`);
+  lines.push(`Direction bias: ${stats.sideBias}`);
+  lines.push(`Active model mix: ${modelText}`);
+  if (stats.latestRec) {
+    lines.push(
+      `Latest signal: ${fmtTime(stats.latestRec.created_at)} | ${latestSide} | score ${latestScore} | 24h ${latestMom24h}`
+    );
+    lines.push(`Funding ${latestFunding} | OI ${latestOi} | Risk ${stats.riskTag}`);
+  }
+  if (stats.latestEval) {
+    lines.push(`Latest evaluation: ${fmtTime(stats.latestEval.evaluated_at)} | return ${latestEvalRet}`);
+  }
+
+  statusEl.textContent = `${sym}USDT (Bitget Perpetual) chart + internal recommendation analytics`;
+  statusEl.className = "status good";
+
+  bodyEl.innerHTML = `
+    <div class="analysis-kpis">
+      <article class="analysis-kpi"><p class="k">Win Rate</p><p class="v ${wrCls}">${wrTxt}</p></article>
+      <article class="analysis-kpi"><p class="k">Avg Return</p><p class="v ${avgCls}">${avgTxt}</p></article>
+      <article class="analysis-kpi"><p class="k">Median Return</p><p class="v ${medCls}">${medTxt}</p></article>
+      <article class="analysis-kpi"><p class="k">Latest Side</p><p class="v ${latestSideCls}">${latestSide}</p></article>
+      <article class="analysis-kpi"><p class="k">Latest Score</p><p class="v">${latestScore}</p></article>
+      <article class="analysis-kpi"><p class="k">Latest Eval Return</p><p class="v ${latestEvalCls}">${latestEvalRet}</p></article>
+    </div>
+    <p class="analysis-note"><strong>${sym}</strong> (${symbolName(sym)}) quick analysis</p>
+    <ul class="analysis-list">
+      ${lines.map((line) => `<li>${line}</li>`).join("")}
+    </ul>
+  `;
+}
+
+function setupSymbolAnalyzer() {
+  const inputEl = $("symbolAnalyzeInput");
+  const buttonEl = $("symbolAnalyzeBtn");
+  if (!inputEl || !buttonEl) return;
+
+  try {
+    const saved = normalizeAnalyzeSymbol(localStorage.getItem("momentum_symbol_analyzer") || "");
+    if (saved) selectedAnalyzeSymbol = saved;
+  } catch (_) {
+    // no-op
+  }
+  inputEl.value = selectedAnalyzeSymbol;
+
+  const submit = () => {
+    const sym = normalizeAnalyzeSymbol(inputEl.value || selectedAnalyzeSymbol);
+    renderSymbolAnalyzer(latestLoadedState, sym);
+  };
+
+  buttonEl.addEventListener("click", submit);
+  inputEl.addEventListener("keydown", (evt) => {
+    if (evt.key !== "Enter") return;
+    evt.preventDefault();
+    submit();
+  });
+
+  renderSymbolAnalyzer(latestLoadedState, selectedAnalyzeSymbol);
+}
+
 function renderRules(cfg) {
   const body = $("rulesBody");
   body.innerHTML = "";
@@ -1653,6 +1884,7 @@ async function loadAndRender() {
 
   try {
     const { data: state, url } = await fetchJsonNewest(urls);
+    latestLoadedState = state;
     const results = state.results || [];
     renderKpis(state, results);
     renderMarketScene(state);
@@ -1666,10 +1898,13 @@ async function loadAndRender() {
     renderPicks(state);
     renderEvaluations(state, results);
     renderCalibrations(state.calibration_events || [], results);
+    renderSymbolAnalyzer(state, $("symbolAnalyzeInput")?.value || selectedAnalyzeSymbol);
 
     $("loadStatus").textContent = `불러오기 성공: ${url}`;
     $("loadStatus").className = "status good";
   } catch (e) {
+    latestLoadedState = null;
+    renderSymbolAnalyzer(null, $("symbolAnalyzeInput")?.value || selectedAnalyzeSymbol);
     $("loadStatus").textContent = `불러오기 실패: ${String(e)}`;
     $("loadStatus").className = "status bad";
   }
@@ -1678,6 +1913,7 @@ async function loadAndRender() {
 $("refreshBtn").addEventListener("click", loadAndRender);
 $("applySourceBtn").addEventListener("click", loadAndRender);
 setupTabs();
+setupSymbolAnalyzer();
 
 loadAndRender();
 setInterval(loadAndRender, 60000);
