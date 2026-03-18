@@ -96,6 +96,13 @@ Calibration:
 4. If candidate count is repeatedly zero:
    - loosen floors to recover coverage
 
+Profitability controls:
+
+1. Build `setup_quality` (0~1) from multi-timeframe market alignment, orderblock room/cushion, funding crowding, OI chase risk, and liquidity.
+2. Apply setup-aware entry/target/stop adjustments (`trend` / `balanced` / `contrarian` modes).
+3. Compute `expected_edge_pct` from model historical win rate (reliability-weighted) and current target/stop plan.
+4. Execution profiles now gate by target%, RR, setup quality, and expected edge.
+
 ## State files
 
 - `state/bot_state.json`: dynamic config + pending + results

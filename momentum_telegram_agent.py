@@ -117,9 +117,27 @@ MODEL_V2_MIGRATION_WIN_GAP = 0.05
 MODEL_V2_MIGRATION_AVG_GAP = 0.0010
 DEFAULT_EXECUTION_PROFILE = 1
 EXECUTION_PROFILE_RULES: Dict[int, Dict[str, Any]] = {
-    1: {"name": "conservative", "min_target_pct": 0.90, "min_rr_entry": 1.35},
-    2: {"name": "balanced", "min_target_pct": 0.70, "min_rr_entry": 1.25},
-    3: {"name": "aggressive", "min_target_pct": 0.50, "min_rr_entry": 1.15},
+    1: {
+        "name": "conservative",
+        "min_target_pct": 0.90,
+        "min_rr_entry": 1.35,
+        "min_setup_quality": 0.58,
+        "min_edge_pct": 0.12,
+    },
+    2: {
+        "name": "balanced",
+        "min_target_pct": 0.70,
+        "min_rr_entry": 1.25,
+        "min_setup_quality": 0.52,
+        "min_edge_pct": 0.05,
+    },
+    3: {
+        "name": "aggressive",
+        "min_target_pct": 0.50,
+        "min_rr_entry": 1.15,
+        "min_setup_quality": 0.46,
+        "min_edge_pct": -0.03,
+    },
 }
 DAILY_REVIEW_INTERVAL_HOURS = 24
 DAILY_REVIEW_LOOKBACK_HOURS = 24
@@ -260,6 +278,12 @@ def safe_float(v: Any) -> float | None:
 
 def clamp(v: float, lo: float, hi: float) -> float:
     return max(lo, min(hi, v))
+
+
+def norm01(v: float, lo: float, hi: float) -> float:
+    if hi <= lo:
+        return 0.0
+    return clamp((float(v) - float(lo)) / (float(hi) - float(lo)), 0.0, 1.0)
 
 
 def parse_eval_horizons(raw: str | None, fallback_horizon: int) -> List[int]:
@@ -1109,6 +1133,157 @@ def _weighted_change(
     return total / total_w
 
 
+def compute_setup_quality(
+    c: Any,
+    side: str,
+    model_id: str,
+    market_indicators: Dict[str, Dict[str, Any]],
+) -> Dict[str, Any]:
+    side_u = "SHORT" if str(side).upper() == "SHORT" else "LONG"
+    mid = str(model_id or "").strip()
+    is_swing = mid in {MODEL_LONG_V3_ID, MODEL_SHORT_V3_ID}
+    direction = -1.0 if side_u == "SHORT" else 1.0
+
+    fast_weights = (
+        [("6h", 0.35), ("1h", 0.30), ("15m", 0.20), ("5m", 0.15)]
+        if is_swing
+        else [("1h", 0.35), ("15m", 0.25), ("5m", 0.20), ("1m", 0.20)]
+    )
+    swing_weights = (
+        [("24h", 0.40), ("12h", 0.30), ("6h", 0.20), ("1h", 0.10)]
+        if is_swing
+        else [("24h", 0.35), ("12h", 0.25), ("6h", 0.20), ("1h", 0.20)]
+    )
+    market_fast = _weighted_change(market_indicators, "market", fast_weights)
+    market_swing = _weighted_change(market_indicators, "market", swing_weights)
+    btc_fast = _weighted_change(market_indicators, "btc", fast_weights)
+    eth_fast = _weighted_change(market_indicators, "eth", fast_weights)
+
+    align_core = 0.0
+    for raw, weight, scale in (
+        (
+            [
+                (market_fast, 0.50, 3.0),
+                (market_swing, 0.35, 4.6),
+                (btc_fast, 0.10, 2.8),
+                (eth_fast, 0.05, 2.8),
+            ]
+            if is_swing
+            else [
+                (market_fast, 0.55, 2.5),
+                (market_swing, 0.25, 4.0),
+                (btc_fast, 0.12, 2.2),
+                (eth_fast, 0.08, 2.2),
+            ]
+        )
+    ):
+        if raw is None:
+            continue
+        align_core += float(weight) * clamp(float(raw) / float(scale), -1.0, 1.0)
+    alignment = direction * clamp(align_core, -1.0, 1.0)
+    alignment_score = clamp(0.5 + (alignment * 0.5), 0.0, 1.0)
+
+    change24h = safe_float(getattr(c, "g_change24h_pct", None)) or 0.0
+    momentum_signed = direction * clamp(change24h / (12.0 if is_swing else 10.0), -1.0, 1.0)
+    momentum_score = clamp(0.5 + (momentum_signed * 0.5), 0.0, 1.0)
+
+    funding = safe_float(getattr(c, "g_funding_rate", None)) or 0.0
+    crowded = direction * funding
+    crowded_cutoff = 0.00035 if is_swing else 0.00045
+    crowd_penalty = clamp(
+        (crowded - crowded_cutoff) * (900.0 if is_swing else 850.0),
+        0.0,
+        0.45,
+    )
+    crowd_score = clamp(1.0 - crowd_penalty, 0.25, 1.0)
+
+    oi = safe_float(getattr(c, "g_open_interest", None)) or 0.0
+    oi_norm = clamp(math.log10(1.0 + max(0.0, oi)) / 7.0, 0.0, 1.0)
+    late_chase = oi_norm * norm01(
+        abs(change24h),
+        2.0 if is_swing else 1.5,
+        18.0 if is_swing else 14.0,
+    )
+    chase_score = clamp(
+        1.0 - ((0.32 if is_swing else 0.28) * late_chase),
+        0.35,
+        1.0,
+    )
+
+    ob_support = safe_float(getattr(c, "b_ob_support_dist_pct", None))
+    ob_resist = safe_float(getattr(c, "b_ob_resist_dist_pct", None))
+    room = ob_resist if side_u == "LONG" else ob_support
+    cushion = ob_support if side_u == "LONG" else ob_resist
+
+    if room is not None and room > 0:
+        room_score = norm01(
+            room,
+            0.25 if is_swing else 0.18,
+            2.20 if is_swing else 1.40,
+        )
+    else:
+        room_score = 0.52
+
+    if cushion is not None and cushion > 0:
+        ideal = 0.38 if is_swing else 0.28
+        span = 0.62 if is_swing else 0.45
+        cushion_score = 1.0 - clamp(abs(cushion - ideal) / span, 0.0, 1.0)
+    else:
+        cushion_score = 0.50
+
+    g_vol = safe_float(getattr(c, "g_usdt_volume", None)) or 0.0
+    b_val = safe_float(getattr(c, "b_krw_value24h", None)) or 0.0
+    liq_g = clamp(math.log10(1.0 + (g_vol / 10_000_000.0)) / math.log10(11.0), 0.0, 1.0)
+    liq_b = clamp(math.log10(1.0 + (b_val / 2_000_000_000.0)) / math.log10(11.0), 0.0, 1.0)
+    liquidity_score = (0.55 * liq_g) + (0.45 * liq_b)
+
+    if is_swing:
+        quality = (
+            (0.30 * alignment_score)
+            + (0.17 * room_score)
+            + (0.12 * cushion_score)
+            + (0.14 * crowd_score)
+            + (0.11 * chase_score)
+            + (0.09 * liquidity_score)
+            + (0.07 * momentum_score)
+        )
+    else:
+        quality = (
+            (0.28 * alignment_score)
+            + (0.18 * room_score)
+            + (0.12 * cushion_score)
+            + (0.14 * crowd_score)
+            + (0.10 * chase_score)
+            + (0.10 * liquidity_score)
+            + (0.08 * momentum_score)
+        )
+    quality = clamp(quality, 0.0, 1.0)
+
+    if alignment >= 0.24 and room_score >= 0.50:
+        entry_mode = "trend"
+    elif alignment <= -0.24:
+        entry_mode = "contrarian"
+    else:
+        entry_mode = "balanced"
+
+    if quality >= 0.72:
+        quality_label = "A"
+    elif quality >= 0.58:
+        quality_label = "B"
+    else:
+        quality_label = "C"
+
+    return {
+        "quality": round(float(quality), 6),
+        "quality_label": quality_label,
+        "alignment": round(float(alignment), 6),
+        "entry_mode": entry_mode,
+        "room_score": round(float(room_score), 6),
+        "crowding_score": round(float(crowd_score), 6),
+        "liquidity_score": round(float(liquidity_score), 6),
+    }
+
+
 def score_candidate_for_model(
     c: Any,
     model_id: str,
@@ -1259,11 +1434,20 @@ def compute_entry_plan_fields(
     side: str,
     score: float,
     model_id: str | None = None,
+    setup: Dict[str, Any] | None = None,
 ) -> Dict[str, Any]:
     side_u = str(side).upper()
     mid = str(model_id or "").strip()
     is_swing = mid in {MODEL_LONG_V3_ID, MODEL_SHORT_V3_ID}
     direction = -1.0 if side_u == "SHORT" else 1.0
+    setup_row = dict(setup or {})
+    setup_quality = clamp(float(safe_float(setup_row.get("quality")) or 0.5), 0.0, 1.0)
+    setup_alignment = clamp(float(safe_float(setup_row.get("alignment")) or 0.0), -1.0, 1.0)
+    setup_label = str(setup_row.get("quality_label", "B")).strip().upper() or "B"
+    setup_entry_mode = str(setup_row.get("entry_mode", "balanced")).strip().lower()
+    if setup_entry_mode not in {"trend", "balanced", "contrarian"}:
+        setup_entry_mode = "balanced"
+
     b_px = safe_float(getattr(c, "b_close_krw", None))
     g_px = safe_float(getattr(c, "g_last_price", None))
     b_rate = abs(safe_float(getattr(c, "b_rate24h", None)) or 0.0)
@@ -1276,6 +1460,22 @@ def compute_entry_plan_fields(
     else:
         stop_pct = clamp(0.45 + (vol24 * 0.08), 0.45, 2.80)
         rr_base = clamp(1.10 + (float(score) * 1.50), 1.10, 2.60)
+    if setup_entry_mode == "trend":
+        mode_stop_mult = 0.96
+    elif setup_entry_mode == "contrarian":
+        mode_stop_mult = 1.06
+    else:
+        mode_stop_mult = 1.00
+    stop_setup_mult = (
+        clamp(1.08 - (setup_quality * 0.20), 0.86, 1.08)
+        * clamp(1.0 - (setup_alignment * 0.06), 0.92, 1.08)
+        * float(mode_stop_mult)
+    )
+    stop_pct = clamp(
+        float(stop_pct) * float(stop_setup_mult),
+        0.55 if is_swing else 0.40,
+        3.60 if is_swing else 2.90,
+    )
     target_rr_pct = stop_pct * rr_base
 
     # Method 1) volatility+score RR target.
@@ -1319,6 +1519,18 @@ def compute_entry_plan_fields(
         if weighted_terms
         else target_rr_pct
     )
+    if setup_entry_mode == "trend":
+        mode_target_mult = 1.08 if is_swing else 1.05
+    elif setup_entry_mode == "contrarian":
+        mode_target_mult = 0.92
+    else:
+        mode_target_mult = 1.00
+    target_setup_mult = (
+        clamp(0.88 + (setup_quality * 0.34), 0.84, 1.22)
+        * clamp(1.0 + (setup_alignment * 0.10), 0.88, 1.14)
+        * float(mode_target_mult)
+    )
+    target_pct *= float(target_setup_mult)
     target_pct = clamp(float(target_pct), 0.60 if is_swing else 0.35, 8.00 if is_swing else 6.00)
     target_basis = "rr+orderblock+flow" if target_ob_pct is not None else "rr+flow"
 
@@ -1361,6 +1573,18 @@ def compute_entry_plan_fields(
         if entry_terms
         else entry_base_offset_pct
     )
+    if setup_entry_mode == "trend":
+        mode_entry_mult = 0.90 if is_swing else 0.92
+    elif setup_entry_mode == "contrarian":
+        mode_entry_mult = 1.10
+    else:
+        mode_entry_mult = 1.00
+    entry_setup_mult = (
+        clamp(1.12 - (setup_quality * 0.24), 0.86, 1.12)
+        * clamp(1.0 - (setup_alignment * 0.08), 0.88, 1.10)
+        * float(mode_entry_mult)
+    )
+    entry_offset_pct *= float(entry_setup_mult)
     entry_offset_pct = clamp(float(entry_offset_pct), 0.12 if is_swing else 0.08, 1.80 if is_swing else 1.20)
     entry_basis = "vol+orderblock+flow" if entry_ob_offset_pct is not None else "vol+flow"
 
@@ -1416,7 +1640,14 @@ def compute_entry_plan_fields(
         "plan_target_rr_pct": round(float(target_rr_pct), 4),
         "plan_target_ob_pct": None if target_ob_pct is None else round(float(target_ob_pct), 4),
         "plan_target_flow_pct": round(float(target_flow_pct), 4),
+        "plan_stop_setup_mult": round(float(stop_setup_mult), 4),
+        "plan_target_setup_mult": round(float(target_setup_mult), 4),
+        "plan_entry_setup_mult": round(float(entry_setup_mult), 4),
         "plan_holding_style": "swing" if is_swing else "intraday",
+        "setup_quality": round(float(setup_quality), 6),
+        "setup_quality_label": setup_label,
+        "setup_alignment": round(float(setup_alignment), 6),
+        "setup_entry_mode": setup_entry_mode,
         "target_now_bithumb_price": None if target_now_b is None else round(float(target_now_b), 8),
         "target_now_bitget_price": None if target_now_g is None else round(float(target_now_g), 8),
         "target_entry_bithumb_price": None if target_entry_b is None else round(float(target_entry_b), 8),
@@ -1837,12 +2068,14 @@ def make_recommendations(
     execution_profile: int = DEFAULT_EXECUTION_PROFILE,
     model_score_bias: Dict[str, float] | None = None,
     model_tuning: Dict[str, Dict[str, float]] | None = None,
+    historical_model_metrics: Dict[str, Dict[str, float | int]] | None = None,
 ) -> Tuple[List[Dict[str, Any]], Dict[str, Any]]:
     selected: List[Dict[str, Any]] = []
     top_n = max(0, int(top_n))
     min_short_picks = max(0, int(min_short_picks))
     model_score_bias = dict(model_score_bias or {})
     model_tuning = dict(model_tuning or {})
+    historical_model_metrics = dict(historical_model_metrics or {})
     if top_n > 0 and candidates:
         registry = sanitize_model_registry(model_registry)
         all_rows: List[Dict[str, Any]] = []
@@ -1859,9 +2092,26 @@ def make_recommendations(
                     market_indicators=market_indicators,
                     model_tuning=model_tuning,
                 )
+                setup = compute_setup_quality(
+                    c=c,
+                    side=side,
+                    model_id=mid,
+                    market_indicators=market_indicators,
+                )
+                setup_quality = clamp(float(safe_float(setup.get("quality")) or 0.5), 0.0, 1.0)
+                quality_boost = (setup_quality - 0.5) * (
+                    0.20 if mid in {MODEL_LONG_V3_ID, MODEL_SHORT_V3_ID} else 0.14
+                )
                 bias = clamp(float(safe_float(model_score_bias.get(mid)) or 0.0), -0.30, 0.30)
-                scored = round(float(scored) + float(bias), 4)
-                row = {"candidate": c, "model_id": mid, "score": scored, "score_bias": bias}
+                scored = round(float(scored) + float(bias) + float(quality_boost), 4)
+                row = {
+                    "candidate": c,
+                    "model_id": mid,
+                    "score": scored,
+                    "score_bias": bias,
+                    "setup": setup,
+                    "quality_boost": quality_boost,
+                }
                 all_rows.append(row)
                 per_model.setdefault(mid, []).append(row)
 
@@ -1962,6 +2212,8 @@ def make_recommendations(
     execution_rule = execution_profile_rule(execution_profile)
     min_target_pct = float(execution_rule.get("min_target_pct", 0.0) or 0.0)
     min_rr_entry = float(execution_rule.get("min_rr_entry", 0.0) or 0.0)
+    min_setup_quality = float(execution_rule.get("min_setup_quality", 0.0) or 0.0)
+    min_edge_pct = float(execution_rule.get("min_edge_pct", -9_999.0) or -9_999.0)
     default_eval_horizons = sorted(
         set(int(x) for x in (eval_horizons_min or [horizon_min]) if int(x) > 0)
     )
@@ -1974,12 +2226,16 @@ def make_recommendations(
     market_trend = str(market_indicators.get("market", {}).get("trend", "neutral"))
     btc_trend = str(market_indicators.get("btc", {}).get("trend", "neutral"))
     eth_trend = str(market_indicators.get("eth", {}).get("trend", "neutral"))
+    removed_setup_quality = 0
+    removed_expected_edge = 0
     for row in selected:
         c = row["candidate"]
         mid = str(row["model_id"])
         score = float(row["score"])
         base_score = float(getattr(c, "score", 0.0) or 0.0)
         bias_applied = float(safe_float(row.get("score_bias")) or 0.0)
+        quality_boost = float(safe_float(row.get("quality_boost")) or 0.0)
+        setup = dict(row.get("setup") or {})
         row_eval_horizons = eval_horizons_for_model(
             model_id=mid,
             default_horizons=default_eval_horizons,
@@ -1991,9 +2247,31 @@ def make_recommendations(
             side=str(c.side),
             score=score,
             model_id=mid,
+            setup=setup,
         )
         plan_target_pct = safe_float(plan.get("plan_target_pct"))
         plan_rr_entry = safe_float(plan.get("rr_entry"))
+        plan_stop_pct = safe_float(plan.get("plan_stop_pct"))
+        plan_setup_quality = clamp(float(safe_float(plan.get("setup_quality")) or 0.5), 0.0, 1.0)
+
+        hist = historical_model_metrics.get(mid, {}) if isinstance(historical_model_metrics, dict) else {}
+        hist_count = int(safe_float((hist or {}).get("count")) or 0)
+        hist_win_rate_raw = clamp(
+            float(safe_float((hist or {}).get("win_rate")) or 0.5),
+            0.0,
+            1.0,
+        )
+        reliability = clamp(hist_count / 36.0, 0.0, 1.0)
+        hist_win_rate = (hist_win_rate_raw * reliability) + (0.5 * (1.0 - reliability))
+        expected_edge_pct: float | None = None
+        if plan_target_pct is not None and plan_stop_pct is not None:
+            expected_edge_pct = (
+                (float(hist_win_rate) * float(plan_target_pct))
+                - ((1.0 - float(hist_win_rate)) * float(plan_stop_pct))
+            )
+            if hist_count < 8:
+                expected_edge_pct -= 0.04
+
         if (
             plan_target_pct is None
             or plan_rr_entry is None
@@ -2001,6 +2279,12 @@ def make_recommendations(
             or float(plan_rr_entry) < min_rr_entry
         ):
             removed_execution_profile += 1
+            continue
+        if plan_setup_quality < min_setup_quality:
+            removed_setup_quality += 1
+            continue
+        if expected_edge_pct is None or float(expected_edge_pct) < min_edge_pct:
+            removed_expected_edge += 1
             continue
         out.append(
             {
@@ -2019,6 +2303,7 @@ def make_recommendations(
                 "base_score": base_score,
                 "model_score_delta": score - base_score,
                 "model_score_bias": bias_applied,
+                "model_quality_boost": quality_boost,
                 "b_rate24h": c.b_rate24h,
                 "g_rate24h": c.g_change24h_pct,
                 "b_value24h": c.b_krw_value24h,
@@ -2048,6 +2333,13 @@ def make_recommendations(
                 "execution_profile_name": str(execution_rule.get("name", "")),
                 "execution_min_target_pct": min_target_pct,
                 "execution_min_rr_entry": min_rr_entry,
+                "execution_min_setup_quality": min_setup_quality,
+                "execution_min_edge_pct": min_edge_pct,
+                "expected_edge_pct": None
+                if expected_edge_pct is None
+                else round(float(expected_edge_pct), 6),
+                "model_hist_win_rate": round(float(hist_win_rate), 6),
+                "model_hist_count": hist_count,
                 **plan,
             }
         )
@@ -2055,6 +2347,8 @@ def make_recommendations(
         "execution_profile": execution_profile,
         "execution_rule": execution_rule,
         "removed_execution_profile": int(removed_execution_profile),
+        "removed_setup_quality": int(removed_setup_quality),
+        "removed_expected_edge": int(removed_expected_edge),
     }
 
 
@@ -3568,12 +3862,16 @@ def make_message(
     prof_rule = execution_rule or execution_profile_rule(prof)
     min_target = float(prof_rule.get("min_target_pct", 0.0) or 0.0)
     min_rr = float(prof_rule.get("min_rr_entry", 0.0) or 0.0)
+    min_setup_q = float(prof_rule.get("min_setup_quality", 0.0) or 0.0)
+    min_edge = float(prof_rule.get("min_edge_pct", 0.0) or 0.0)
     removed_prof = int(filter_stats.get("removed_execution_profile", 0) or 0)
+    removed_quality = int(filter_stats.get("removed_setup_quality", 0) or 0)
+    removed_edge = int(filter_stats.get("removed_expected_edge", 0) or 0)
     lines: List[str] = []
     if message_style == "compact":
         lines.append(f"Momentum Scan | {ts_kst}")
         lines.append(
-            f"Rules: overheat<{cfg['max_overheat_rate']:.0f}% | gLong>={cfg['min_bitget_rate']:.1f}% | gShort<=-{cfg['min_bitget_short_rate']:.1f}% | bShort<={cfg['short_max_bithumb_rate']:.1f}% | fShort>={cfg['short_min_funding_rate']:.4f} | bVal>={format_money_k(cfg['min_bithumb_value'])} | gVol>={format_money_u(cfg['min_bitget_volume'])} | P{prof}(tp>={min_target:.2f}%, rr>={min_rr:.2f})"
+            f"Rules: overheat<{cfg['max_overheat_rate']:.0f}% | gLong>={cfg['min_bitget_rate']:.1f}% | gShort<=-{cfg['min_bitget_short_rate']:.1f}% | bShort<={cfg['short_max_bithumb_rate']:.1f}% | fShort>={cfg['short_min_funding_rate']:.4f} | bVal>={format_money_k(cfg['min_bithumb_value'])} | gVol>={format_money_u(cfg['min_bitget_volume'])} | P{prof}(tp>={min_target:.2f}%, rr>={min_rr:.2f}, q>={min_setup_q:.2f}, edge>={min_edge:.2f}%)"
         )
         if picks:
             lines.append("Picks:")
@@ -3599,6 +3897,14 @@ def make_message(
             lines.append(f"Risk block: cooldown filtered {int(filter_stats['removed_loss_cooldown'])} symbols")
         if removed_prof > 0:
             lines.append(f"Execution profile P{prof}: filtered {removed_prof} symbols (tp/rr)")
+        if removed_quality > 0:
+            lines.append(
+                f"Execution profile P{prof}: filtered {removed_quality} symbols (timing q<{min_setup_q:.2f})"
+            )
+        if removed_edge > 0:
+            lines.append(
+                f"Execution profile P{prof}: filtered {removed_edge} symbols (edge<{min_edge:.2f}%)"
+            )
         ob_checked = int(filter_stats.get("orderblock_checked", 0) or 0)
         ob_assigned = int(filter_stats.get("orderblock_assigned", 0) or 0)
         if ob_checked > 0:
@@ -3621,12 +3927,18 @@ def make_message(
     lines.append(
         f"Filters: overheat<{cfg['max_overheat_rate']:.2f}%, gLong>={cfg['min_bitget_rate']:.2f}%, gShort<=-{cfg['min_bitget_short_rate']:.2f}%, bShort<={cfg['short_max_bithumb_rate']:.2f}%, fShort>={cfg['short_min_funding_rate']:.4f}, bValue>={format_money_k(cfg['min_bithumb_value'])}, gVol>={format_money_u(cfg['min_bitget_volume'])}"
     )
-    lines.append(f"Execution profile: P{prof} (tp>={min_target:.2f}%, rr_entry>={min_rr:.2f})")
+    lines.append(
+        f"Execution profile: P{prof} (tp>={min_target:.2f}%, rr_entry>={min_rr:.2f}, q>={min_setup_q:.2f}, edge>={min_edge:.2f}%)"
+    )
     lines.append(
         f"Candidates: base={filter_stats['base_universe']}, removed(cooldown={filter_stats.get('removed_loss_cooldown', 0)}, overheat={filter_stats['removed_overheat']}, conservative={filter_stats['removed_conservative']}, orderable={filter_stats['removed_orderable']})"
     )
     if removed_prof > 0:
         lines.append(f"Execution profile filter: removed {removed_prof}")
+    if removed_quality > 0:
+        lines.append(f"Execution profile filter: removed {removed_quality} (timing quality)")
+    if removed_edge > 0:
+        lines.append(f"Execution profile filter: removed {removed_edge} (expected edge)")
     if int(filter_stats.get("orderblock_checked", 0) or 0) > 0:
         lines.append(
             f"Orderblock: assigned={int(filter_stats.get('orderblock_assigned', 0) or 0)}/{int(filter_stats.get('orderblock_checked', 0) or 0)}"
@@ -3828,9 +4140,16 @@ def run_cycle(args: argparse.Namespace, state: Dict[str, Any]) -> int:
         execution_profile=execution_profile,
         model_score_bias=model_score_bias,
         model_tuning=v3_tuning,
+        historical_model_metrics=pre_model_metrics,
     )
     filter_stats["removed_execution_profile"] = int(
         pick_filter_stats.get("removed_execution_profile", 0) or 0
+    )
+    filter_stats["removed_setup_quality"] = int(
+        pick_filter_stats.get("removed_setup_quality", 0) or 0
+    )
+    filter_stats["removed_expected_edge"] = int(
+        pick_filter_stats.get("removed_expected_edge", 0) or 0
     )
     if picks:
         state["recommendation_history"].extend(picks)

@@ -279,6 +279,10 @@ function computePlanFields(row) {
   const targetObPctStored = Number(row?.plan_target_ob_pct);
   const targetFlowPctStored = Number(row?.plan_target_flow_pct);
   const targetBasis = String(row?.plan_target_basis || "");
+  const setupQualityStored = Number(row?.setup_quality);
+  const setupQualityLabel = String(row?.setup_quality_label || "").toUpperCase();
+  const setupEntryMode = String(row?.setup_entry_mode || "").toLowerCase();
+  const expectedEdgePctStored = Number(row?.expected_edge_pct);
   const bTargetNowStored = Number(row?.target_now_bithumb_price);
   const gTargetNowStored = Number(row?.target_now_bitget_price);
   const bTargetEntryStored = Number(row?.target_entry_bithumb_price);
@@ -342,6 +346,10 @@ function computePlanFields(row) {
     targetObPct,
     targetFlowPct: Number.isFinite(targetFlowPct) && targetFlowPct > 0 ? targetFlowPct : null,
     targetBasis,
+    setupQuality: Number.isFinite(setupQualityStored) ? setupQualityStored : null,
+    setupQualityLabel: setupQualityLabel || null,
+    setupEntryMode: setupEntryMode || null,
+    expectedEdgePct: Number.isFinite(expectedEdgePctStored) ? expectedEdgePctStored : null,
     rrNow,
     rrEntry,
   };
@@ -365,6 +373,14 @@ function targetBasisCellHtml(plan) {
   const rr = Number(plan?.targetRrPct);
   const ob = Number(plan?.targetObPct);
   const flow = Number(plan?.targetFlowPct);
+  const q = Number(plan?.setupQuality);
+  const qLabel = String(plan?.setupQualityLabel || "");
+  const edge = Number(plan?.expectedEdgePct);
+  const mode = String(plan?.setupEntryMode || "");
+  const modeMap = { trend: "trend", balanced: "balanced", contrarian: "contrarian" };
+  const modeText = modeMap[mode] || "-";
+  const edgeText = Number.isFinite(edge) ? `${edge >= 0 ? "+" : ""}${edge.toFixed(2)}%` : "-";
+  const qText = Number.isFinite(q) ? `${(q * 100).toFixed(0)}` : "-";
   const parts = [];
   if (Number.isFinite(rr) && rr > 0) parts.push(`rr ${fmtPctValue(rr, 2)}`);
   if (Number.isFinite(ob) && ob > 0) parts.push(`ob ${fmtPctValue(ob, 2)}`);
@@ -374,6 +390,8 @@ function targetBasisCellHtml(plan) {
       <div class="mono plan-line">TP ${fmtPctValue(plan?.targetPct, 2)}</div>
       <div class="plan-line">${basis || "-"}</div>
       <div class="plan-line">${parts.length ? parts.join(" | ") : "-"}</div>
+      <div class="plan-line">Q ${qLabel || "-"} (${qText}) | edge ${edgeText}</div>
+      <div class="plan-line">mode ${modeText}</div>
     </div>
   `;
 }
