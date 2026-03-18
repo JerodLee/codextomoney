@@ -451,6 +451,12 @@ def load_state(path: Path) -> Dict[str, Any]:
     data.setdefault("model_governance_events", [])
     data.setdefault("model_transition_events", [])
     data.setdefault("daily_review_events", [])
+    if isinstance(data.get("model_transition_events"), list):
+        data["model_transition_events"] = [
+            x for x in data["model_transition_events"] if isinstance(x, dict)
+        ][-500:]
+    else:
+        data["model_transition_events"] = []
     data.setdefault("model_registry", sanitize_model_registry(DEFAULT_MODEL_REGISTRY))
     data["model_registry"] = sanitize_model_registry(data.get("model_registry"))
     data.setdefault("meta", {})
@@ -502,6 +508,30 @@ def fetch_market_snapshot() -> Tuple[Dict[str, Any], Dict[str, Any], Dict[str, A
         "bithumb_count": len(bithumb),
         "bitget_count": len(bitget),
     }
+
+
+def fetch_market_snapshot_with_retry(
+    attempts: int = 3,
+    base_sleep_sec: float = 1.5,
+) -> Tuple[Dict[str, Any], Dict[str, Any], Dict[str, Any]]:
+    tries = max(1, int(attempts))
+    last_exc: Exception | None = None
+    for i in range(tries):
+        try:
+            return fetch_market_snapshot()
+        except Exception as exc:  # noqa: BLE001
+            last_exc = exc
+            if i + 1 >= tries:
+                break
+            wait_s = max(0.5, float(base_sleep_sec) * float(i + 1))
+            print(
+                f"[WARN] market fetch retry {i + 1}/{tries - 1} failed: {exc}; "
+                f"sleep {wait_s:.1f}s"
+            )
+            time.sleep(wait_s)
+    if last_exc is None:
+        raise RuntimeError("market fetch failed without exception")
+    raise RuntimeError(f"market fetch failed after {tries} attempts: {last_exc}")
 
 
 def trend_sign(change24h: float | None) -> int:
@@ -3631,7 +3661,7 @@ def run_cycle(args: argparse.Namespace, state: Dict[str, Any]) -> int:
         model_governance_notes.extend(transition_notes)
 
     try:
-        bithumb, bitget, _ = fetch_market_snapshot()
+        bithumb, bitget, _ = fetch_market_snapshot_with_retry(attempts=3, base_sleep_sec=1.5)
     except Exception as exc:  # noqa: BLE001
         print(f"[ERROR] market fetch failed: {exc}")
         return 1
@@ -4000,7 +4030,7 @@ def run_cycle(args: argparse.Namespace, state: Dict[str, Any]) -> int:
 def run_alerts_only_cycle(args: argparse.Namespace, state: Dict[str, Any]) -> int:
     run_ts = utc_now()
     try:
-        bithumb, bitget, _ = fetch_market_snapshot()
+        bithumb, bitget, _ = fetch_market_snapshot_with_retry(attempts=3, base_sleep_sec=1.5)
     except Exception as exc:  # noqa: BLE001
         print(f"[ERROR] market fetch failed (alerts-only): {exc}")
         return 1
