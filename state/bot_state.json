@@ -61248,9 +61248,9 @@
     }
   ],
   "meta": {
-    "no_candidate_streak": 25,
-    "last_calibrated_at": "2026-04-02T19:55:03.820744+00:00",
-    "last_run_at": "2026-04-02T19:59:09.348561+00:00",
+    "no_candidate_streak": 26,
+    "last_calibrated_at": "2026-04-02T20:22:04.211273+00:00",
+    "last_run_at": "2026-04-02T20:22:04.211273+00:00",
     "calibration_cooldown_until": "2026-03-24T03:30:06.768921+00:00",
     "last_rollback_event_id": "rollback-1774299442",
     "loss_cooldowns": {},
@@ -61277,8 +61277,8 @@
       "recommendations": [
         {
           "side": "LONG",
-          "suggested_model": "momentum_long_v2",
-          "suggested_label": "롱 모멘텀 v2(시장보강)",
+          "suggested_model": "momentum_long_v1",
+          "suggested_label": "롱 모멘텀 v1",
           "action": "keep",
           "active_models": [
             "momentum_long_v1",
@@ -61287,12 +61287,12 @@
             "momentum_long_v4"
           ],
           "candidate_count": 2,
-          "fit_top_avg": 0.243,
-          "fit_edge_vs_base": -0.0025,
-          "fit_edge_vs_next": 0.0,
-          "hist_count": 48,
-          "hist_win_rate": 0.520833,
-          "hist_avg_return": 0.001463
+          "fit_top_avg": 0.2362,
+          "fit_edge_vs_base": 0.0,
+          "fit_edge_vs_next": 0.0572,
+          "hist_count": 12,
+          "hist_win_rate": 0.083333,
+          "hist_avg_return": -0.006383
         },
         {
           "side": "SHORT",
@@ -61306,15 +61306,15 @@
             "momentum_short_v4"
           ],
           "candidate_count": 17,
-          "fit_top_avg": 0.4231,
-          "fit_edge_vs_base": 0.058,
-          "fit_edge_vs_next": 0.0558,
+          "fit_top_avg": 0.4483,
+          "fit_edge_vs_base": 0.0907,
+          "fit_edge_vs_next": 0.0584,
           "hist_count": 35,
           "hist_win_rate": 0.085714,
           "hist_avg_return": -0.005245
         }
       ],
-      "summary": "LONG->롱 모멘텀 v2(시장보강)(keep, fitΔbase -0.003, hist 52.1%/0.15%, n=48) | SHORT->숏 스윙 v3(수익확장/보유형)(keep, fitΔbase +0.058, hist 8.6%/-0.52%, n=35)"
+      "summary": "LONG->롱 모멘텀 v1(keep, fitΔbase +0.000, hist 8.3%/-0.64%, n=12) | SHORT->숏 스윙 v3(수익확장/보유형)(keep, fitΔbase +0.091, hist 8.6%/-0.52%, n=35)"
     },
     "last_alert_watch_at": "2026-04-02T19:59:09.348561+00:00",
     "last_model_diagnostics": {
@@ -61491,21 +61491,19 @@
     "last_weekly_ab_at": "2026-04-01T23:52:45.311486+00:00",
     "last_weekly_ab_event_id": "weekly-ab-1775087565",
     "risk_guard_cooldown_until": "2026-04-02T21:55:03.820744+00:00",
-    "last_risk_guard_at": "2026-04-02T19:55:03.820744+00:00",
+    "last_risk_guard_at": "2026-04-02T20:22:04.211273+00:00",
     "last_risk_guard_status": {
-      "sample": 4,
-      "daily_return": -0.06149746722185413,
-      "consecutive_losses": 4,
+      "sample": 1,
+      "daily_return": -0.01172690822737574,
+      "consecutive_losses": 1,
       "in_cooldown": true,
       "allow_new_picks": false,
       "cooldown_until": "2026-04-02T21:55:03.820744+00:00",
-      "reasons": [
-        "24h net return -6.15% <= -3.00%"
-      ]
+      "reasons": []
     },
-    "last_social_buzz_at": "2026-04-02T19:55:03.820744+00:00",
+    "last_social_buzz_at": "2026-04-02T20:22:04.211273+00:00",
     "last_social_buzz": {
-      "at": "2026-04-02T19:55:03.820744+00:00",
+      "at": "2026-04-02T20:22:04.211273+00:00",
       "symbols_considered": 16,
       "top_symbols": [],
       "providers": {
@@ -341017,6 +341015,544 @@
         "summary": "",
         "event_id": null
       }
+    },
+    {
+      "run_at": "2026-04-02T20:22:04.211273+00:00",
+      "picks_count": 0,
+      "pending_count": 0,
+      "results_count": 1334,
+      "new_results_count": 0,
+      "metrics": {
+        "count": 120,
+        "win_rate": 0.35,
+        "avg_return": -0.0017056539133721517,
+        "median_return": -0.00214846992481477
+      },
+      "filter_stats": {
+        "base_universe": 24,
+        "removed_loss_cooldown": 0,
+        "removed_overheat": 3,
+        "removed_conservative": 2,
+        "removed_orderable": 0,
+        "orderbook_checked": 19,
+        "orderblock_checked": 19,
+        "orderblock_assigned": 19,
+        "removed_risk_guard": 19,
+        "removed_execution_profile": 0,
+        "removed_setup_quality": 0,
+        "removed_expected_edge": 0
+      },
+      "config": {
+        "min_bithumb_rate": 0.5,
+        "min_bitget_rate": 0.5,
+        "min_bitget_short_rate": 0.5,
+        "short_max_bithumb_rate": 8.0,
+        "short_min_funding_rate": -0.0015,
+        "min_bithumb_value": 1100000000.0,
+        "min_bitget_volume": 5500000.0,
+        "max_overheat_rate": 20.0,
+        "conservative_max_rate": 10.0,
+        "conservative_max_abs_funding": 0.0005
+      },
+      "model_registry": {
+        "momentum_long_v1": {
+          "enabled": true,
+          "side": "LONG"
+        },
+        "momentum_short_v1": {
+          "enabled": true,
+          "side": "SHORT"
+        },
+        "momentum_long_v2": {
+          "enabled": true,
+          "side": "LONG"
+        },
+        "momentum_short_v2": {
+          "enabled": true,
+          "side": "SHORT"
+        },
+        "momentum_long_v3": {
+          "enabled": true,
+          "side": "LONG"
+        },
+        "momentum_short_v3": {
+          "enabled": true,
+          "side": "SHORT"
+        },
+        "momentum_short_v4": {
+          "enabled": true,
+          "side": "SHORT"
+        },
+        "momentum_long_v4": {
+          "enabled": true,
+          "side": "LONG"
+        }
+      },
+      "active_models": [
+        "momentum_long_v1",
+        "momentum_short_v1",
+        "momentum_long_v2",
+        "momentum_short_v2",
+        "momentum_long_v3",
+        "momentum_short_v3",
+        "momentum_short_v4",
+        "momentum_long_v4"
+      ],
+      "calibrated": true,
+      "calibration_notes": [
+        "Low-candidate adjustment: loosened liquidity and momentum floors slightly.",
+        "Underperformance adjustment: tightened overheat/funding caps and raised liquidity floors."
+      ],
+      "model_governance_notes": [
+        "RiskGuard active: cooldown"
+      ],
+      "model_score_bias": {},
+      "v3_tuning": {
+        "momentum_long_v3": {
+          "inverse_guard": 1.0,
+          "crowding_guard": 1.0,
+          "low_momo_penalty": 1.0,
+          "obstacle_guard": 1.0
+        },
+        "momentum_short_v3": {
+          "inverse_guard": 1.928,
+          "crowding_guard": 1.0,
+          "low_momo_penalty": 1.0,
+          "obstacle_guard": 1.0
+        }
+      },
+      "loss_alert_count": 0,
+      "loss_cooldown_symbols": 0,
+      "execution_profile": 1,
+      "execution_rule": {
+        "name": "conservative",
+        "min_target_pct": 0.9,
+        "min_rr_entry": 1.35,
+        "min_setup_quality": 0.58,
+        "min_edge_pct": 0.12
+      },
+      "market_indicators": {
+        "market": {
+          "change24h": -7.867470431130396,
+          "changes": {
+            "24h": -7.867470431130396,
+            "12h": 0.6327338677454719,
+            "6h": 3.146999528690042,
+            "1h": -0.07903878772053119,
+            "15m": -0.14519808200104123,
+            "5m": -0.04844625602338226,
+            "1m": -0.009693007924227448
+          },
+          "sign": 0,
+          "trend": "neutral"
+        },
+        "btc": {
+          "change24h": -1.8351484185334166,
+          "changes": {
+            "24h": -1.8351484185334166,
+            "12h": 0.37429477197481464,
+            "6h": 0.6478894704114335,
+            "1h": -0.1595928484348308,
+            "15m": -0.0701117817883512,
+            "5m": -0.023381522730903104,
+            "1m": -0.004677179422796218
+          },
+          "sign": 0,
+          "trend": "neutral"
+        },
+        "eth": {
+          "change24h": -3.4468708273165727,
+          "changes": {
+            "24h": -3.4468708273165727,
+            "12h": 0.8928958899004025,
+            "6h": 1.124741990415079,
+            "1h": 0.3903756629849209,
+            "15m": 0.11510087997086416,
+            "5m": 0.0383375420914156,
+            "1m": 0.007665157511893561
+          },
+          "sign": 0,
+          "trend": "neutral"
+        },
+        "concentration": {
+          "regime": "balanced",
+          "btc_share": 0.34100060803144056,
+          "eth_share": 0.26452930481559106,
+          "alt_share": 0.39447008715296844,
+          "top_alt_symbol": "XAU",
+          "top_alt_share": 0.07511604041700559
+        }
+      },
+      "market_alignment_now": {
+        "market": {
+          "value": null,
+          "relation": "neutral-market",
+          "sample": 0
+        },
+        "btc": {
+          "value": null,
+          "relation": "neutral-market",
+          "sample": 0
+        },
+        "eth": {
+          "value": null,
+          "relation": "neutral-market",
+          "sample": 0
+        }
+      },
+      "market_alignment_history": {
+        "market": {
+          "correlation": -0.07529424768267366,
+          "relation": "mixed",
+          "sample": 392
+        },
+        "btc": {
+          "correlation": 0.06740460968829726,
+          "relation": "mixed",
+          "sample": 392
+        },
+        "eth": {
+          "correlation": 0.161270153492662,
+          "relation": "mixed",
+          "sample": 392
+        }
+      },
+      "model_metrics": {
+        "momentum_short_v3": {
+          "count": 35,
+          "win_rate": 0.08571428571428572,
+          "avg_return": -0.005245362506713165,
+          "median_return": -0.004794407610262358,
+          "label": "숏 스윙 v3(수익확장/보유형)"
+        },
+        "momentum_short_v2": {
+          "count": 9,
+          "win_rate": 0.2222222222222222,
+          "avg_return": -0.0032899933308682596,
+          "median_return": -0.00263150436046524,
+          "label": "숏 모멘텀 v2(시장보강)"
+        },
+        "momentum_long_v3": {
+          "count": 104,
+          "win_rate": 0.38461538461538464,
+          "avg_return": -0.001175705851292414,
+          "median_return": -0.0021759644372849633,
+          "label": "롱 스윙 v3(수익확장/보유형)"
+        },
+        "momentum_long_v1": {
+          "count": 12,
+          "win_rate": 0.08333333333333333,
+          "avg_return": -0.0063833763958895074,
+          "median_return": -0.006988803221685123,
+          "label": "롱 모멘텀 v1"
+        },
+        "momentum_long_v2": {
+          "count": 48,
+          "win_rate": 0.5208333333333334,
+          "avg_return": 0.0014633339459607644,
+          "median_return": 0.0003970139597964631,
+          "label": "롱 모멘텀 v2(시장보강)"
+        },
+        "momentum_short_v1": {
+          "count": 32,
+          "win_rate": 0.125,
+          "avg_return": -0.0030158305024572565,
+          "median_return": -0.0021543212132285206,
+          "label": "숏 모멘텀 v1"
+        }
+      },
+      "model_recommendation": {
+        "triggered": true,
+        "underperformance": true,
+        "gate": {
+          "count": 120,
+          "win_rate": 0.35,
+          "avg_return": -0.0017056539133721517,
+          "min_count": 24,
+          "win_rate_floor": 0.48,
+          "avg_return_floor": -0.001
+        },
+        "market_context": {
+          "market_trend": "neutral",
+          "btc_trend": "neutral",
+          "eth_trend": "neutral",
+          "regime": "balanced",
+          "top_alt_symbol": "XAU"
+        },
+        "recommendations": [
+          {
+            "side": "LONG",
+            "suggested_model": "momentum_long_v1",
+            "suggested_label": "롱 모멘텀 v1",
+            "action": "keep",
+            "active_models": [
+              "momentum_long_v1",
+              "momentum_long_v2",
+              "momentum_long_v3",
+              "momentum_long_v4"
+            ],
+            "candidate_count": 2,
+            "fit_top_avg": 0.2362,
+            "fit_edge_vs_base": 0.0,
+            "fit_edge_vs_next": 0.0572,
+            "hist_count": 12,
+            "hist_win_rate": 0.083333,
+            "hist_avg_return": -0.006383
+          },
+          {
+            "side": "SHORT",
+            "suggested_model": "momentum_short_v3",
+            "suggested_label": "숏 스윙 v3(수익확장/보유형)",
+            "action": "keep",
+            "active_models": [
+              "momentum_short_v1",
+              "momentum_short_v2",
+              "momentum_short_v3",
+              "momentum_short_v4"
+            ],
+            "candidate_count": 17,
+            "fit_top_avg": 0.4483,
+            "fit_edge_vs_base": 0.0907,
+            "fit_edge_vs_next": 0.0584,
+            "hist_count": 35,
+            "hist_win_rate": 0.085714,
+            "hist_avg_return": -0.005245
+          }
+        ],
+        "summary": "LONG->롱 모멘텀 v1(keep, fitΔbase +0.000, hist 8.3%/-0.64%, n=12) | SHORT->숏 스윙 v3(수익확장/보유형)(keep, fitΔbase +0.091, hist 8.6%/-0.52%, n=35)"
+      },
+      "model_diagnostics": {
+        "triggered": true,
+        "items": [
+          {
+            "model_id": "momentum_short_v3",
+            "model_label": "숏 스윙 v3(수익확장/보유형)",
+            "side": "SHORT",
+            "count": 35,
+            "win_rate": 0.08571428571428572,
+            "avg_return": -0.005245362506713165,
+            "next_model_id": "momentum_short_v4",
+            "next_model_label": "momentum_short_v4",
+            "issues": [
+              {
+                "dimension": "alignment",
+                "bucket": "inverse",
+                "count": 116,
+                "win_rate": 0.33620689655172414,
+                "avg_return": -0.00020601979489424835
+              },
+              {
+                "dimension": "funding",
+                "bucket": "neutral-funding",
+                "count": 120,
+                "win_rate": 0.35,
+                "avg_return": -0.00020593144554051162
+              },
+              {
+                "dimension": "momentum",
+                "bucket": "mid-momentum",
+                "count": 88,
+                "win_rate": 0.3181818181818182,
+                "avg_return": -0.0001455397852805995
+              },
+              {
+                "dimension": "open_interest",
+                "bucket": "high-oi",
+                "count": 104,
+                "win_rate": 0.3269230769230769,
+                "avg_return": -0.0004202773558383286
+              }
+            ],
+            "proposals": [
+              "시장 역행 구간 진입 패널티를 강화합니다.",
+              "funding 중립 구간의 노이즈 필터를 강화합니다.",
+              "중간 모멘텀 구간에서 변동성 대비 손익비를 재조정합니다.",
+              "고 OI 과밀 구간에서 추격 진입 패널티를 강화합니다."
+            ],
+            "summary": "alignment:inverse(n=116, win=33.6%) | funding:neutral-funding(n=120, win=35.0%)"
+          },
+          {
+            "model_id": "momentum_long_v3",
+            "model_label": "롱 스윙 v3(수익확장/보유형)",
+            "side": "LONG",
+            "count": 104,
+            "win_rate": 0.38461538461538464,
+            "avg_return": -0.001175705851292414,
+            "next_model_id": "momentum_long_v4",
+            "next_model_label": "momentum_long_v4",
+            "issues": [
+              {
+                "dimension": "alignment",
+                "bucket": "inverse",
+                "count": 36,
+                "win_rate": 0.3055555555555556,
+                "avg_return": -0.003622493368420217
+              },
+              {
+                "dimension": "funding",
+                "bucket": "neutral-funding",
+                "count": 113,
+                "win_rate": 0.37168141592920356,
+                "avg_return": -0.0010520253306804848
+              },
+              {
+                "dimension": "momentum",
+                "bucket": "high-momentum",
+                "count": 27,
+                "win_rate": 0.25925925925925924,
+                "avg_return": -0.005738940405842142
+              },
+              {
+                "dimension": "open_interest",
+                "bucket": "low-oi",
+                "count": 11,
+                "win_rate": 0.09090909090909091,
+                "avg_return": -0.003960416836944039
+              }
+            ],
+            "proposals": [
+              "시장 역행 구간 진입 패널티를 강화합니다.",
+              "funding 중립 구간의 노이즈 필터를 강화합니다.",
+              "과열 구간 상한(overheat/conservative)을 더 보수적으로 조정합니다.",
+              "OI 하한을 높여 체결 신뢰도가 낮은 종목을 제외합니다."
+            ],
+            "summary": "alignment:inverse(n=36, win=30.6%) | funding:neutral-funding(n=113, win=37.2%)"
+          },
+          {
+            "model_id": "momentum_short_v1",
+            "model_label": "숏 모멘텀 v1",
+            "side": "SHORT",
+            "count": 32,
+            "win_rate": 0.125,
+            "avg_return": -0.0030158305024572565,
+            "next_model_id": "momentum_short_v2",
+            "next_model_label": "숏 모멘텀 v2(시장보강)",
+            "issues": [
+              {
+                "dimension": "alignment",
+                "bucket": "aligned",
+                "count": 16,
+                "win_rate": 0.25,
+                "avg_return": 0.0027295298332347933
+              },
+              {
+                "dimension": "funding",
+                "bucket": "neutral-funding",
+                "count": 120,
+                "win_rate": 0.4083333333333333,
+                "avg_return": -0.00018767968940315455
+              },
+              {
+                "dimension": "momentum",
+                "bucket": "high-momentum",
+                "count": 48,
+                "win_rate": 0.3958333333333333,
+                "avg_return": 0.001866175953288119
+              },
+              {
+                "dimension": "open_interest",
+                "bucket": "mid-oi",
+                "count": 40,
+                "win_rate": 0.375,
+                "avg_return": -0.0031952582956206533
+              }
+            ],
+            "proposals": [
+              "정방향 구간에서 점수 가중치를 높여 정합성 종목을 우선합니다.",
+              "funding 중립 구간의 노이즈 필터를 강화합니다.",
+              "과열 구간 상한(overheat/conservative)을 더 보수적으로 조정합니다.",
+              "OI 구간별 스코어 기여도를 재조정합니다."
+            ],
+            "summary": "alignment:aligned(n=16, win=25.0%) | funding:neutral-funding(n=120, win=40.8%)"
+          }
+        ],
+        "gate": {
+          "min_count": 24,
+          "win_rate_floor": 0.48,
+          "avg_return_floor": -0.001,
+          "min_bucket_count": 8
+        }
+      },
+      "social_buzz": {
+        "at": "2026-04-02T20:22:04.211273+00:00",
+        "symbols_considered": 16,
+        "top_symbols": [],
+        "providers": {
+          "x": {
+            "enabled": false,
+            "ok": false,
+            "sample_posts": 0,
+            "error": "token_missing"
+          },
+          "threads": {
+            "enabled": false,
+            "ok": false,
+            "sample_posts": 0,
+            "queries": 0,
+            "ok_queries": 0,
+            "error": "token_missing"
+          }
+        }
+      },
+      "missed_audit": {
+        "evaluated": 162,
+        "missed": 5,
+        "top_reasons": [
+          {
+            "reason": "overheat",
+            "count": 2
+          },
+          {
+            "reason": "conservative_rate",
+            "count": 1
+          },
+          {
+            "reason": "short_g_rate",
+            "count": 1
+          },
+          {
+            "reason": "short_funding",
+            "count": 1
+          }
+        ],
+        "samples": [
+          "XPL:LONG@60m 14.36% (conservative_rate)",
+          "CTSI:SHORT@5m 2.30% (short_g_rate)",
+          "DRIFT:SHORT@5m 1.54% (short_funding)"
+        ]
+      },
+      "risk_guard": {
+        "lookback_hours": 24,
+        "sample": 1,
+        "daily_return": -0.01172690822737574,
+        "consecutive_losses": 1,
+        "max_daily_loss_pct": 3.0,
+        "max_consecutive_losses": 5,
+        "cooldown_min": 120,
+        "triggered_new": false,
+        "reasons": [],
+        "in_cooldown": true,
+        "allow_new_picks": false,
+        "cooldown_until": "2026-04-02T21:55:03.820744+00:00"
+      },
+      "assumed_costs": {
+        "fee_bps_bithumb": 4.0,
+        "fee_bps_bitget": 6.0,
+        "slippage_bps_bithumb": 4.0,
+        "slippage_bps_bitget": 5.0
+      },
+      "daily_review": {
+        "ran": false,
+        "applied": false,
+        "summary": "",
+        "event_id": null
+      },
+      "weekly_ab": {
+        "ran": false,
+        "applied": false,
+        "summary": "",
+        "event_id": null
+      }
     }
   ],
   "calibration_events": [
@@ -354494,6 +355030,46 @@
       },
       "new_results_count": 0,
       "no_candidate_streak": 25
+    },
+    {
+      "id": "cal-1775161324",
+      "at": "2026-04-02T20:22:04.211273+00:00",
+      "notes": [
+        "Low-candidate adjustment: loosened liquidity and momentum floors slightly.",
+        "Underperformance adjustment: tightened overheat/funding caps and raised liquidity floors."
+      ],
+      "pre_config": {
+        "min_bithumb_rate": 0.5,
+        "min_bitget_rate": 0.5,
+        "min_bitget_short_rate": 0.5,
+        "short_max_bithumb_rate": 8.0,
+        "short_min_funding_rate": -0.0015,
+        "min_bithumb_value": 1100000000.0,
+        "min_bitget_volume": 5500000.0,
+        "max_overheat_rate": 20.0,
+        "conservative_max_rate": 10.0,
+        "conservative_max_abs_funding": 0.0005
+      },
+      "post_config": {
+        "min_bithumb_rate": 0.5,
+        "min_bitget_rate": 0.5,
+        "min_bitget_short_rate": 0.5,
+        "short_max_bithumb_rate": 8.0,
+        "short_min_funding_rate": -0.0015,
+        "min_bithumb_value": 1100000000.0,
+        "min_bitget_volume": 5500000.0,
+        "max_overheat_rate": 20.0,
+        "conservative_max_rate": 10.0,
+        "conservative_max_abs_funding": 0.0005
+      },
+      "metrics": {
+        "count": 120,
+        "win_rate": 0.35,
+        "avg_return": -0.0017056539133721517,
+        "median_return": -0.00214846992481477
+      },
+      "new_results_count": 0,
+      "no_candidate_streak": 26
     }
   ],
   "market_series": [
@@ -363999,6 +364575,23 @@
         "top_alt_symbol": "XAU",
         "top_alt_share": 0.07520762822932718
       }
+    },
+    {
+      "at": "2026-04-02T20:22:04.211273+00:00",
+      "prices": {
+        "market": 23864.111162304365,
+        "btc": 66893.5,
+        "eth": 2067.7,
+        "alt": 1283.7975853657804
+      },
+      "concentration": {
+        "regime": "balanced",
+        "btc_share": 0.34100060803144056,
+        "eth_share": 0.26452930481559106,
+        "alt_share": 0.39447008715296844,
+        "top_alt_symbol": "XAU",
+        "top_alt_share": 0.07511604041700559
+      }
     }
   ],
   "model_governance_events": [
@@ -364083,1491 +364676,6 @@
   },
   "missed_queue": [
     {
-      "id": "miss-ADA-LONG-1775157055",
-      "symbol": "ADA",
-      "side": "LONG",
-      "created_at": "2026-04-02T19:10:55.855171+00:00",
-      "eval_horizons_min": [
-        5,
-        15,
-        30,
-        60
-      ],
-      "evaluated_horizons": [
-        5,
-        15,
-        30
-      ],
-      "entry_bithumb_price": 365.0,
-      "entry_bitget_price": 0.2396,
-      "b_rate24h": -3.18,
-      "g_rate24h": -3.775,
-      "g_funding_rate": -0.000151,
-      "g_open_interest": 145834515.0,
-      "reject_reasons": [
-        "long_b_rate",
-        "long_g_rate"
-      ],
-      "primary_reason": "long_b_rate"
-    },
-    {
-      "id": "miss-ADA-SHORT-1775157055",
-      "symbol": "ADA",
-      "side": "SHORT",
-      "created_at": "2026-04-02T19:10:55.855171+00:00",
-      "eval_horizons_min": [
-        5,
-        15,
-        30,
-        60
-      ],
-      "evaluated_horizons": [
-        5,
-        15,
-        30
-      ],
-      "entry_bithumb_price": 365.0,
-      "entry_bitget_price": 0.2396,
-      "b_rate24h": -3.18,
-      "g_rate24h": -3.775,
-      "g_funding_rate": -0.000151,
-      "g_open_interest": 145834515.0,
-      "reject_reasons": [
-        "rank_cut"
-      ],
-      "primary_reason": "rank_cut"
-    },
-    {
-      "id": "miss-ALGO-LONG-1775157055",
-      "symbol": "ALGO",
-      "side": "LONG",
-      "created_at": "2026-04-02T19:10:55.855171+00:00",
-      "eval_horizons_min": [
-        5,
-        15,
-        30,
-        60
-      ],
-      "evaluated_horizons": [
-        5,
-        15,
-        30
-      ],
-      "entry_bithumb_price": 164.0,
-      "entry_bitget_price": 0.1078,
-      "b_rate24h": 5.81,
-      "g_rate24h": 5.376,
-      "g_funding_rate": 0.0001,
-      "g_open_interest": 50977643.3,
-      "reject_reasons": [
-        "rank_cut"
-      ],
-      "primary_reason": "rank_cut"
-    },
-    {
-      "id": "miss-ALGO-SHORT-1775157055",
-      "symbol": "ALGO",
-      "side": "SHORT",
-      "created_at": "2026-04-02T19:10:55.855171+00:00",
-      "eval_horizons_min": [
-        5,
-        15,
-        30,
-        60
-      ],
-      "evaluated_horizons": [
-        5,
-        15,
-        30
-      ],
-      "entry_bithumb_price": 164.0,
-      "entry_bitget_price": 0.1078,
-      "b_rate24h": 5.81,
-      "g_rate24h": 5.376,
-      "g_funding_rate": 0.0001,
-      "g_open_interest": 50977643.3,
-      "reject_reasons": [
-        "short_g_rate"
-      ],
-      "primary_reason": "short_g_rate"
-    },
-    {
-      "id": "miss-AVAX-LONG-1775157055",
-      "symbol": "AVAX",
-      "side": "LONG",
-      "created_at": "2026-04-02T19:10:55.855171+00:00",
-      "eval_horizons_min": [
-        5,
-        15,
-        30,
-        60
-      ],
-      "evaluated_horizons": [
-        5,
-        15,
-        30
-      ],
-      "entry_bithumb_price": 13160.0,
-      "entry_bitget_price": 8.677,
-      "b_rate24h": -4.15,
-      "g_rate24h": -4.982,
-      "g_funding_rate": -7.8e-05,
-      "g_open_interest": 2250321.5,
-      "reject_reasons": [
-        "long_b_rate",
-        "long_g_rate"
-      ],
-      "primary_reason": "long_b_rate"
-    },
-    {
-      "id": "miss-AVAX-SHORT-1775157055",
-      "symbol": "AVAX",
-      "side": "SHORT",
-      "created_at": "2026-04-02T19:10:55.855171+00:00",
-      "eval_horizons_min": [
-        5,
-        15,
-        30,
-        60
-      ],
-      "evaluated_horizons": [
-        5,
-        15,
-        30
-      ],
-      "entry_bithumb_price": 13160.0,
-      "entry_bitget_price": 8.677,
-      "b_rate24h": -4.15,
-      "g_rate24h": -4.982,
-      "g_funding_rate": -7.8e-05,
-      "g_open_interest": 2250321.5,
-      "reject_reasons": [
-        "rank_cut"
-      ],
-      "primary_reason": "rank_cut"
-    },
-    {
-      "id": "miss-BCH-LONG-1775157055",
-      "symbol": "BCH",
-      "side": "LONG",
-      "created_at": "2026-04-02T19:10:55.855171+00:00",
-      "eval_horizons_min": [
-        5,
-        15,
-        30,
-        60
-      ],
-      "evaluated_horizons": [
-        5,
-        15,
-        30
-      ],
-      "entry_bithumb_price": 668500.0,
-      "entry_bitget_price": 439.96,
-      "b_rate24h": -3.05,
-      "g_rate24h": -3.585,
-      "g_funding_rate": 0.0001,
-      "g_open_interest": 42567.85,
-      "reject_reasons": [
-        "long_b_rate",
-        "long_g_rate"
-      ],
-      "primary_reason": "long_b_rate"
-    },
-    {
-      "id": "miss-BCH-SHORT-1775157055",
-      "symbol": "BCH",
-      "side": "SHORT",
-      "created_at": "2026-04-02T19:10:55.855171+00:00",
-      "eval_horizons_min": [
-        5,
-        15,
-        30,
-        60
-      ],
-      "evaluated_horizons": [
-        5,
-        15,
-        30
-      ],
-      "entry_bithumb_price": 668500.0,
-      "entry_bitget_price": 439.96,
-      "b_rate24h": -3.05,
-      "g_rate24h": -3.585,
-      "g_funding_rate": 0.0001,
-      "g_open_interest": 42567.85,
-      "reject_reasons": [
-        "rank_cut"
-      ],
-      "primary_reason": "rank_cut"
-    },
-    {
-      "id": "miss-BTC-LONG-1775157055",
-      "symbol": "BTC",
-      "side": "LONG",
-      "created_at": "2026-04-02T19:10:55.855171+00:00",
-      "eval_horizons_min": [
-        5,
-        15,
-        30,
-        60
-      ],
-      "evaluated_horizons": [
-        5,
-        15,
-        30
-      ],
-      "entry_bithumb_price": 101822000.0,
-      "entry_bitget_price": 67008.0,
-      "b_rate24h": -1.1,
-      "g_rate24h": -1.6230000000000002,
-      "g_funding_rate": -5.3e-05,
-      "g_open_interest": 29254.4049,
-      "reject_reasons": [
-        "long_b_rate",
-        "long_g_rate"
-      ],
-      "primary_reason": "long_b_rate"
-    },
-    {
-      "id": "miss-BTC-SHORT-1775157055",
-      "symbol": "BTC",
-      "side": "SHORT",
-      "created_at": "2026-04-02T19:10:55.855171+00:00",
-      "eval_horizons_min": [
-        5,
-        15,
-        30,
-        60
-      ],
-      "evaluated_horizons": [
-        5,
-        15,
-        30
-      ],
-      "entry_bithumb_price": 101822000.0,
-      "entry_bitget_price": 67008.0,
-      "b_rate24h": -1.1,
-      "g_rate24h": -1.6230000000000002,
-      "g_funding_rate": -5.3e-05,
-      "g_open_interest": 29254.4049,
-      "reject_reasons": [
-        "rank_cut"
-      ],
-      "primary_reason": "rank_cut"
-    },
-    {
-      "id": "miss-CTSI-LONG-1775157055",
-      "symbol": "CTSI",
-      "side": "LONG",
-      "created_at": "2026-04-02T19:10:55.855171+00:00",
-      "eval_horizons_min": [
-        5,
-        15,
-        30,
-        60
-      ],
-      "evaluated_horizons": [
-        5,
-        15,
-        30
-      ],
-      "entry_bithumb_price": 62.56,
-      "entry_bitget_price": 0.04062,
-      "b_rate24h": 89.06,
-      "g_rate24h": 86.245,
-      "g_funding_rate": -0.015,
-      "g_open_interest": 52487517.0,
-      "reject_reasons": [
-        "overheat"
-      ],
-      "primary_reason": "overheat"
-    },
-    {
-      "id": "miss-CTSI-SHORT-1775157055",
-      "symbol": "CTSI",
-      "side": "SHORT",
-      "created_at": "2026-04-02T19:10:55.855171+00:00",
-      "eval_horizons_min": [
-        5,
-        15,
-        30,
-        60
-      ],
-      "evaluated_horizons": [
-        5,
-        15,
-        30
-      ],
-      "entry_bithumb_price": 62.56,
-      "entry_bitget_price": 0.04062,
-      "b_rate24h": 89.06,
-      "g_rate24h": 86.245,
-      "g_funding_rate": -0.015,
-      "g_open_interest": 52487517.0,
-      "reject_reasons": [
-        "short_g_rate",
-        "short_b_rate",
-        "short_funding"
-      ],
-      "primary_reason": "short_g_rate"
-    },
-    {
-      "id": "miss-DOGE-LONG-1775157055",
-      "symbol": "DOGE",
-      "side": "LONG",
-      "created_at": "2026-04-02T19:10:55.855171+00:00",
-      "eval_horizons_min": [
-        5,
-        15,
-        30,
-        60
-      ],
-      "evaluated_horizons": [
-        5,
-        15,
-        30
-      ],
-      "entry_bithumb_price": 137.0,
-      "entry_bitget_price": 0.08994,
-      "b_rate24h": -1.44,
-      "g_rate24h": -2.704,
-      "g_funding_rate": -0.000134,
-      "g_open_interest": 1554732675.0,
-      "reject_reasons": [
-        "long_b_rate",
-        "long_g_rate"
-      ],
-      "primary_reason": "long_b_rate"
-    },
-    {
-      "id": "miss-DOGE-SHORT-1775157055",
-      "symbol": "DOGE",
-      "side": "SHORT",
-      "created_at": "2026-04-02T19:10:55.855171+00:00",
-      "eval_horizons_min": [
-        5,
-        15,
-        30,
-        60
-      ],
-      "evaluated_horizons": [
-        5,
-        15,
-        30
-      ],
-      "entry_bithumb_price": 137.0,
-      "entry_bitget_price": 0.08994,
-      "b_rate24h": -1.44,
-      "g_rate24h": -2.704,
-      "g_funding_rate": -0.000134,
-      "g_open_interest": 1554732675.0,
-      "reject_reasons": [
-        "rank_cut"
-      ],
-      "primary_reason": "rank_cut"
-    },
-    {
-      "id": "miss-DRIFT-LONG-1775157055",
-      "symbol": "DRIFT",
-      "side": "LONG",
-      "created_at": "2026-04-02T19:10:55.855171+00:00",
-      "eval_horizons_min": [
-        5,
-        15,
-        30,
-        60
-      ],
-      "evaluated_horizons": [
-        5,
-        15,
-        30
-      ],
-      "entry_bithumb_price": 143.0,
-      "entry_bitget_price": 0.0438,
-      "b_rate24h": -5.92,
-      "g_rate24h": -6.21,
-      "g_funding_rate": -0.003989,
-      "g_open_interest": 33806111.0,
-      "reject_reasons": [
-        "long_b_rate",
-        "long_g_rate"
-      ],
-      "primary_reason": "long_b_rate"
-    },
-    {
-      "id": "miss-DRIFT-SHORT-1775157055",
-      "symbol": "DRIFT",
-      "side": "SHORT",
-      "created_at": "2026-04-02T19:10:55.855171+00:00",
-      "eval_horizons_min": [
-        5,
-        15,
-        30,
-        60
-      ],
-      "evaluated_horizons": [
-        5,
-        15,
-        30
-      ],
-      "entry_bithumb_price": 143.0,
-      "entry_bitget_price": 0.0438,
-      "b_rate24h": -5.92,
-      "g_rate24h": -6.21,
-      "g_funding_rate": -0.003989,
-      "g_open_interest": 33806111.0,
-      "reject_reasons": [
-        "short_funding"
-      ],
-      "primary_reason": "short_funding"
-    },
-    {
-      "id": "miss-ENA-LONG-1775157055",
-      "symbol": "ENA",
-      "side": "LONG",
-      "created_at": "2026-04-02T19:10:55.855171+00:00",
-      "eval_horizons_min": [
-        5,
-        15,
-        30,
-        60
-      ],
-      "evaluated_horizons": [
-        5,
-        15,
-        30
-      ],
-      "entry_bithumb_price": 122.0,
-      "entry_bitget_price": 0.0804,
-      "b_rate24h": -10.29,
-      "g_rate24h": -10.667,
-      "g_funding_rate": -0.000139,
-      "g_open_interest": 175112794.0,
-      "reject_reasons": [
-        "long_b_rate",
-        "long_g_rate"
-      ],
-      "primary_reason": "long_b_rate"
-    },
-    {
-      "id": "miss-ENA-SHORT-1775157055",
-      "symbol": "ENA",
-      "side": "SHORT",
-      "created_at": "2026-04-02T19:10:55.855171+00:00",
-      "eval_horizons_min": [
-        5,
-        15,
-        30,
-        60
-      ],
-      "evaluated_horizons": [
-        5,
-        15,
-        30
-      ],
-      "entry_bithumb_price": 122.0,
-      "entry_bitget_price": 0.0804,
-      "b_rate24h": -10.29,
-      "g_rate24h": -10.667,
-      "g_funding_rate": -0.000139,
-      "g_open_interest": 175112794.0,
-      "reject_reasons": [
-        "conservative_rate"
-      ],
-      "primary_reason": "conservative_rate"
-    },
-    {
-      "id": "miss-ETH-LONG-1775157055",
-      "symbol": "ETH",
-      "side": "LONG",
-      "created_at": "2026-04-02T19:10:55.855171+00:00",
-      "eval_horizons_min": [
-        5,
-        15,
-        30,
-        60
-      ],
-      "evaluated_horizons": [
-        5,
-        15,
-        30
-      ],
-      "entry_bithumb_price": 3128000.0,
-      "entry_bitget_price": 2058.39,
-      "b_rate24h": -2.83,
-      "g_rate24h": -3.4000000000000004,
-      "g_funding_rate": -4e-05,
-      "g_open_interest": 605113.64,
-      "reject_reasons": [
-        "long_b_rate",
-        "long_g_rate"
-      ],
-      "primary_reason": "long_b_rate"
-    },
-    {
-      "id": "miss-ETH-SHORT-1775157055",
-      "symbol": "ETH",
-      "side": "SHORT",
-      "created_at": "2026-04-02T19:10:55.855171+00:00",
-      "eval_horizons_min": [
-        5,
-        15,
-        30,
-        60
-      ],
-      "evaluated_horizons": [
-        5,
-        15,
-        30
-      ],
-      "entry_bithumb_price": 3128000.0,
-      "entry_bitget_price": 2058.39,
-      "b_rate24h": -2.83,
-      "g_rate24h": -3.4000000000000004,
-      "g_funding_rate": -4e-05,
-      "g_open_interest": 605113.64,
-      "reject_reasons": [
-        "rank_cut"
-      ],
-      "primary_reason": "rank_cut"
-    },
-    {
-      "id": "miss-FET-LONG-1775157055",
-      "symbol": "FET",
-      "side": "LONG",
-      "created_at": "2026-04-02T19:10:55.855171+00:00",
-      "eval_horizons_min": [
-        5,
-        15,
-        30,
-        60
-      ],
-      "evaluated_horizons": [
-        5,
-        15,
-        30
-      ],
-      "entry_bithumb_price": 348.0,
-      "entry_bitget_price": 0.2291,
-      "b_rate24h": -3.06,
-      "g_rate24h": -3.5770000000000004,
-      "g_funding_rate": -5.2e-05,
-      "g_open_interest": 55533838.0,
-      "reject_reasons": [
-        "long_b_rate",
-        "long_g_rate"
-      ],
-      "primary_reason": "long_b_rate"
-    },
-    {
-      "id": "miss-FET-SHORT-1775157055",
-      "symbol": "FET",
-      "side": "SHORT",
-      "created_at": "2026-04-02T19:10:55.855171+00:00",
-      "eval_horizons_min": [
-        5,
-        15,
-        30,
-        60
-      ],
-      "evaluated_horizons": [
-        5,
-        15,
-        30
-      ],
-      "entry_bithumb_price": 348.0,
-      "entry_bitget_price": 0.2291,
-      "b_rate24h": -3.06,
-      "g_rate24h": -3.5770000000000004,
-      "g_funding_rate": -5.2e-05,
-      "g_open_interest": 55533838.0,
-      "reject_reasons": [
-        "rank_cut"
-      ],
-      "primary_reason": "rank_cut"
-    },
-    {
-      "id": "miss-HBAR-LONG-1775157055",
-      "symbol": "HBAR",
-      "side": "LONG",
-      "created_at": "2026-04-02T19:10:55.855171+00:00",
-      "eval_horizons_min": [
-        5,
-        15,
-        30,
-        60
-      ],
-      "evaluated_horizons": [
-        5,
-        15,
-        30
-      ],
-      "entry_bithumb_price": 133.0,
-      "entry_bitget_price": 0.08715,
-      "b_rate24h": -1.48,
-      "g_rate24h": -2.2319999999999998,
-      "g_funding_rate": -6.1e-05,
-      "g_open_interest": 171038446.0,
-      "reject_reasons": [
-        "long_b_rate",
-        "long_g_rate"
-      ],
-      "primary_reason": "long_b_rate"
-    },
-    {
-      "id": "miss-HBAR-SHORT-1775157055",
-      "symbol": "HBAR",
-      "side": "SHORT",
-      "created_at": "2026-04-02T19:10:55.855171+00:00",
-      "eval_horizons_min": [
-        5,
-        15,
-        30,
-        60
-      ],
-      "evaluated_horizons": [
-        5,
-        15,
-        30
-      ],
-      "entry_bithumb_price": 133.0,
-      "entry_bitget_price": 0.08715,
-      "b_rate24h": -1.48,
-      "g_rate24h": -2.2319999999999998,
-      "g_funding_rate": -6.1e-05,
-      "g_open_interest": 171038446.0,
-      "reject_reasons": [
-        "rank_cut"
-      ],
-      "primary_reason": "rank_cut"
-    },
-    {
-      "id": "miss-KERNEL-LONG-1775157055",
-      "symbol": "KERNEL",
-      "side": "LONG",
-      "created_at": "2026-04-02T19:10:55.855171+00:00",
-      "eval_horizons_min": [
-        5,
-        15,
-        30,
-        60
-      ],
-      "evaluated_horizons": [
-        5,
-        15,
-        30
-      ],
-      "entry_bithumb_price": 172.0,
-      "entry_bitget_price": 0.11383,
-      "b_rate24h": -9.95,
-      "g_rate24h": -9.637,
-      "g_funding_rate": -0.000295,
-      "g_open_interest": 25407945.0,
-      "reject_reasons": [
-        "long_b_rate",
-        "long_g_rate"
-      ],
-      "primary_reason": "long_b_rate"
-    },
-    {
-      "id": "miss-KERNEL-SHORT-1775157055",
-      "symbol": "KERNEL",
-      "side": "SHORT",
-      "created_at": "2026-04-02T19:10:55.855171+00:00",
-      "eval_horizons_min": [
-        5,
-        15,
-        30,
-        60
-      ],
-      "evaluated_horizons": [
-        5,
-        15,
-        30
-      ],
-      "entry_bithumb_price": 172.0,
-      "entry_bitget_price": 0.11383,
-      "b_rate24h": -9.95,
-      "g_rate24h": -9.637,
-      "g_funding_rate": -0.000295,
-      "g_open_interest": 25407945.0,
-      "reject_reasons": [
-        "rank_cut"
-      ],
-      "primary_reason": "rank_cut"
-    },
-    {
-      "id": "miss-NOM-LONG-1775157055",
-      "symbol": "NOM",
-      "side": "LONG",
-      "created_at": "2026-04-02T19:10:55.855171+00:00",
-      "eval_horizons_min": [
-        5,
-        15,
-        30,
-        60
-      ],
-      "evaluated_horizons": [
-        5,
-        15,
-        30
-      ],
-      "entry_bithumb_price": 16.24,
-      "entry_bitget_price": 0.008388,
-      "b_rate24h": 2.98,
-      "g_rate24h": 34.617,
-      "g_funding_rate": -0.003623,
-      "g_open_interest": 450468308.0,
-      "reject_reasons": [
-        "overheat"
-      ],
-      "primary_reason": "overheat"
-    },
-    {
-      "id": "miss-NOM-SHORT-1775157055",
-      "symbol": "NOM",
-      "side": "SHORT",
-      "created_at": "2026-04-02T19:10:55.855171+00:00",
-      "eval_horizons_min": [
-        5,
-        15,
-        30,
-        60
-      ],
-      "evaluated_horizons": [
-        5,
-        15,
-        30
-      ],
-      "entry_bithumb_price": 16.24,
-      "entry_bitget_price": 0.008388,
-      "b_rate24h": 2.98,
-      "g_rate24h": 34.617,
-      "g_funding_rate": -0.003623,
-      "g_open_interest": 450468308.0,
-      "reject_reasons": [
-        "short_g_rate",
-        "short_funding"
-      ],
-      "primary_reason": "short_g_rate"
-    },
-    {
-      "id": "miss-ONT-LONG-1775157055",
-      "symbol": "ONT",
-      "side": "LONG",
-      "created_at": "2026-04-02T19:10:55.855171+00:00",
-      "eval_horizons_min": [
-        5,
-        15,
-        30,
-        60
-      ],
-      "evaluated_horizons": [
-        5,
-        15,
-        30
-      ],
-      "entry_bithumb_price": 160.0,
-      "entry_bitget_price": 0.10412,
-      "b_rate24h": -14.44,
-      "g_rate24h": -15.684999999999999,
-      "g_funding_rate": -0.001036,
-      "g_open_interest": 54404792.7,
-      "reject_reasons": [
-        "long_b_rate",
-        "long_g_rate"
-      ],
-      "primary_reason": "long_b_rate"
-    },
-    {
-      "id": "miss-ONT-SHORT-1775157055",
-      "symbol": "ONT",
-      "side": "SHORT",
-      "created_at": "2026-04-02T19:10:55.855171+00:00",
-      "eval_horizons_min": [
-        5,
-        15,
-        30,
-        60
-      ],
-      "evaluated_horizons": [
-        5,
-        15,
-        30
-      ],
-      "entry_bithumb_price": 160.0,
-      "entry_bitget_price": 0.10412,
-      "b_rate24h": -14.44,
-      "g_rate24h": -15.684999999999999,
-      "g_funding_rate": -0.001036,
-      "g_open_interest": 54404792.7,
-      "reject_reasons": [
-        "conservative_rate"
-      ],
-      "primary_reason": "conservative_rate"
-    },
-    {
-      "id": "miss-PENGU-LONG-1775157055",
-      "symbol": "PENGU",
-      "side": "LONG",
-      "created_at": "2026-04-02T19:10:55.855171+00:00",
-      "eval_horizons_min": [
-        5,
-        15,
-        30,
-        60
-      ],
-      "evaluated_horizons": [
-        5,
-        15,
-        30
-      ],
-      "entry_bithumb_price": 9.386,
-      "entry_bitget_price": 0.006214,
-      "b_rate24h": -5.18,
-      "g_rate24h": -5.548,
-      "g_funding_rate": 5e-05,
-      "g_open_interest": 1296269442.0,
-      "reject_reasons": [
-        "long_b_rate",
-        "long_g_rate"
-      ],
-      "primary_reason": "long_b_rate"
-    },
-    {
-      "id": "miss-PENGU-SHORT-1775157055",
-      "symbol": "PENGU",
-      "side": "SHORT",
-      "created_at": "2026-04-02T19:10:55.855171+00:00",
-      "eval_horizons_min": [
-        5,
-        15,
-        30,
-        60
-      ],
-      "evaluated_horizons": [
-        5,
-        15,
-        30
-      ],
-      "entry_bithumb_price": 9.386,
-      "entry_bitget_price": 0.006214,
-      "b_rate24h": -5.18,
-      "g_rate24h": -5.548,
-      "g_funding_rate": 5e-05,
-      "g_open_interest": 1296269442.0,
-      "reject_reasons": [
-        "rank_cut"
-      ],
-      "primary_reason": "rank_cut"
-    },
-    {
-      "id": "miss-PEPE-LONG-1775157055",
-      "symbol": "PEPE",
-      "side": "LONG",
-      "created_at": "2026-04-02T19:10:55.855171+00:00",
-      "eval_horizons_min": [
-        5,
-        15,
-        30,
-        60
-      ],
-      "evaluated_horizons": [
-        5,
-        15,
-        30
-      ],
-      "entry_bithumb_price": 0.005,
-      "entry_bitget_price": 3.3199e-06,
-      "b_rate24h": -3.85,
-      "g_rate24h": -2.904,
-      "g_funding_rate": -9.9e-05,
-      "g_open_interest": 7360616511498.0,
-      "reject_reasons": [
-        "long_b_rate",
-        "long_g_rate"
-      ],
-      "primary_reason": "long_b_rate"
-    },
-    {
-      "id": "miss-PEPE-SHORT-1775157055",
-      "symbol": "PEPE",
-      "side": "SHORT",
-      "created_at": "2026-04-02T19:10:55.855171+00:00",
-      "eval_horizons_min": [
-        5,
-        15,
-        30,
-        60
-      ],
-      "evaluated_horizons": [
-        5,
-        15,
-        30
-      ],
-      "entry_bithumb_price": 0.005,
-      "entry_bitget_price": 3.3199e-06,
-      "b_rate24h": -3.85,
-      "g_rate24h": -2.904,
-      "g_funding_rate": -9.9e-05,
-      "g_open_interest": 7360616511498.0,
-      "reject_reasons": [
-        "rank_cut"
-      ],
-      "primary_reason": "rank_cut"
-    },
-    {
-      "id": "miss-SOL-LONG-1775157055",
-      "symbol": "SOL",
-      "side": "LONG",
-      "created_at": "2026-04-02T19:10:55.855171+00:00",
-      "eval_horizons_min": [
-        5,
-        15,
-        30,
-        60
-      ],
-      "evaluated_horizons": [
-        5,
-        15,
-        30
-      ],
-      "entry_bithumb_price": 120200.0,
-      "entry_bitget_price": 79.117,
-      "b_rate24h": -5.28,
-      "g_rate24h": -5.838,
-      "g_funding_rate": 3.1e-05,
-      "g_open_interest": 4384239.9,
-      "reject_reasons": [
-        "long_b_rate",
-        "long_g_rate"
-      ],
-      "primary_reason": "long_b_rate"
-    },
-    {
-      "id": "miss-SOL-SHORT-1775157055",
-      "symbol": "SOL",
-      "side": "SHORT",
-      "created_at": "2026-04-02T19:10:55.855171+00:00",
-      "eval_horizons_min": [
-        5,
-        15,
-        30,
-        60
-      ],
-      "evaluated_horizons": [
-        5,
-        15,
-        30
-      ],
-      "entry_bithumb_price": 120200.0,
-      "entry_bitget_price": 79.117,
-      "b_rate24h": -5.28,
-      "g_rate24h": -5.838,
-      "g_funding_rate": 3.1e-05,
-      "g_open_interest": 4384239.9,
-      "reject_reasons": [
-        "rank_cut"
-      ],
-      "primary_reason": "rank_cut"
-    },
-    {
-      "id": "miss-STABLE-LONG-1775157055",
-      "symbol": "STABLE",
-      "side": "LONG",
-      "created_at": "2026-04-02T19:10:55.855171+00:00",
-      "eval_horizons_min": [
-        5,
-        15,
-        30,
-        60
-      ],
-      "evaluated_horizons": [
-        5,
-        15,
-        30
-      ],
-      "entry_bithumb_price": 44.0,
-      "entry_bitget_price": 0.02888,
-      "b_rate24h": 10.22,
-      "g_rate24h": 9.602,
-      "g_funding_rate": 1.3e-05,
-      "g_open_interest": 53720952.0,
-      "reject_reasons": [
-        "conservative_rate"
-      ],
-      "primary_reason": "conservative_rate"
-    },
-    {
-      "id": "miss-STABLE-SHORT-1775157055",
-      "symbol": "STABLE",
-      "side": "SHORT",
-      "created_at": "2026-04-02T19:10:55.855171+00:00",
-      "eval_horizons_min": [
-        5,
-        15,
-        30,
-        60
-      ],
-      "evaluated_horizons": [
-        5,
-        15,
-        30
-      ],
-      "entry_bithumb_price": 44.0,
-      "entry_bitget_price": 0.02888,
-      "b_rate24h": 10.22,
-      "g_rate24h": 9.602,
-      "g_funding_rate": 1.3e-05,
-      "g_open_interest": 53720952.0,
-      "reject_reasons": [
-        "short_g_rate",
-        "short_b_rate"
-      ],
-      "primary_reason": "short_g_rate"
-    },
-    {
-      "id": "miss-SUI-LONG-1775157055",
-      "symbol": "SUI",
-      "side": "LONG",
-      "created_at": "2026-04-02T19:10:55.855171+00:00",
-      "eval_horizons_min": [
-        5,
-        15,
-        30,
-        60
-      ],
-      "evaluated_horizons": [
-        5,
-        15,
-        30
-      ],
-      "entry_bithumb_price": 1305.0,
-      "entry_bitget_price": 0.8587,
-      "b_rate24h": -3.55,
-      "g_rate24h": -4.045,
-      "g_funding_rate": 5e-05,
-      "g_open_interest": 43692160.6,
-      "reject_reasons": [
-        "long_b_rate",
-        "long_g_rate"
-      ],
-      "primary_reason": "long_b_rate"
-    },
-    {
-      "id": "miss-SUI-SHORT-1775157055",
-      "symbol": "SUI",
-      "side": "SHORT",
-      "created_at": "2026-04-02T19:10:55.855171+00:00",
-      "eval_horizons_min": [
-        5,
-        15,
-        30,
-        60
-      ],
-      "evaluated_horizons": [
-        5,
-        15,
-        30
-      ],
-      "entry_bithumb_price": 1305.0,
-      "entry_bitget_price": 0.8587,
-      "b_rate24h": -3.55,
-      "g_rate24h": -4.045,
-      "g_funding_rate": 5e-05,
-      "g_open_interest": 43692160.6,
-      "reject_reasons": [
-        "rank_cut"
-      ],
-      "primary_reason": "rank_cut"
-    },
-    {
-      "id": "miss-TAO-LONG-1775157055",
-      "symbol": "TAO",
-      "side": "LONG",
-      "created_at": "2026-04-02T19:10:55.855171+00:00",
-      "eval_horizons_min": [
-        5,
-        15,
-        30,
-        60
-      ],
-      "evaluated_horizons": [
-        5,
-        15,
-        30
-      ],
-      "entry_bithumb_price": 456600.0,
-      "entry_bitget_price": 301.35,
-      "b_rate24h": -3.67,
-      "g_rate24h": -4.642,
-      "g_funding_rate": 5e-05,
-      "g_open_interest": 124903.75,
-      "reject_reasons": [
-        "long_b_rate",
-        "long_g_rate"
-      ],
-      "primary_reason": "long_b_rate"
-    },
-    {
-      "id": "miss-TAO-SHORT-1775157055",
-      "symbol": "TAO",
-      "side": "SHORT",
-      "created_at": "2026-04-02T19:10:55.855171+00:00",
-      "eval_horizons_min": [
-        5,
-        15,
-        30,
-        60
-      ],
-      "evaluated_horizons": [
-        5,
-        15,
-        30
-      ],
-      "entry_bithumb_price": 456600.0,
-      "entry_bitget_price": 301.35,
-      "b_rate24h": -3.67,
-      "g_rate24h": -4.642,
-      "g_funding_rate": 5e-05,
-      "g_open_interest": 124903.75,
-      "reject_reasons": [
-        "rank_cut"
-      ],
-      "primary_reason": "rank_cut"
-    },
-    {
-      "id": "miss-TRUMP-LONG-1775157055",
-      "symbol": "TRUMP",
-      "side": "LONG",
-      "created_at": "2026-04-02T19:10:55.855171+00:00",
-      "eval_horizons_min": [
-        5,
-        15,
-        30,
-        60
-      ],
-      "evaluated_horizons": [
-        5,
-        15,
-        30
-      ],
-      "entry_bithumb_price": 4297.0,
-      "entry_bitget_price": 2.823,
-      "b_rate24h": -4.93,
-      "g_rate24h": -5.395,
-      "g_funding_rate": -0.000211,
-      "g_open_interest": 4511421.0,
-      "reject_reasons": [
-        "long_b_rate",
-        "long_g_rate"
-      ],
-      "primary_reason": "long_b_rate"
-    },
-    {
-      "id": "miss-TRUMP-SHORT-1775157055",
-      "symbol": "TRUMP",
-      "side": "SHORT",
-      "created_at": "2026-04-02T19:10:55.855171+00:00",
-      "eval_horizons_min": [
-        5,
-        15,
-        30,
-        60
-      ],
-      "evaluated_horizons": [
-        5,
-        15,
-        30
-      ],
-      "entry_bithumb_price": 4297.0,
-      "entry_bitget_price": 2.823,
-      "b_rate24h": -4.93,
-      "g_rate24h": -5.395,
-      "g_funding_rate": -0.000211,
-      "g_open_interest": 4511421.0,
-      "reject_reasons": [
-        "rank_cut"
-      ],
-      "primary_reason": "rank_cut"
-    },
-    {
-      "id": "miss-UNI-LONG-1775157055",
-      "symbol": "UNI",
-      "side": "LONG",
-      "created_at": "2026-04-02T19:10:55.855171+00:00",
-      "eval_horizons_min": [
-        5,
-        15,
-        30,
-        60
-      ],
-      "evaluated_horizons": [
-        5,
-        15,
-        30
-      ],
-      "entry_bithumb_price": 4761.0,
-      "entry_bitget_price": 3.132,
-      "b_rate24h": -12.24,
-      "g_rate24h": -12.975999999999999,
-      "g_funding_rate": -0.000454,
-      "g_open_interest": 5038694.0,
-      "reject_reasons": [
-        "long_b_rate",
-        "long_g_rate"
-      ],
-      "primary_reason": "long_b_rate"
-    },
-    {
-      "id": "miss-UNI-SHORT-1775157055",
-      "symbol": "UNI",
-      "side": "SHORT",
-      "created_at": "2026-04-02T19:10:55.855171+00:00",
-      "eval_horizons_min": [
-        5,
-        15,
-        30,
-        60
-      ],
-      "evaluated_horizons": [
-        5,
-        15,
-        30
-      ],
-      "entry_bithumb_price": 4761.0,
-      "entry_bitget_price": 3.132,
-      "b_rate24h": -12.24,
-      "g_rate24h": -12.975999999999999,
-      "g_funding_rate": -0.000454,
-      "g_open_interest": 5038694.0,
-      "reject_reasons": [
-        "conservative_rate"
-      ],
-      "primary_reason": "conservative_rate"
-    },
-    {
-      "id": "miss-VIRTUAL-LONG-1775157055",
-      "symbol": "VIRTUAL",
-      "side": "LONG",
-      "created_at": "2026-04-02T19:10:55.855171+00:00",
-      "eval_horizons_min": [
-        5,
-        15,
-        30,
-        60
-      ],
-      "evaluated_horizons": [
-        5,
-        15,
-        30
-      ],
-      "entry_bithumb_price": 958.0,
-      "entry_bitget_price": 0.6312,
-      "b_rate24h": -4.49,
-      "g_rate24h": -4.997,
-      "g_funding_rate": -1.4e-05,
-      "g_open_interest": 12259877.0,
-      "reject_reasons": [
-        "long_b_rate",
-        "long_g_rate"
-      ],
-      "primary_reason": "long_b_rate"
-    },
-    {
-      "id": "miss-VIRTUAL-SHORT-1775157055",
-      "symbol": "VIRTUAL",
-      "side": "SHORT",
-      "created_at": "2026-04-02T19:10:55.855171+00:00",
-      "eval_horizons_min": [
-        5,
-        15,
-        30,
-        60
-      ],
-      "evaluated_horizons": [
-        5,
-        15,
-        30
-      ],
-      "entry_bithumb_price": 958.0,
-      "entry_bitget_price": 0.6312,
-      "b_rate24h": -4.49,
-      "g_rate24h": -4.997,
-      "g_funding_rate": -1.4e-05,
-      "g_open_interest": 12259877.0,
-      "reject_reasons": [
-        "rank_cut"
-      ],
-      "primary_reason": "rank_cut"
-    },
-    {
-      "id": "miss-XAUT-LONG-1775157055",
-      "symbol": "XAUT",
-      "side": "LONG",
-      "created_at": "2026-04-02T19:10:55.855171+00:00",
-      "eval_horizons_min": [
-        5,
-        15,
-        30,
-        60
-      ],
-      "evaluated_horizons": [
-        5,
-        15,
-        30
-      ],
-      "entry_bithumb_price": 7054000.0,
-      "entry_bitget_price": 4652.86,
-      "b_rate24h": -1.02,
-      "g_rate24h": -1.514,
-      "g_funding_rate": 4.4e-05,
-      "g_open_interest": 9142.65,
-      "reject_reasons": [
-        "long_b_rate",
-        "long_g_rate"
-      ],
-      "primary_reason": "long_b_rate"
-    },
-    {
-      "id": "miss-XAUT-SHORT-1775157055",
-      "symbol": "XAUT",
-      "side": "SHORT",
-      "created_at": "2026-04-02T19:10:55.855171+00:00",
-      "eval_horizons_min": [
-        5,
-        15,
-        30,
-        60
-      ],
-      "evaluated_horizons": [
-        5,
-        15,
-        30
-      ],
-      "entry_bithumb_price": 7054000.0,
-      "entry_bitget_price": 4652.86,
-      "b_rate24h": -1.02,
-      "g_rate24h": -1.514,
-      "g_funding_rate": 4.4e-05,
-      "g_open_interest": 9142.65,
-      "reject_reasons": [
-        "rank_cut"
-      ],
-      "primary_reason": "rank_cut"
-    },
-    {
-      "id": "miss-XPL-LONG-1775157055",
-      "symbol": "XPL",
-      "side": "LONG",
-      "created_at": "2026-04-02T19:10:55.855171+00:00",
-      "eval_horizons_min": [
-        5,
-        15,
-        30,
-        60
-      ],
-      "evaluated_horizons": [
-        5,
-        15,
-        30
-      ],
-      "entry_bithumb_price": 184.0,
-      "entry_bitget_price": 0.1225,
-      "b_rate24h": 16.46,
-      "g_rate24h": 16.556,
-      "g_funding_rate": 5e-05,
-      "g_open_interest": 168684476.0,
-      "reject_reasons": [
-        "conservative_rate"
-      ],
-      "primary_reason": "conservative_rate"
-    },
-    {
-      "id": "miss-XPL-SHORT-1775157055",
-      "symbol": "XPL",
-      "side": "SHORT",
-      "created_at": "2026-04-02T19:10:55.855171+00:00",
-      "eval_horizons_min": [
-        5,
-        15,
-        30,
-        60
-      ],
-      "evaluated_horizons": [
-        5,
-        15,
-        30
-      ],
-      "entry_bithumb_price": 184.0,
-      "entry_bitget_price": 0.1225,
-      "b_rate24h": 16.46,
-      "g_rate24h": 16.556,
-      "g_funding_rate": 5e-05,
-      "g_open_interest": 168684476.0,
-      "reject_reasons": [
-        "short_g_rate",
-        "short_b_rate"
-      ],
-      "primary_reason": "short_g_rate"
-    },
-    {
-      "id": "miss-XRP-LONG-1775157055",
-      "symbol": "XRP",
-      "side": "LONG",
-      "created_at": "2026-04-02T19:10:55.855171+00:00",
-      "eval_horizons_min": [
-        5,
-        15,
-        30,
-        60
-      ],
-      "evaluated_horizons": [
-        5,
-        15,
-        30
-      ],
-      "entry_bithumb_price": 1985.0,
-      "entry_bitget_price": 1.3058,
-      "b_rate24h": -2.55,
-      "g_rate24h": -3.1879999999999997,
-      "g_funding_rate": -0.000119,
-      "g_open_interest": 160278038.0,
-      "reject_reasons": [
-        "long_b_rate",
-        "long_g_rate"
-      ],
-      "primary_reason": "long_b_rate"
-    },
-    {
-      "id": "miss-XRP-SHORT-1775157055",
-      "symbol": "XRP",
-      "side": "SHORT",
-      "created_at": "2026-04-02T19:10:55.855171+00:00",
-      "eval_horizons_min": [
-        5,
-        15,
-        30,
-        60
-      ],
-      "evaluated_horizons": [
-        5,
-        15,
-        30
-      ],
-      "entry_bithumb_price": 1985.0,
-      "entry_bitget_price": 1.3058,
-      "b_rate24h": -2.55,
-      "g_rate24h": -3.1879999999999997,
-      "g_funding_rate": -0.000119,
-      "g_open_interest": 160278038.0,
-      "reject_reasons": [
-        "rank_cut"
-      ],
-      "primary_reason": "rank_cut"
-    },
-    {
       "id": "miss-ADA-LONG-1775159703",
       "symbol": "ADA",
       "side": "LONG",
@@ -365578,7 +364686,10 @@
         30,
         60
       ],
-      "evaluated_horizons": [],
+      "evaluated_horizons": [
+        5,
+        15
+      ],
       "entry_bithumb_price": 365.0,
       "entry_bitget_price": 0.2396,
       "b_rate24h": -3.18,
@@ -365602,7 +364713,10 @@
         30,
         60
       ],
-      "evaluated_horizons": [],
+      "evaluated_horizons": [
+        5,
+        15
+      ],
       "entry_bithumb_price": 365.0,
       "entry_bitget_price": 0.2396,
       "b_rate24h": -3.18,
@@ -365625,7 +364739,10 @@
         30,
         60
       ],
-      "evaluated_horizons": [],
+      "evaluated_horizons": [
+        5,
+        15
+      ],
       "entry_bithumb_price": 163.0,
       "entry_bitget_price": 0.1071,
       "b_rate24h": 4.49,
@@ -365648,7 +364765,10 @@
         30,
         60
       ],
-      "evaluated_horizons": [],
+      "evaluated_horizons": [
+        5,
+        15
+      ],
       "entry_bithumb_price": 163.0,
       "entry_bitget_price": 0.1071,
       "b_rate24h": 4.49,
@@ -365671,7 +364791,10 @@
         30,
         60
       ],
-      "evaluated_horizons": [],
+      "evaluated_horizons": [
+        5,
+        15
+      ],
       "entry_bithumb_price": 13180.0,
       "entry_bitget_price": 8.704,
       "b_rate24h": -4.08,
@@ -365695,7 +364818,10 @@
         30,
         60
       ],
-      "evaluated_horizons": [],
+      "evaluated_horizons": [
+        5,
+        15
+      ],
       "entry_bithumb_price": 13180.0,
       "entry_bitget_price": 8.704,
       "b_rate24h": -4.08,
@@ -365718,7 +364844,10 @@
         30,
         60
       ],
-      "evaluated_horizons": [],
+      "evaluated_horizons": [
+        5,
+        15
+      ],
       "entry_bithumb_price": 672000.0,
       "entry_bitget_price": 442.03,
       "b_rate24h": -2.54,
@@ -365742,7 +364871,10 @@
         30,
         60
       ],
-      "evaluated_horizons": [],
+      "evaluated_horizons": [
+        5,
+        15
+      ],
       "entry_bithumb_price": 672000.0,
       "entry_bitget_price": 442.03,
       "b_rate24h": -2.54,
@@ -365765,7 +364897,10 @@
         30,
         60
       ],
-      "evaluated_horizons": [],
+      "evaluated_horizons": [
+        5,
+        15
+      ],
       "entry_bithumb_price": 101810000.0,
       "entry_bitget_price": 66978.0,
       "b_rate24h": -1.13,
@@ -365789,7 +364924,10 @@
         30,
         60
       ],
-      "evaluated_horizons": [],
+      "evaluated_horizons": [
+        5,
+        15
+      ],
       "entry_bithumb_price": 101810000.0,
       "entry_bitget_price": 66978.0,
       "b_rate24h": -1.13,
@@ -365812,7 +364950,10 @@
         30,
         60
       ],
-      "evaluated_horizons": [],
+      "evaluated_horizons": [
+        5,
+        15
+      ],
       "entry_bithumb_price": 62.23,
       "entry_bitget_price": 0.04037,
       "b_rate24h": 88.06,
@@ -365835,7 +364976,10 @@
         30,
         60
       ],
-      "evaluated_horizons": [],
+      "evaluated_horizons": [
+        5,
+        15
+      ],
       "entry_bithumb_price": 62.23,
       "entry_bitget_price": 0.04037,
       "b_rate24h": 88.06,
@@ -365860,7 +365004,10 @@
         30,
         60
       ],
-      "evaluated_horizons": [],
+      "evaluated_horizons": [
+        5,
+        15
+      ],
       "entry_bithumb_price": 137.0,
       "entry_bitget_price": 0.09018,
       "b_rate24h": -2.84,
@@ -365884,7 +365031,10 @@
         30,
         60
       ],
-      "evaluated_horizons": [],
+      "evaluated_horizons": [
+        5,
+        15
+      ],
       "entry_bithumb_price": 137.0,
       "entry_bitget_price": 0.09018,
       "b_rate24h": -2.84,
@@ -365907,7 +365057,10 @@
         30,
         60
       ],
-      "evaluated_horizons": [],
+      "evaluated_horizons": [
+        5,
+        15
+      ],
       "entry_bithumb_price": 137.0,
       "entry_bitget_price": 0.0454,
       "b_rate24h": -12.74,
@@ -365931,7 +365084,10 @@
         30,
         60
       ],
-      "evaluated_horizons": [],
+      "evaluated_horizons": [
+        5,
+        15
+      ],
       "entry_bithumb_price": 137.0,
       "entry_bitget_price": 0.0454,
       "b_rate24h": -12.74,
@@ -365954,7 +365110,10 @@
         30,
         60
       ],
-      "evaluated_horizons": [],
+      "evaluated_horizons": [
+        5,
+        15
+      ],
       "entry_bithumb_price": 122.0,
       "entry_bitget_price": 0.0805,
       "b_rate24h": -10.29,
@@ -365978,7 +365137,10 @@
         30,
         60
       ],
-      "evaluated_horizons": [],
+      "evaluated_horizons": [
+        5,
+        15
+      ],
       "entry_bithumb_price": 122.0,
       "entry_bitget_price": 0.0805,
       "b_rate24h": -10.29,
@@ -366001,7 +365163,10 @@
         30,
         60
       ],
-      "evaluated_horizons": [],
+      "evaluated_horizons": [
+        5,
+        15
+      ],
       "entry_bithumb_price": 3135000.0,
       "entry_bitget_price": 2063.42,
       "b_rate24h": -3.15,
@@ -366025,7 +365190,10 @@
         30,
         60
       ],
-      "evaluated_horizons": [],
+      "evaluated_horizons": [
+        5,
+        15
+      ],
       "entry_bithumb_price": 3135000.0,
       "entry_bitget_price": 2063.42,
       "b_rate24h": -3.15,
@@ -366048,7 +365216,10 @@
         30,
         60
       ],
-      "evaluated_horizons": [],
+      "evaluated_horizons": [
+        5,
+        15
+      ],
       "entry_bithumb_price": 349.0,
       "entry_bitget_price": 0.2301,
       "b_rate24h": -3.86,
@@ -366072,7 +365243,10 @@
         30,
         60
       ],
-      "evaluated_horizons": [],
+      "evaluated_horizons": [
+        5,
+        15
+      ],
       "entry_bithumb_price": 349.0,
       "entry_bitget_price": 0.2301,
       "b_rate24h": -3.86,
@@ -366095,7 +365269,10 @@
         30,
         60
       ],
-      "evaluated_horizons": [],
+      "evaluated_horizons": [
+        5,
+        15
+      ],
       "entry_bithumb_price": 133.0,
       "entry_bitget_price": 0.08743,
       "b_rate24h": -1.48,
@@ -366119,7 +365296,10 @@
         30,
         60
       ],
-      "evaluated_horizons": [],
+      "evaluated_horizons": [
+        5,
+        15
+      ],
       "entry_bithumb_price": 133.0,
       "entry_bitget_price": 0.08743,
       "b_rate24h": -1.48,
@@ -366142,7 +365322,10 @@
         30,
         60
       ],
-      "evaluated_horizons": [],
+      "evaluated_horizons": [
+        5,
+        15
+      ],
       "entry_bithumb_price": 168.0,
       "entry_bitget_price": 0.11065,
       "b_rate24h": -10.16,
@@ -366166,7 +365349,10 @@
         30,
         60
       ],
-      "evaluated_horizons": [],
+      "evaluated_horizons": [
+        5,
+        15
+      ],
       "entry_bithumb_price": 168.0,
       "entry_bitget_price": 0.11065,
       "b_rate24h": -10.16,
@@ -366189,7 +365375,10 @@
         30,
         60
       ],
-      "evaluated_horizons": [],
+      "evaluated_horizons": [
+        5,
+        15
+      ],
       "entry_bithumb_price": 16.18,
       "entry_bitget_price": 0.00827,
       "b_rate24h": 1.7,
@@ -366212,7 +365401,10 @@
         30,
         60
       ],
-      "evaluated_horizons": [],
+      "evaluated_horizons": [
+        5,
+        15
+      ],
       "entry_bithumb_price": 16.18,
       "entry_bitget_price": 0.00827,
       "b_rate24h": 1.7,
@@ -366236,7 +365428,10 @@
         30,
         60
       ],
-      "evaluated_horizons": [],
+      "evaluated_horizons": [
+        5,
+        15
+      ],
       "entry_bithumb_price": 160.0,
       "entry_bitget_price": 0.10493,
       "b_rate24h": -13.98,
@@ -366260,7 +365455,10 @@
         30,
         60
       ],
-      "evaluated_horizons": [],
+      "evaluated_horizons": [
+        5,
+        15
+      ],
       "entry_bithumb_price": 160.0,
       "entry_bitget_price": 0.10493,
       "b_rate24h": -13.98,
@@ -366283,7 +365481,10 @@
         30,
         60
       ],
-      "evaluated_horizons": [],
+      "evaluated_horizons": [
+        5,
+        15
+      ],
       "entry_bithumb_price": 9.498,
       "entry_bitget_price": 0.006268,
       "b_rate24h": -4.44,
@@ -366307,7 +365508,10 @@
         30,
         60
       ],
-      "evaluated_horizons": [],
+      "evaluated_horizons": [
+        5,
+        15
+      ],
       "entry_bithumb_price": 9.498,
       "entry_bitget_price": 0.006268,
       "b_rate24h": -4.44,
@@ -366330,7 +365534,10 @@
         30,
         60
       ],
-      "evaluated_horizons": [],
+      "evaluated_horizons": [
+        5,
+        15
+      ],
       "entry_bithumb_price": 0.0051,
       "entry_bitget_price": 3.3281e-06,
       "b_rate24h": -1.92,
@@ -366354,7 +365561,10 @@
         30,
         60
       ],
-      "evaluated_horizons": [],
+      "evaluated_horizons": [
+        5,
+        15
+      ],
       "entry_bithumb_price": 0.0051,
       "entry_bitget_price": 3.3281e-06,
       "b_rate24h": -1.92,
@@ -366377,7 +365587,10 @@
         30,
         60
       ],
-      "evaluated_horizons": [],
+      "evaluated_horizons": [
+        5,
+        15
+      ],
       "entry_bithumb_price": 120200.0,
       "entry_bitget_price": 79.081,
       "b_rate24h": -4.98,
@@ -366401,7 +365614,10 @@
         30,
         60
       ],
-      "evaluated_horizons": [],
+      "evaluated_horizons": [
+        5,
+        15
+      ],
       "entry_bithumb_price": 120200.0,
       "entry_bitget_price": 79.081,
       "b_rate24h": -4.98,
@@ -366424,7 +365640,10 @@
         30,
         60
       ],
-      "evaluated_horizons": [],
+      "evaluated_horizons": [
+        5,
+        15
+      ],
       "entry_bithumb_price": 43.74,
       "entry_bitget_price": 0.02875,
       "b_rate24h": 9.95,
@@ -366447,7 +365666,10 @@
         30,
         60
       ],
-      "evaluated_horizons": [],
+      "evaluated_horizons": [
+        5,
+        15
+      ],
       "entry_bithumb_price": 43.74,
       "entry_bitget_price": 0.02875,
       "b_rate24h": 9.95,
@@ -366471,7 +365693,10 @@
         30,
         60
       ],
-      "evaluated_horizons": [],
+      "evaluated_horizons": [
+        5,
+        15
+      ],
       "entry_bithumb_price": 1307.0,
       "entry_bitget_price": 0.8602,
       "b_rate24h": -3.47,
@@ -366495,7 +365720,10 @@
         30,
         60
       ],
-      "evaluated_horizons": [],
+      "evaluated_horizons": [
+        5,
+        15
+      ],
       "entry_bithumb_price": 1307.0,
       "entry_bitget_price": 0.8602,
       "b_rate24h": -3.47,
@@ -366518,7 +365746,10 @@
         30,
         60
       ],
-      "evaluated_horizons": [],
+      "evaluated_horizons": [
+        5,
+        15
+      ],
       "entry_bithumb_price": 456800.0,
       "entry_bitget_price": 301.0,
       "b_rate24h": -3.4,
@@ -366542,7 +365773,10 @@
         30,
         60
       ],
-      "evaluated_horizons": [],
+      "evaluated_horizons": [
+        5,
+        15
+      ],
       "entry_bithumb_price": 456800.0,
       "entry_bitget_price": 301.0,
       "b_rate24h": -3.4,
@@ -366565,7 +365799,10 @@
         30,
         60
       ],
-      "evaluated_horizons": [],
+      "evaluated_horizons": [
+        5,
+        15
+      ],
       "entry_bithumb_price": 4306.0,
       "entry_bitget_price": 2.829,
       "b_rate24h": -4.65,
@@ -366589,7 +365826,10 @@
         30,
         60
       ],
-      "evaluated_horizons": [],
+      "evaluated_horizons": [
+        5,
+        15
+      ],
       "entry_bithumb_price": 4306.0,
       "entry_bitget_price": 2.829,
       "b_rate24h": -4.65,
@@ -366612,7 +365852,10 @@
         30,
         60
       ],
-      "evaluated_horizons": [],
+      "evaluated_horizons": [
+        5,
+        15
+      ],
       "entry_bithumb_price": 4742.0,
       "entry_bitget_price": 3.122,
       "b_rate24h": -12.83,
@@ -366636,7 +365879,10 @@
         30,
         60
       ],
-      "evaluated_horizons": [],
+      "evaluated_horizons": [
+        5,
+        15
+      ],
       "entry_bithumb_price": 4742.0,
       "entry_bitget_price": 3.122,
       "b_rate24h": -12.83,
@@ -366659,7 +365905,10 @@
         30,
         60
       ],
-      "evaluated_horizons": [],
+      "evaluated_horizons": [
+        5,
+        15
+      ],
       "entry_bithumb_price": 963.0,
       "entry_bitget_price": 0.6331,
       "b_rate24h": -4.18,
@@ -366683,7 +365932,10 @@
         30,
         60
       ],
-      "evaluated_horizons": [],
+      "evaluated_horizons": [
+        5,
+        15
+      ],
       "entry_bithumb_price": 963.0,
       "entry_bitget_price": 0.6331,
       "b_rate24h": -4.18,
@@ -366706,7 +365958,10 @@
         30,
         60
       ],
-      "evaluated_horizons": [],
+      "evaluated_horizons": [
+        5,
+        15
+      ],
       "entry_bithumb_price": 7044000.0,
       "entry_bitget_price": 4645.39,
       "b_rate24h": -1.25,
@@ -366730,7 +365985,10 @@
         30,
         60
       ],
-      "evaluated_horizons": [],
+      "evaluated_horizons": [
+        5,
+        15
+      ],
       "entry_bithumb_price": 7044000.0,
       "entry_bitget_price": 4645.39,
       "b_rate24h": -1.25,
@@ -366753,7 +366011,10 @@
         30,
         60
       ],
-      "evaluated_horizons": [],
+      "evaluated_horizons": [
+        5,
+        15
+      ],
       "entry_bithumb_price": 194.0,
       "entry_bitget_price": 0.1286,
       "b_rate24h": 21.25,
@@ -366776,7 +366037,10 @@
         30,
         60
       ],
-      "evaluated_horizons": [],
+      "evaluated_horizons": [
+        5,
+        15
+      ],
       "entry_bithumb_price": 194.0,
       "entry_bitget_price": 0.1286,
       "b_rate24h": 21.25,
@@ -366800,7 +366064,10 @@
         30,
         60
       ],
-      "evaluated_horizons": [],
+      "evaluated_horizons": [
+        5,
+        15
+      ],
       "entry_bithumb_price": 1986.0,
       "entry_bitget_price": 1.3067,
       "b_rate24h": -2.6,
@@ -366824,13 +366091,1238 @@
         30,
         60
       ],
-      "evaluated_horizons": [],
+      "evaluated_horizons": [
+        5,
+        15
+      ],
       "entry_bithumb_price": 1986.0,
       "entry_bitget_price": 1.3067,
       "b_rate24h": -2.6,
       "g_rate24h": -3.15,
       "g_funding_rate": -9e-05,
       "g_open_interest": 160323124.0,
+      "reject_reasons": [
+        "rank_cut"
+      ],
+      "primary_reason": "rank_cut"
+    },
+    {
+      "id": "miss-ADA-LONG-1775161324",
+      "symbol": "ADA",
+      "side": "LONG",
+      "created_at": "2026-04-02T20:22:04.211273+00:00",
+      "eval_horizons_min": [
+        5,
+        15,
+        30,
+        60
+      ],
+      "evaluated_horizons": [],
+      "entry_bithumb_price": 365.0,
+      "entry_bitget_price": 0.2402,
+      "b_rate24h": -2.67,
+      "g_rate24h": -3.145,
+      "g_funding_rate": -0.000106,
+      "g_open_interest": 144552359.0,
+      "reject_reasons": [
+        "long_b_rate",
+        "long_g_rate"
+      ],
+      "primary_reason": "long_b_rate"
+    },
+    {
+      "id": "miss-ADA-SHORT-1775161324",
+      "symbol": "ADA",
+      "side": "SHORT",
+      "created_at": "2026-04-02T20:22:04.211273+00:00",
+      "eval_horizons_min": [
+        5,
+        15,
+        30,
+        60
+      ],
+      "evaluated_horizons": [],
+      "entry_bithumb_price": 365.0,
+      "entry_bitget_price": 0.2402,
+      "b_rate24h": -2.67,
+      "g_rate24h": -3.145,
+      "g_funding_rate": -0.000106,
+      "g_open_interest": 144552359.0,
+      "reject_reasons": [
+        "rank_cut"
+      ],
+      "primary_reason": "rank_cut"
+    },
+    {
+      "id": "miss-ALGO-LONG-1775161324",
+      "symbol": "ALGO",
+      "side": "LONG",
+      "created_at": "2026-04-02T20:22:04.211273+00:00",
+      "eval_horizons_min": [
+        5,
+        15,
+        30,
+        60
+      ],
+      "evaluated_horizons": [],
+      "entry_bithumb_price": 162.0,
+      "entry_bitget_price": 0.1059,
+      "b_rate24h": 4.52,
+      "g_rate24h": 3.116,
+      "g_funding_rate": 0.0001,
+      "g_open_interest": 49643289.9,
+      "reject_reasons": [
+        "rank_cut"
+      ],
+      "primary_reason": "rank_cut"
+    },
+    {
+      "id": "miss-ALGO-SHORT-1775161324",
+      "symbol": "ALGO",
+      "side": "SHORT",
+      "created_at": "2026-04-02T20:22:04.211273+00:00",
+      "eval_horizons_min": [
+        5,
+        15,
+        30,
+        60
+      ],
+      "evaluated_horizons": [],
+      "entry_bithumb_price": 162.0,
+      "entry_bitget_price": 0.1059,
+      "b_rate24h": 4.52,
+      "g_rate24h": 3.116,
+      "g_funding_rate": 0.0001,
+      "g_open_interest": 49643289.9,
+      "reject_reasons": [
+        "short_g_rate"
+      ],
+      "primary_reason": "short_g_rate"
+    },
+    {
+      "id": "miss-AVAX-LONG-1775161324",
+      "symbol": "AVAX",
+      "side": "LONG",
+      "created_at": "2026-04-02T20:22:04.211273+00:00",
+      "eval_horizons_min": [
+        5,
+        15,
+        30,
+        60
+      ],
+      "evaluated_horizons": [],
+      "entry_bithumb_price": 13200.0,
+      "entry_bitget_price": 8.713,
+      "b_rate24h": -4.0,
+      "g_rate24h": -4.442,
+      "g_funding_rate": -9e-06,
+      "g_open_interest": 2263520.8,
+      "reject_reasons": [
+        "long_b_rate",
+        "long_g_rate"
+      ],
+      "primary_reason": "long_b_rate"
+    },
+    {
+      "id": "miss-AVAX-SHORT-1775161324",
+      "symbol": "AVAX",
+      "side": "SHORT",
+      "created_at": "2026-04-02T20:22:04.211273+00:00",
+      "eval_horizons_min": [
+        5,
+        15,
+        30,
+        60
+      ],
+      "evaluated_horizons": [],
+      "entry_bithumb_price": 13200.0,
+      "entry_bitget_price": 8.713,
+      "b_rate24h": -4.0,
+      "g_rate24h": -4.442,
+      "g_funding_rate": -9e-06,
+      "g_open_interest": 2263520.8,
+      "reject_reasons": [
+        "rank_cut"
+      ],
+      "primary_reason": "rank_cut"
+    },
+    {
+      "id": "miss-BCH-LONG-1775161324",
+      "symbol": "BCH",
+      "side": "LONG",
+      "created_at": "2026-04-02T20:22:04.211273+00:00",
+      "eval_horizons_min": [
+        5,
+        15,
+        30,
+        60
+      ],
+      "evaluated_horizons": [],
+      "entry_bithumb_price": 671000.0,
+      "entry_bitget_price": 441.61,
+      "b_rate24h": -2.54,
+      "g_rate24h": -2.951,
+      "g_funding_rate": 0.0001,
+      "g_open_interest": 42615.29,
+      "reject_reasons": [
+        "long_b_rate",
+        "long_g_rate"
+      ],
+      "primary_reason": "long_b_rate"
+    },
+    {
+      "id": "miss-BCH-SHORT-1775161324",
+      "symbol": "BCH",
+      "side": "SHORT",
+      "created_at": "2026-04-02T20:22:04.211273+00:00",
+      "eval_horizons_min": [
+        5,
+        15,
+        30,
+        60
+      ],
+      "evaluated_horizons": [],
+      "entry_bithumb_price": 671000.0,
+      "entry_bitget_price": 441.61,
+      "b_rate24h": -2.54,
+      "g_rate24h": -2.951,
+      "g_funding_rate": 0.0001,
+      "g_open_interest": 42615.29,
+      "reject_reasons": [
+        "rank_cut"
+      ],
+      "primary_reason": "rank_cut"
+    },
+    {
+      "id": "miss-BTC-LONG-1775161324",
+      "symbol": "BTC",
+      "side": "LONG",
+      "created_at": "2026-04-02T20:22:04.211273+00:00",
+      "eval_horizons_min": [
+        5,
+        15,
+        30,
+        60
+      ],
+      "evaluated_horizons": [],
+      "entry_bithumb_price": 101661000.0,
+      "entry_bitget_price": 66893.5,
+      "b_rate24h": -1.14,
+      "g_rate24h": -1.6789999999999998,
+      "g_funding_rate": -5.8e-05,
+      "g_open_interest": 29278.4334,
+      "reject_reasons": [
+        "long_b_rate",
+        "long_g_rate"
+      ],
+      "primary_reason": "long_b_rate"
+    },
+    {
+      "id": "miss-BTC-SHORT-1775161324",
+      "symbol": "BTC",
+      "side": "SHORT",
+      "created_at": "2026-04-02T20:22:04.211273+00:00",
+      "eval_horizons_min": [
+        5,
+        15,
+        30,
+        60
+      ],
+      "evaluated_horizons": [],
+      "entry_bithumb_price": 101661000.0,
+      "entry_bitget_price": 66893.5,
+      "b_rate24h": -1.14,
+      "g_rate24h": -1.6789999999999998,
+      "g_funding_rate": -5.8e-05,
+      "g_open_interest": 29278.4334,
+      "reject_reasons": [
+        "rank_cut"
+      ],
+      "primary_reason": "rank_cut"
+    },
+    {
+      "id": "miss-CTSI-LONG-1775161324",
+      "symbol": "CTSI",
+      "side": "LONG",
+      "created_at": "2026-04-02T20:22:04.211273+00:00",
+      "eval_horizons_min": [
+        5,
+        15,
+        30,
+        60
+      ],
+      "evaluated_horizons": [],
+      "entry_bithumb_price": 60.91,
+      "entry_bitget_price": 0.03944,
+      "b_rate24h": 86.5,
+      "g_rate24h": 81.084,
+      "g_funding_rate": -0.012737,
+      "g_open_interest": 56748772.0,
+      "reject_reasons": [
+        "overheat"
+      ],
+      "primary_reason": "overheat"
+    },
+    {
+      "id": "miss-CTSI-SHORT-1775161324",
+      "symbol": "CTSI",
+      "side": "SHORT",
+      "created_at": "2026-04-02T20:22:04.211273+00:00",
+      "eval_horizons_min": [
+        5,
+        15,
+        30,
+        60
+      ],
+      "evaluated_horizons": [],
+      "entry_bithumb_price": 60.91,
+      "entry_bitget_price": 0.03944,
+      "b_rate24h": 86.5,
+      "g_rate24h": 81.084,
+      "g_funding_rate": -0.012737,
+      "g_open_interest": 56748772.0,
+      "reject_reasons": [
+        "short_g_rate",
+        "short_b_rate",
+        "short_funding"
+      ],
+      "primary_reason": "short_g_rate"
+    },
+    {
+      "id": "miss-DOGE-LONG-1775161324",
+      "symbol": "DOGE",
+      "side": "LONG",
+      "created_at": "2026-04-02T20:22:04.211273+00:00",
+      "eval_horizons_min": [
+        5,
+        15,
+        30,
+        60
+      ],
+      "evaluated_horizons": [],
+      "entry_bithumb_price": 138.0,
+      "entry_bitget_price": 0.09026,
+      "b_rate24h": -1.43,
+      "g_rate24h": -2.348,
+      "g_funding_rate": -0.000146,
+      "g_open_interest": 1534407120.0,
+      "reject_reasons": [
+        "long_b_rate",
+        "long_g_rate"
+      ],
+      "primary_reason": "long_b_rate"
+    },
+    {
+      "id": "miss-DOGE-SHORT-1775161324",
+      "symbol": "DOGE",
+      "side": "SHORT",
+      "created_at": "2026-04-02T20:22:04.211273+00:00",
+      "eval_horizons_min": [
+        5,
+        15,
+        30,
+        60
+      ],
+      "evaluated_horizons": [],
+      "entry_bithumb_price": 138.0,
+      "entry_bitget_price": 0.09026,
+      "b_rate24h": -1.43,
+      "g_rate24h": -2.348,
+      "g_funding_rate": -0.000146,
+      "g_open_interest": 1534407120.0,
+      "reject_reasons": [
+        "rank_cut"
+      ],
+      "primary_reason": "rank_cut"
+    },
+    {
+      "id": "miss-DRIFT-LONG-1775161324",
+      "symbol": "DRIFT",
+      "side": "LONG",
+      "created_at": "2026-04-02T20:22:04.211273+00:00",
+      "eval_horizons_min": [
+        5,
+        15,
+        30,
+        60
+      ],
+      "evaluated_horizons": [],
+      "entry_bithumb_price": 138.0,
+      "entry_bitget_price": 0.0447,
+      "b_rate24h": -22.91,
+      "g_rate24h": -4.077,
+      "g_funding_rate": -0.007832,
+      "g_open_interest": 36523332.0,
+      "reject_reasons": [
+        "long_b_rate",
+        "long_g_rate"
+      ],
+      "primary_reason": "long_b_rate"
+    },
+    {
+      "id": "miss-DRIFT-SHORT-1775161324",
+      "symbol": "DRIFT",
+      "side": "SHORT",
+      "created_at": "2026-04-02T20:22:04.211273+00:00",
+      "eval_horizons_min": [
+        5,
+        15,
+        30,
+        60
+      ],
+      "evaluated_horizons": [],
+      "entry_bithumb_price": 138.0,
+      "entry_bitget_price": 0.0447,
+      "b_rate24h": -22.91,
+      "g_rate24h": -4.077,
+      "g_funding_rate": -0.007832,
+      "g_open_interest": 36523332.0,
+      "reject_reasons": [
+        "short_funding"
+      ],
+      "primary_reason": "short_funding"
+    },
+    {
+      "id": "miss-ENA-LONG-1775161324",
+      "symbol": "ENA",
+      "side": "LONG",
+      "created_at": "2026-04-02T20:22:04.211273+00:00",
+      "eval_horizons_min": [
+        5,
+        15,
+        30,
+        60
+      ],
+      "evaluated_horizons": [],
+      "entry_bithumb_price": 124.0,
+      "entry_bitget_price": 0.0811,
+      "b_rate24h": -8.82,
+      "g_rate24h": -9.989,
+      "g_funding_rate": -5.8e-05,
+      "g_open_interest": 172019216.0,
+      "reject_reasons": [
+        "long_b_rate",
+        "long_g_rate"
+      ],
+      "primary_reason": "long_b_rate"
+    },
+    {
+      "id": "miss-ENA-SHORT-1775161324",
+      "symbol": "ENA",
+      "side": "SHORT",
+      "created_at": "2026-04-02T20:22:04.211273+00:00",
+      "eval_horizons_min": [
+        5,
+        15,
+        30,
+        60
+      ],
+      "evaluated_horizons": [],
+      "entry_bithumb_price": 124.0,
+      "entry_bitget_price": 0.0811,
+      "b_rate24h": -8.82,
+      "g_rate24h": -9.989,
+      "g_funding_rate": -5.8e-05,
+      "g_open_interest": 172019216.0,
+      "reject_reasons": [
+        "rank_cut"
+      ],
+      "primary_reason": "rank_cut"
+    },
+    {
+      "id": "miss-ETH-LONG-1775161324",
+      "symbol": "ETH",
+      "side": "LONG",
+      "created_at": "2026-04-02T20:22:04.211273+00:00",
+      "eval_horizons_min": [
+        5,
+        15,
+        30,
+        60
+      ],
+      "evaluated_horizons": [],
+      "entry_bithumb_price": 3142000.0,
+      "entry_bitget_price": 2067.7,
+      "b_rate24h": -2.63,
+      "g_rate24h": -3.182,
+      "g_funding_rate": -3.4e-05,
+      "g_open_interest": 610196.03,
+      "reject_reasons": [
+        "long_b_rate",
+        "long_g_rate"
+      ],
+      "primary_reason": "long_b_rate"
+    },
+    {
+      "id": "miss-ETH-SHORT-1775161324",
+      "symbol": "ETH",
+      "side": "SHORT",
+      "created_at": "2026-04-02T20:22:04.211273+00:00",
+      "eval_horizons_min": [
+        5,
+        15,
+        30,
+        60
+      ],
+      "evaluated_horizons": [],
+      "entry_bithumb_price": 3142000.0,
+      "entry_bitget_price": 2067.7,
+      "b_rate24h": -2.63,
+      "g_rate24h": -3.182,
+      "g_funding_rate": -3.4e-05,
+      "g_open_interest": 610196.03,
+      "reject_reasons": [
+        "rank_cut"
+      ],
+      "primary_reason": "rank_cut"
+    },
+    {
+      "id": "miss-FET-LONG-1775161324",
+      "symbol": "FET",
+      "side": "LONG",
+      "created_at": "2026-04-02T20:22:04.211273+00:00",
+      "eval_horizons_min": [
+        5,
+        15,
+        30,
+        60
+      ],
+      "evaluated_horizons": [],
+      "entry_bithumb_price": 350.0,
+      "entry_bitget_price": 0.2315,
+      "b_rate24h": -3.05,
+      "g_rate24h": -3.421,
+      "g_funding_rate": -4.4e-05,
+      "g_open_interest": 55203408.0,
+      "reject_reasons": [
+        "long_b_rate",
+        "long_g_rate"
+      ],
+      "primary_reason": "long_b_rate"
+    },
+    {
+      "id": "miss-FET-SHORT-1775161324",
+      "symbol": "FET",
+      "side": "SHORT",
+      "created_at": "2026-04-02T20:22:04.211273+00:00",
+      "eval_horizons_min": [
+        5,
+        15,
+        30,
+        60
+      ],
+      "evaluated_horizons": [],
+      "entry_bithumb_price": 350.0,
+      "entry_bitget_price": 0.2315,
+      "b_rate24h": -3.05,
+      "g_rate24h": -3.421,
+      "g_funding_rate": -4.4e-05,
+      "g_open_interest": 55203408.0,
+      "reject_reasons": [
+        "rank_cut"
+      ],
+      "primary_reason": "rank_cut"
+    },
+    {
+      "id": "miss-KERNEL-LONG-1775161324",
+      "symbol": "KERNEL",
+      "side": "LONG",
+      "created_at": "2026-04-02T20:22:04.211273+00:00",
+      "eval_horizons_min": [
+        5,
+        15,
+        30,
+        60
+      ],
+      "evaluated_horizons": [],
+      "entry_bithumb_price": 165.0,
+      "entry_bitget_price": 0.10976,
+      "b_rate24h": -11.29,
+      "g_rate24h": -10.815,
+      "g_funding_rate": -0.000327,
+      "g_open_interest": 25190115.0,
+      "reject_reasons": [
+        "long_b_rate",
+        "long_g_rate"
+      ],
+      "primary_reason": "long_b_rate"
+    },
+    {
+      "id": "miss-KERNEL-SHORT-1775161324",
+      "symbol": "KERNEL",
+      "side": "SHORT",
+      "created_at": "2026-04-02T20:22:04.211273+00:00",
+      "eval_horizons_min": [
+        5,
+        15,
+        30,
+        60
+      ],
+      "evaluated_horizons": [],
+      "entry_bithumb_price": 165.0,
+      "entry_bitget_price": 0.10976,
+      "b_rate24h": -11.29,
+      "g_rate24h": -10.815,
+      "g_funding_rate": -0.000327,
+      "g_open_interest": 25190115.0,
+      "reject_reasons": [
+        "conservative_rate"
+      ],
+      "primary_reason": "conservative_rate"
+    },
+    {
+      "id": "miss-NOM-LONG-1775161324",
+      "symbol": "NOM",
+      "side": "LONG",
+      "created_at": "2026-04-02T20:22:04.211273+00:00",
+      "eval_horizons_min": [
+        5,
+        15,
+        30,
+        60
+      ],
+      "evaluated_horizons": [],
+      "entry_bithumb_price": 16.17,
+      "entry_bitget_price": 0.008153,
+      "b_rate24h": 4.39,
+      "g_rate24h": 27.950000000000003,
+      "g_funding_rate": -0.009951,
+      "g_open_interest": 463608404.0,
+      "reject_reasons": [
+        "overheat"
+      ],
+      "primary_reason": "overheat"
+    },
+    {
+      "id": "miss-NOM-SHORT-1775161324",
+      "symbol": "NOM",
+      "side": "SHORT",
+      "created_at": "2026-04-02T20:22:04.211273+00:00",
+      "eval_horizons_min": [
+        5,
+        15,
+        30,
+        60
+      ],
+      "evaluated_horizons": [],
+      "entry_bithumb_price": 16.17,
+      "entry_bitget_price": 0.008153,
+      "b_rate24h": 4.39,
+      "g_rate24h": 27.950000000000003,
+      "g_funding_rate": -0.009951,
+      "g_open_interest": 463608404.0,
+      "reject_reasons": [
+        "short_g_rate",
+        "short_funding"
+      ],
+      "primary_reason": "short_g_rate"
+    },
+    {
+      "id": "miss-ONT-LONG-1775161324",
+      "symbol": "ONT",
+      "side": "LONG",
+      "created_at": "2026-04-02T20:22:04.211273+00:00",
+      "eval_horizons_min": [
+        5,
+        15,
+        30,
+        60
+      ],
+      "evaluated_horizons": [],
+      "entry_bithumb_price": 160.0,
+      "entry_bitget_price": 0.10466,
+      "b_rate24h": -13.51,
+      "g_rate24h": -14.206,
+      "g_funding_rate": -0.001516,
+      "g_open_interest": 52261588.9,
+      "reject_reasons": [
+        "long_b_rate",
+        "long_g_rate"
+      ],
+      "primary_reason": "long_b_rate"
+    },
+    {
+      "id": "miss-ONT-SHORT-1775161324",
+      "symbol": "ONT",
+      "side": "SHORT",
+      "created_at": "2026-04-02T20:22:04.211273+00:00",
+      "eval_horizons_min": [
+        5,
+        15,
+        30,
+        60
+      ],
+      "evaluated_horizons": [],
+      "entry_bithumb_price": 160.0,
+      "entry_bitget_price": 0.10466,
+      "b_rate24h": -13.51,
+      "g_rate24h": -14.206,
+      "g_funding_rate": -0.001516,
+      "g_open_interest": 52261588.9,
+      "reject_reasons": [
+        "short_funding"
+      ],
+      "primary_reason": "short_funding"
+    },
+    {
+      "id": "miss-PENGU-LONG-1775161324",
+      "symbol": "PENGU",
+      "side": "LONG",
+      "created_at": "2026-04-02T20:22:04.211273+00:00",
+      "eval_horizons_min": [
+        5,
+        15,
+        30,
+        60
+      ],
+      "evaluated_horizons": [],
+      "entry_bithumb_price": 9.569,
+      "entry_bitget_price": 0.006304,
+      "b_rate24h": -3.48,
+      "g_rate24h": -3.946,
+      "g_funding_rate": 5e-05,
+      "g_open_interest": 1282237358.0,
+      "reject_reasons": [
+        "long_b_rate",
+        "long_g_rate"
+      ],
+      "primary_reason": "long_b_rate"
+    },
+    {
+      "id": "miss-PENGU-SHORT-1775161324",
+      "symbol": "PENGU",
+      "side": "SHORT",
+      "created_at": "2026-04-02T20:22:04.211273+00:00",
+      "eval_horizons_min": [
+        5,
+        15,
+        30,
+        60
+      ],
+      "evaluated_horizons": [],
+      "entry_bithumb_price": 9.569,
+      "entry_bitget_price": 0.006304,
+      "b_rate24h": -3.48,
+      "g_rate24h": -3.946,
+      "g_funding_rate": 5e-05,
+      "g_open_interest": 1282237358.0,
+      "reject_reasons": [
+        "rank_cut"
+      ],
+      "primary_reason": "rank_cut"
+    },
+    {
+      "id": "miss-PEPE-LONG-1775161324",
+      "symbol": "PEPE",
+      "side": "LONG",
+      "created_at": "2026-04-02T20:22:04.211273+00:00",
+      "eval_horizons_min": [
+        5,
+        15,
+        30,
+        60
+      ],
+      "evaluated_horizons": [],
+      "entry_bithumb_price": 0.0051,
+      "entry_bitget_price": 3.3415e-06,
+      "b_rate24h": -1.92,
+      "g_rate24h": -2.315,
+      "g_funding_rate": -0.000221,
+      "g_open_interest": 7513905554118.0,
+      "reject_reasons": [
+        "long_b_rate",
+        "long_g_rate"
+      ],
+      "primary_reason": "long_b_rate"
+    },
+    {
+      "id": "miss-PEPE-SHORT-1775161324",
+      "symbol": "PEPE",
+      "side": "SHORT",
+      "created_at": "2026-04-02T20:22:04.211273+00:00",
+      "eval_horizons_min": [
+        5,
+        15,
+        30,
+        60
+      ],
+      "evaluated_horizons": [],
+      "entry_bithumb_price": 0.0051,
+      "entry_bitget_price": 3.3415e-06,
+      "b_rate24h": -1.92,
+      "g_rate24h": -2.315,
+      "g_funding_rate": -0.000221,
+      "g_open_interest": 7513905554118.0,
+      "reject_reasons": [
+        "rank_cut"
+      ],
+      "primary_reason": "rank_cut"
+    },
+    {
+      "id": "miss-SOL-LONG-1775161324",
+      "symbol": "SOL",
+      "side": "LONG",
+      "created_at": "2026-04-02T20:22:04.211273+00:00",
+      "eval_horizons_min": [
+        5,
+        15,
+        30,
+        60
+      ],
+      "evaluated_horizons": [],
+      "entry_bithumb_price": 120400.0,
+      "entry_bitget_price": 79.139,
+      "b_rate24h": -3.91,
+      "g_rate24h": -4.537,
+      "g_funding_rate": 3.7e-05,
+      "g_open_interest": 4334250.4,
+      "reject_reasons": [
+        "long_b_rate",
+        "long_g_rate"
+      ],
+      "primary_reason": "long_b_rate"
+    },
+    {
+      "id": "miss-SOL-SHORT-1775161324",
+      "symbol": "SOL",
+      "side": "SHORT",
+      "created_at": "2026-04-02T20:22:04.211273+00:00",
+      "eval_horizons_min": [
+        5,
+        15,
+        30,
+        60
+      ],
+      "evaluated_horizons": [],
+      "entry_bithumb_price": 120400.0,
+      "entry_bitget_price": 79.139,
+      "b_rate24h": -3.91,
+      "g_rate24h": -4.537,
+      "g_funding_rate": 3.7e-05,
+      "g_open_interest": 4334250.4,
+      "reject_reasons": [
+        "rank_cut"
+      ],
+      "primary_reason": "rank_cut"
+    },
+    {
+      "id": "miss-STABLE-LONG-1775161324",
+      "symbol": "STABLE",
+      "side": "LONG",
+      "created_at": "2026-04-02T20:22:04.211273+00:00",
+      "eval_horizons_min": [
+        5,
+        15,
+        30,
+        60
+      ],
+      "evaluated_horizons": [],
+      "entry_bithumb_price": 43.65,
+      "entry_bitget_price": 0.02863,
+      "b_rate24h": 9.1,
+      "g_rate24h": 8.283,
+      "g_funding_rate": 5e-06,
+      "g_open_interest": 53172694.0,
+      "reject_reasons": [
+        "rank_cut"
+      ],
+      "primary_reason": "rank_cut"
+    },
+    {
+      "id": "miss-STABLE-SHORT-1775161324",
+      "symbol": "STABLE",
+      "side": "SHORT",
+      "created_at": "2026-04-02T20:22:04.211273+00:00",
+      "eval_horizons_min": [
+        5,
+        15,
+        30,
+        60
+      ],
+      "evaluated_horizons": [],
+      "entry_bithumb_price": 43.65,
+      "entry_bitget_price": 0.02863,
+      "b_rate24h": 9.1,
+      "g_rate24h": 8.283,
+      "g_funding_rate": 5e-06,
+      "g_open_interest": 53172694.0,
+      "reject_reasons": [
+        "short_g_rate",
+        "short_b_rate"
+      ],
+      "primary_reason": "short_g_rate"
+    },
+    {
+      "id": "miss-SUI-LONG-1775161324",
+      "symbol": "SUI",
+      "side": "LONG",
+      "created_at": "2026-04-02T20:22:04.211273+00:00",
+      "eval_horizons_min": [
+        5,
+        15,
+        30,
+        60
+      ],
+      "evaluated_horizons": [],
+      "entry_bithumb_price": 1313.0,
+      "entry_bitget_price": 0.8631,
+      "b_rate24h": -2.38,
+      "g_rate24h": -2.881,
+      "g_funding_rate": 0.0001,
+      "g_open_interest": 44043413.9,
+      "reject_reasons": [
+        "long_b_rate",
+        "long_g_rate"
+      ],
+      "primary_reason": "long_b_rate"
+    },
+    {
+      "id": "miss-SUI-SHORT-1775161324",
+      "symbol": "SUI",
+      "side": "SHORT",
+      "created_at": "2026-04-02T20:22:04.211273+00:00",
+      "eval_horizons_min": [
+        5,
+        15,
+        30,
+        60
+      ],
+      "evaluated_horizons": [],
+      "entry_bithumb_price": 1313.0,
+      "entry_bitget_price": 0.8631,
+      "b_rate24h": -2.38,
+      "g_rate24h": -2.881,
+      "g_funding_rate": 0.0001,
+      "g_open_interest": 44043413.9,
+      "reject_reasons": [
+        "rank_cut"
+      ],
+      "primary_reason": "rank_cut"
+    },
+    {
+      "id": "miss-TAO-LONG-1775161324",
+      "symbol": "TAO",
+      "side": "LONG",
+      "created_at": "2026-04-02T20:22:04.211273+00:00",
+      "eval_horizons_min": [
+        5,
+        15,
+        30,
+        60
+      ],
+      "evaluated_horizons": [],
+      "entry_bithumb_price": 455900.0,
+      "entry_bitget_price": 301.18,
+      "b_rate24h": -2.0,
+      "g_rate24h": -2.385,
+      "g_funding_rate": 5e-05,
+      "g_open_interest": 124981.767,
+      "reject_reasons": [
+        "long_b_rate",
+        "long_g_rate"
+      ],
+      "primary_reason": "long_b_rate"
+    },
+    {
+      "id": "miss-TAO-SHORT-1775161324",
+      "symbol": "TAO",
+      "side": "SHORT",
+      "created_at": "2026-04-02T20:22:04.211273+00:00",
+      "eval_horizons_min": [
+        5,
+        15,
+        30,
+        60
+      ],
+      "evaluated_horizons": [],
+      "entry_bithumb_price": 455900.0,
+      "entry_bitget_price": 301.18,
+      "b_rate24h": -2.0,
+      "g_rate24h": -2.385,
+      "g_funding_rate": 5e-05,
+      "g_open_interest": 124981.767,
+      "reject_reasons": [
+        "rank_cut"
+      ],
+      "primary_reason": "rank_cut"
+    },
+    {
+      "id": "miss-TRUMP-LONG-1775161324",
+      "symbol": "TRUMP",
+      "side": "LONG",
+      "created_at": "2026-04-02T20:22:04.211273+00:00",
+      "eval_horizons_min": [
+        5,
+        15,
+        30,
+        60
+      ],
+      "evaluated_horizons": [],
+      "entry_bithumb_price": 4298.0,
+      "entry_bitget_price": 2.829,
+      "b_rate24h": -4.79,
+      "g_rate24h": -5.131,
+      "g_funding_rate": -0.000114,
+      "g_open_interest": 4517776.2,
+      "reject_reasons": [
+        "long_b_rate",
+        "long_g_rate"
+      ],
+      "primary_reason": "long_b_rate"
+    },
+    {
+      "id": "miss-TRUMP-SHORT-1775161324",
+      "symbol": "TRUMP",
+      "side": "SHORT",
+      "created_at": "2026-04-02T20:22:04.211273+00:00",
+      "eval_horizons_min": [
+        5,
+        15,
+        30,
+        60
+      ],
+      "evaluated_horizons": [],
+      "entry_bithumb_price": 4298.0,
+      "entry_bitget_price": 2.829,
+      "b_rate24h": -4.79,
+      "g_rate24h": -5.131,
+      "g_funding_rate": -0.000114,
+      "g_open_interest": 4517776.2,
+      "reject_reasons": [
+        "rank_cut"
+      ],
+      "primary_reason": "rank_cut"
+    },
+    {
+      "id": "miss-UNI-LONG-1775161324",
+      "symbol": "UNI",
+      "side": "LONG",
+      "created_at": "2026-04-02T20:22:04.211273+00:00",
+      "eval_horizons_min": [
+        5,
+        15,
+        30,
+        60
+      ],
+      "evaluated_horizons": [],
+      "entry_bithumb_price": 4741.0,
+      "entry_bitget_price": 3.121,
+      "b_rate24h": -12.61,
+      "g_rate24h": -13.233,
+      "g_funding_rate": -0.000201,
+      "g_open_interest": 5196636.0,
+      "reject_reasons": [
+        "long_b_rate",
+        "long_g_rate"
+      ],
+      "primary_reason": "long_b_rate"
+    },
+    {
+      "id": "miss-UNI-SHORT-1775161324",
+      "symbol": "UNI",
+      "side": "SHORT",
+      "created_at": "2026-04-02T20:22:04.211273+00:00",
+      "eval_horizons_min": [
+        5,
+        15,
+        30,
+        60
+      ],
+      "evaluated_horizons": [],
+      "entry_bithumb_price": 4741.0,
+      "entry_bitget_price": 3.121,
+      "b_rate24h": -12.61,
+      "g_rate24h": -13.233,
+      "g_funding_rate": -0.000201,
+      "g_open_interest": 5196636.0,
+      "reject_reasons": [
+        "conservative_rate"
+      ],
+      "primary_reason": "conservative_rate"
+    },
+    {
+      "id": "miss-VIRTUAL-LONG-1775161324",
+      "symbol": "VIRTUAL",
+      "side": "LONG",
+      "created_at": "2026-04-02T20:22:04.211273+00:00",
+      "eval_horizons_min": [
+        5,
+        15,
+        30,
+        60
+      ],
+      "evaluated_horizons": [],
+      "entry_bithumb_price": 970.0,
+      "entry_bitget_price": 0.6371,
+      "b_rate24h": -3.48,
+      "g_rate24h": -4.152,
+      "g_funding_rate": 5e-05,
+      "g_open_interest": 12526560.0,
+      "reject_reasons": [
+        "long_b_rate",
+        "long_g_rate"
+      ],
+      "primary_reason": "long_b_rate"
+    },
+    {
+      "id": "miss-VIRTUAL-SHORT-1775161324",
+      "symbol": "VIRTUAL",
+      "side": "SHORT",
+      "created_at": "2026-04-02T20:22:04.211273+00:00",
+      "eval_horizons_min": [
+        5,
+        15,
+        30,
+        60
+      ],
+      "evaluated_horizons": [],
+      "entry_bithumb_price": 970.0,
+      "entry_bitget_price": 0.6371,
+      "b_rate24h": -3.48,
+      "g_rate24h": -4.152,
+      "g_funding_rate": 5e-05,
+      "g_open_interest": 12526560.0,
+      "reject_reasons": [
+        "rank_cut"
+      ],
+      "primary_reason": "rank_cut"
+    },
+    {
+      "id": "miss-XAUT-LONG-1775161324",
+      "symbol": "XAUT",
+      "side": "LONG",
+      "created_at": "2026-04-02T20:22:04.211273+00:00",
+      "eval_horizons_min": [
+        5,
+        15,
+        30,
+        60
+      ],
+      "evaluated_horizons": [],
+      "entry_bithumb_price": 7051000.0,
+      "entry_bitget_price": 4638.09,
+      "b_rate24h": -1.29,
+      "g_rate24h": -2.028,
+      "g_funding_rate": 3.6e-05,
+      "g_open_interest": 9015.04,
+      "reject_reasons": [
+        "long_b_rate",
+        "long_g_rate"
+      ],
+      "primary_reason": "long_b_rate"
+    },
+    {
+      "id": "miss-XAUT-SHORT-1775161324",
+      "symbol": "XAUT",
+      "side": "SHORT",
+      "created_at": "2026-04-02T20:22:04.211273+00:00",
+      "eval_horizons_min": [
+        5,
+        15,
+        30,
+        60
+      ],
+      "evaluated_horizons": [],
+      "entry_bithumb_price": 7051000.0,
+      "entry_bitget_price": 4638.09,
+      "b_rate24h": -1.29,
+      "g_rate24h": -2.028,
+      "g_funding_rate": 3.6e-05,
+      "g_open_interest": 9015.04,
+      "reject_reasons": [
+        "rank_cut"
+      ],
+      "primary_reason": "rank_cut"
+    },
+    {
+      "id": "miss-XPL-LONG-1775161324",
+      "symbol": "XPL",
+      "side": "LONG",
+      "created_at": "2026-04-02T20:22:04.211273+00:00",
+      "eval_horizons_min": [
+        5,
+        15,
+        30,
+        60
+      ],
+      "evaluated_horizons": [],
+      "entry_bithumb_price": 211.0,
+      "entry_bitget_price": 0.1397,
+      "b_rate24h": 31.88,
+      "g_rate24h": 31.297000000000004,
+      "g_funding_rate": 5e-05,
+      "g_open_interest": 163536129.0,
+      "reject_reasons": [
+        "overheat"
+      ],
+      "primary_reason": "overheat"
+    },
+    {
+      "id": "miss-XPL-SHORT-1775161324",
+      "symbol": "XPL",
+      "side": "SHORT",
+      "created_at": "2026-04-02T20:22:04.211273+00:00",
+      "eval_horizons_min": [
+        5,
+        15,
+        30,
+        60
+      ],
+      "evaluated_horizons": [],
+      "entry_bithumb_price": 211.0,
+      "entry_bitget_price": 0.1397,
+      "b_rate24h": 31.88,
+      "g_rate24h": 31.297000000000004,
+      "g_funding_rate": 5e-05,
+      "g_open_interest": 163536129.0,
+      "reject_reasons": [
+        "short_g_rate",
+        "short_b_rate"
+      ],
+      "primary_reason": "short_g_rate"
+    },
+    {
+      "id": "miss-XRP-LONG-1775161324",
+      "symbol": "XRP",
+      "side": "LONG",
+      "created_at": "2026-04-02T20:22:04.211273+00:00",
+      "eval_horizons_min": [
+        5,
+        15,
+        30,
+        60
+      ],
+      "evaluated_horizons": [],
+      "entry_bithumb_price": 1996.0,
+      "entry_bitget_price": 1.3121,
+      "b_rate24h": -1.87,
+      "g_rate24h": -2.453,
+      "g_funding_rate": -7.1e-05,
+      "g_open_interest": 159314698.0,
+      "reject_reasons": [
+        "long_b_rate",
+        "long_g_rate"
+      ],
+      "primary_reason": "long_b_rate"
+    },
+    {
+      "id": "miss-XRP-SHORT-1775161324",
+      "symbol": "XRP",
+      "side": "SHORT",
+      "created_at": "2026-04-02T20:22:04.211273+00:00",
+      "eval_horizons_min": [
+        5,
+        15,
+        30,
+        60
+      ],
+      "evaluated_horizons": [],
+      "entry_bithumb_price": 1996.0,
+      "entry_bitget_price": 1.3121,
+      "b_rate24h": -1.87,
+      "g_rate24h": -2.453,
+      "g_funding_rate": -7.1e-05,
+      "g_open_interest": 159314698.0,
       "reject_reasons": [
         "rank_cut"
       ],
@@ -438759,6 +439251,143 @@
       "g_rate24h": 16.556,
       "g_funding_rate": 5e-05,
       "g_open_interest": 168684476.0
+    },
+    {
+      "id": "miss-XPL-LONG-1775157055@60m",
+      "watch_id": "miss-XPL-LONG-1775157055",
+      "symbol": "XPL",
+      "side": "LONG",
+      "created_at": "2026-04-02T19:10:55.855171+00:00",
+      "evaluated_at": "2026-04-02T20:22:04.211273+00:00",
+      "horizon_min": 60,
+      "entry_bithumb_price": 184.0,
+      "entry_bitget_price": 0.1225,
+      "exit_bithumb_price": 211.0,
+      "exit_bitget_price": 0.1397,
+      "return_bithumb": 0.14673913043478262,
+      "return_bitget": 0.14040816326530606,
+      "return_blended": 0.14357364685004434,
+      "available_legs": 2,
+      "missed_threshold": 0.05,
+      "missed": true,
+      "primary_reason": "conservative_rate",
+      "reject_reasons": [
+        "conservative_rate"
+      ],
+      "b_rate24h": 16.46,
+      "g_rate24h": 16.556,
+      "g_funding_rate": 5e-05,
+      "g_open_interest": 168684476.0
+    },
+    {
+      "id": "miss-CTSI-SHORT-1775159703@5m",
+      "watch_id": "miss-CTSI-SHORT-1775159703",
+      "symbol": "CTSI",
+      "side": "SHORT",
+      "created_at": "2026-04-02T19:55:03.820744+00:00",
+      "evaluated_at": "2026-04-02T20:22:04.211273+00:00",
+      "horizon_min": 5,
+      "entry_bithumb_price": 62.23,
+      "entry_bitget_price": 0.04037,
+      "exit_bithumb_price": 60.91,
+      "exit_bitget_price": 0.03944,
+      "return_bithumb": 0.02121163426000322,
+      "return_bitget": 0.023036908595491706,
+      "return_blended": 0.023036908595491706,
+      "available_legs": 1,
+      "missed_threshold": 0.015,
+      "missed": true,
+      "primary_reason": "short_g_rate",
+      "reject_reasons": [
+        "short_g_rate",
+        "short_b_rate",
+        "short_funding"
+      ],
+      "b_rate24h": 88.06,
+      "g_rate24h": 85.099,
+      "g_funding_rate": -0.014854,
+      "g_open_interest": 58463158.0
+    },
+    {
+      "id": "miss-DRIFT-SHORT-1775159703@5m",
+      "watch_id": "miss-DRIFT-SHORT-1775159703",
+      "symbol": "DRIFT",
+      "side": "SHORT",
+      "created_at": "2026-04-02T19:55:03.820744+00:00",
+      "evaluated_at": "2026-04-02T20:22:04.211273+00:00",
+      "horizon_min": 5,
+      "entry_bithumb_price": 137.0,
+      "entry_bitget_price": 0.0454,
+      "exit_bithumb_price": 138.0,
+      "exit_bitget_price": 0.0447,
+      "return_bithumb": -0.0072992700729927005,
+      "return_bitget": 0.015418502202643307,
+      "return_blended": 0.015418502202643307,
+      "available_legs": 1,
+      "missed_threshold": 0.015,
+      "missed": true,
+      "primary_reason": "short_funding",
+      "reject_reasons": [
+        "short_funding"
+      ],
+      "b_rate24h": -12.74,
+      "g_rate24h": -0.656,
+      "g_funding_rate": -0.007459,
+      "g_open_interest": 36675671.0
+    },
+    {
+      "id": "miss-XPL-LONG-1775159703@5m",
+      "watch_id": "miss-XPL-LONG-1775159703",
+      "symbol": "XPL",
+      "side": "LONG",
+      "created_at": "2026-04-02T19:55:03.820744+00:00",
+      "evaluated_at": "2026-04-02T20:22:04.211273+00:00",
+      "horizon_min": 5,
+      "entry_bithumb_price": 194.0,
+      "entry_bitget_price": 0.1286,
+      "exit_bithumb_price": 211.0,
+      "exit_bitget_price": 0.1397,
+      "return_bithumb": 0.08762886597938144,
+      "return_bitget": 0.08631415241057543,
+      "return_blended": 0.08697150919497842,
+      "available_legs": 2,
+      "missed_threshold": 0.015,
+      "missed": true,
+      "primary_reason": "overheat",
+      "reject_reasons": [
+        "overheat"
+      ],
+      "b_rate24h": 21.25,
+      "g_rate24h": 20.638,
+      "g_funding_rate": 5e-05,
+      "g_open_interest": 166405026.0
+    },
+    {
+      "id": "miss-XPL-LONG-1775159703@15m",
+      "watch_id": "miss-XPL-LONG-1775159703",
+      "symbol": "XPL",
+      "side": "LONG",
+      "created_at": "2026-04-02T19:55:03.820744+00:00",
+      "evaluated_at": "2026-04-02T20:22:04.211273+00:00",
+      "horizon_min": 15,
+      "entry_bithumb_price": 194.0,
+      "entry_bitget_price": 0.1286,
+      "exit_bithumb_price": 211.0,
+      "exit_bitget_price": 0.1397,
+      "return_bithumb": 0.08762886597938144,
+      "return_bitget": 0.08631415241057543,
+      "return_blended": 0.08697150919497842,
+      "available_legs": 2,
+      "missed_threshold": 0.025,
+      "missed": true,
+      "primary_reason": "overheat",
+      "reject_reasons": [
+        "overheat"
+      ],
+      "b_rate24h": 21.25,
+      "g_rate24h": 20.638,
+      "g_funding_rate": 5e-05,
+      "g_open_interest": 166405026.0
     }
   ],
   "daily_review_events": [
@@ -450117,6 +450746,27 @@
     },
     {
       "at": "2026-04-02T19:55:03.820744+00:00",
+      "symbols_considered": 16,
+      "top_symbols": [],
+      "providers": {
+        "x": {
+          "enabled": false,
+          "ok": false,
+          "sample_posts": 0,
+          "error": "token_missing"
+        },
+        "threads": {
+          "enabled": false,
+          "ok": false,
+          "sample_posts": 0,
+          "queries": 0,
+          "ok_queries": 0,
+          "error": "token_missing"
+        }
+      }
+    },
+    {
+      "at": "2026-04-02T20:22:04.211273+00:00",
       "symbols_considered": 16,
       "top_symbols": [],
       "providers": {
