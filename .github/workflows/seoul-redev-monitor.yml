@@ -1,0 +1,43 @@
+name: Seoul Redevelopment Monitor
+
+# 서울 재개발/신통기획/모아타운 구역 단계·시세 변동을 주기적으로 스냅샷하고
+# 변동 내역(backend/state/changes.json)을 커밋한다.
+on:
+  schedule:
+    - cron: "0 */6 * * *"   # 6시간마다 (UTC)
+  workflow_dispatch: {}
+
+permissions:
+  contents: write
+
+jobs:
+  monitor:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install deps
+        run: pip install -r seoul_redev/backend/requirements.txt
+
+      - name: Run monitor snapshot
+        env:
+          MOLIT_SERVICE_KEY: ${{ secrets.MOLIT_SERVICE_KEY }}
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+        run: python seoul_redev/scripts/monitor_run.py
+
+      - name: Commit state changes
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add seoul_redev/backend/state/*.json
+          if git diff --cached --quiet; then
+            echo "변동 없음 - 커밋 건너뜀"
+          else
+            git commit -m "chore(seoul-redev): update monitoring snapshot [skip ci]"
+            git push
+          fi

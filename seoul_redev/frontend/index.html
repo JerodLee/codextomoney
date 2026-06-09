@@ -1,0 +1,76 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>서울 재개발·신통기획·모아타운 모니터링</title>
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+  <link rel="stylesheet" href="./styles.css" />
+</head>
+<body>
+  <header class="topbar">
+    <div class="brand">
+      <h1>서울 재개발 모니터링</h1>
+      <span class="tag" id="liveTag">데이터 확인 중…</span>
+    </div>
+    <div class="actions">
+      <button id="refreshBtn" class="btn">새로고침</button>
+    </div>
+  </header>
+
+  <section class="stats" id="stats"></section>
+
+  <section class="filters card">
+    <input type="search" id="searchInput" placeholder="구역·동·태그 검색 (예: 한남, 모아타운)" />
+    <select id="districtFilter"><option value="">자치구 전체</option></select>
+    <select id="typeFilter">
+      <option value="">유형 전체</option>
+      <option value="재개발">재개발</option>
+      <option value="신통기획">신통기획</option>
+      <option value="모아타운">모아타운</option>
+    </select>
+    <select id="stageFilter"><option value="">단계 전체</option></select>
+  </section>
+
+  <div class="layout">
+    <section class="card map-card">
+      <div id="map"></div>
+    </section>
+
+    <section class="card list-card">
+      <div class="list-head">
+        <h2>구역 목록 <span id="listCount" class="muted"></span></h2>
+      </div>
+      <div class="table-wrap">
+        <table id="areaTable">
+          <thead>
+            <tr><th>구역</th><th>유형</th><th>자치구</th><th>단계</th><th class="num">평단가(만원)</th></tr>
+          </thead>
+          <tbody></tbody>
+        </table>
+      </div>
+    </section>
+  </div>
+
+  <section class="card monitor-card">
+    <h2>변동 모니터링 <span class="muted">(단계 변경 · 시세 급변)</span></h2>
+    <div id="changesList" class="changes"></div>
+  </section>
+
+  <!-- 상세 패널 -->
+  <div id="detailOverlay" class="overlay hidden">
+    <div class="detail card">
+      <button id="closeDetail" class="close">×</button>
+      <div id="detailBody"></div>
+    </div>
+  </div>
+
+  <footer class="foot">
+    <span>데이터: 국토교통부 실거래가 + 서울시 공개정보 기반 시드. 단계·구역은 공식 고시 기준 갱신 필요.</span>
+  </footer>
+
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+  <script src="./app.js"></script>
+</body>
+</html>
