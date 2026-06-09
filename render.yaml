@@ -1,0 +1,24 @@
+# Render Blueprint — 서울 재개발 모니터링 대시보드
+# https://render.com/docs/blueprint-spec
+# 사용법: Render 대시보드 → New → Blueprint → 이 저장소 선택 → Apply
+services:
+  - type: web
+    name: seoul-redev-dashboard
+    runtime: python
+    plan: free
+    rootDir: seoul_redev/backend
+    buildCommand: pip install -r requirements.txt
+    startCommand: uvicorn app:app --host 0.0.0.0 --port $PORT
+    healthCheckPath: /api/health
+    autoDeploy: true
+    envVars:
+      - key: PYTHON_VERSION
+        value: "3.11.9"
+      # 실거래가 LIVE 연동용 (Render 대시보드에서 값 입력). 미설정 시 시드 추정 시세.
+      - key: MOLIT_SERVICE_KEY
+        sync: false
+      # 선택: 텔레그램 변동 알림
+      - key: TELEGRAM_BOT_TOKEN
+        sync: false
+      - key: TELEGRAM_CHAT_ID
+        sync: false
