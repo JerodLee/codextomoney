@@ -158,12 +158,17 @@
 
   /* Head-to-head matrix */
   .matrixwrap{overflow-x:auto;border:1px solid var(--line);border-radius:var(--radius);background:var(--surface);box-shadow:var(--shadow)}
-  table.h2h{border-collapse:collapse;font-size:12px;min-width:720px;width:100%}
-  table.h2h th,table.h2h td{padding:8px 6px;text-align:center;border:1px solid var(--line-soft)}
-  table.h2h thead th{background:var(--surface-2);font-size:11px;position:sticky;top:0}
-  table.h2h th.row{text-align:left;background:var(--surface-2);white-space:nowrap;font-weight:700}
+  table.h2h{border-collapse:separate;border-spacing:0;font-size:12px;min-width:560px;width:100%}
+  table.h2h th,table.h2h td{padding:7px 4px;text-align:center;border-right:1px solid var(--line-soft);border-bottom:1px solid var(--line-soft)}
+  table.h2h thead th{background:var(--surface-2);font-size:11px;position:sticky;top:0;z-index:2}
+  table.h2h th.corner{left:0;z-index:5}
+  table.h2h th.row{position:sticky;left:0;z-index:3;text-align:left;background:var(--surface-2);white-space:nowrap;
+    font-weight:700;font-size:11.5px;box-shadow:1px 0 0 var(--line)}
   table.h2h td.self{background:var(--surface-3);color:var(--ink-faint)}
   table.h2h td .rec{font-family:var(--font-mono);font-weight:700;font-variant-numeric:tabular-nums}
+  table.h2h thead th .dot{width:9px;height:9px}
+  .scrollhint{display:none;font-size:11.5px;color:var(--ink-faint);margin:8px 2px 0;align-items:center;gap:6px}
+  @media(max-width:680px){.scrollhint{display:flex}}
 
   /* Simulation */
   .sim-grid{display:grid;grid-template-columns:1fr;gap:18px}
@@ -317,6 +322,7 @@
         <tbody id="h2hBody"></tbody>
       </table>
     </div>
+    <div class="scrollhint"><span>↔</span> 표를 좌우로 밀어 10개 구단을 모두 확인하세요 (구단명 열은 고정됩니다)</div>
     <div class="legend"><span>초록빛 = 우세, 붉은빛 = 열세. 셀 색이 진할수록 격차가 큼.</span></div>
   </section>
 
@@ -636,7 +642,7 @@ function h2hWins(a,b){ // a vs b over 16 games
 function renderH2H(){
   const rk=ranked();
   document.getElementById("h2hHead").innerHTML =
-    `<th class="row">구단 \\ 상대</th>` + rk.map(t=>`<th title="${t.name}"><span class="dot" style="background:${t.color};display:inline-block"></span><br>${t.short}</th>`).join("") + `<th>종합</th>`;
+    `<th class="row corner">구단 \\ 상대</th>` + rk.map(t=>`<th title="${t.name}"><span class="dot" style="background:${t.color};display:inline-block"></span><br>${t.short}</th>`).join("") + `<th>종합</th>`;
   document.getElementById("h2hBody").innerHTML = rk.map(a=>{
     let tw=0,tl=0;
     const cells = rk.map(b=>{
