@@ -68,6 +68,45 @@
   .themebtn{background:var(--surface-2);border:1px solid var(--line);color:var(--ink-soft);
     border-radius:20px;padding:7px 14px;font-size:12.5px;cursor:pointer;font-family:inherit;font-weight:600}
   .themebtn:hover{color:var(--ink);border-color:var(--ink-faint)}
+
+  /* Pixel icons */
+  .pxicon{image-rendering:pixelated;image-rendering:crisp-edges;display:block;width:100%;height:100%}
+  .pxbadge{display:inline-flex;align-items:center;justify-content:center;border-radius:7px;flex:0 0 auto}
+  .pxbadge.card{width:34px;height:34px;padding:4px}
+  .pxbadge.sm{width:22px;height:22px;padding:3px;border-radius:6px;vertical-align:middle}
+  .pxicon.h2h{width:22px;height:22px;margin:0 auto 2px}
+  .crest .pxicon.big{width:74%;height:74%;margin:auto}
+  .cardtop{display:flex;align-items:center;gap:9px}
+  .cardtop .tn{margin:0}
+  .teamcard:hover .pxicon{animation:wiggle .5s ease}
+  @keyframes wiggle{0%,100%{transform:rotate(0)}25%{transform:rotate(-9deg)}75%{transform:rotate(9deg)}}
+
+  /* Header mascot */
+  .mascot-wrap{position:relative;display:flex;align-items:center;margin-right:4px}
+  .mascot{width:42px;height:42px;padding:6px;border:1px solid var(--line);background:var(--surface-2);
+    border-radius:13px;cursor:pointer;box-shadow:var(--shadow);transition:transform .15s,border-color .15s}
+  .mascot:hover{transform:translateY(-2px) rotate(-5deg);border-color:var(--accent)}
+  .mascot .pxicon{animation:bob 2.6s ease-in-out infinite}
+  .mascot.jump{animation:mjump .5s ease}
+  @keyframes bob{0%,100%{transform:translateY(0)}50%{transform:translateY(-2px)}}
+  @keyframes mjump{0%,100%{transform:translateY(0) rotate(0)}30%{transform:translateY(-11px) rotate(-9deg)}60%{transform:translateY(-3px) rotate(5deg)}}
+  .bubble{position:absolute;right:50px;top:50%;transform:translateY(-50%);white-space:nowrap;max-width:52vw;
+    background:var(--ink);color:var(--bg);font-size:12px;font-weight:700;padding:7px 12px;border-radius:10px;
+    box-shadow:var(--shadow);z-index:30;animation:bubblein .22s ease}
+  .bubble::after{content:"";position:absolute;right:-5px;top:50%;transform:translateY(-50%) rotate(45deg);
+    width:10px;height:10px;background:var(--ink)}
+  .bubble[hidden]{display:none}
+  @keyframes bubblein{from{opacity:0;transform:translateY(-50%) scale(.8)}to{opacity:1;transform:translateY(-50%) scale(1)}}
+
+  /* Win celebration */
+  .ribbon{text-align:center;font-size:12.5px;font-weight:800;padding:8px;background:var(--accent-ghost);
+    color:var(--accent);border-bottom:1px solid color-mix(in srgb,var(--accent) 28%,transparent)}
+  .ribbon b{font-size:14px}
+  .scoreboard{position:relative}
+  .confetti{position:absolute;inset:0;pointer-events:none;z-index:8}
+  .crest.pop{animation:pop .6s cubic-bezier(.2,1.5,.4,1)}
+  @keyframes pop{0%{transform:scale(1)}35%{transform:scale(1.2) rotate(-6deg)}70%{transform:scale(.95)}100%{transform:scale(1)}}
+  @media(max-width:560px){.bubble{display:none!important}}
   .subline{padding:0 0 16px;color:var(--ink-soft);font-size:13px;max-width:70ch}
   .datachip{display:inline-flex;align-items:center;gap:6px;background:var(--accent-ghost);color:var(--accent);
     border:1px solid color-mix(in srgb,var(--accent) 30%,transparent);border-radius:6px;
@@ -320,6 +359,10 @@
         <div class="kr">Korea Baseball · 전력분석 &amp; 경기예측 보드</div>
       </div>
       <div class="spacer"></div>
+      <div class="mascot-wrap">
+        <div class="bubble" id="bubble" hidden></div>
+        <button class="mascot" id="mascotBtn" type="button" aria-label="마스코트 응원 듣기" title="눌러서 응원 한마디!"></button>
+      </div>
       <button class="themebtn" id="themebtn" type="button">◐ 테마</button>
     </div>
     <p class="subline">
@@ -452,6 +495,55 @@
 
 <script>
 "use strict";
+/* ============================ PIXEL ICONS ============================ */
+/* 12x12 도트 마스코트. '.'=투명, 그 외 문자 -> 아이콘별 팔레트 */
+const ICONS = {
+  kia:{pal:{o:"#241403",F:"#f07d2c",N:"#c43a2a",W:"#ffffff"}, g:[
+    "............",".o........o.",".oF......Fo.","..FFFFFFFF..",".FFFFFFFFFF.",".FoFFFFFFoF.",
+    ".FFoFFFFoFF.",".FFFFNNFFFF.",".FWFoNNoFWF.",".FWFFFFFFWF.","..FFFFFFFF..","............"]},
+  ss:{pal:{M:"#b9741f",F:"#f4c94a",o:"#4a3410",N:"#7a4a12"}, g:[
+    "...M.MM.M...",".M.MMMMMM.M.",".MMFFFFFFMM.","M.FFFFFFFF.M","MMFFFFFFFFMM","M.FoFFFFoF.M",
+    "MMFFFFFFFFMM","M.FFFNNFFF.M",".MFFoNNoFFM.",".MMFFFFFFMM.","...MMMMMM...","....M..M...."]},
+  lg:{pal:{o:"#8a0330",W:"#ffffff",S:"#c30452"}, g:[
+    "..oo....oo..",".oWWo..oWWo.","oWWWWooWWWWo","oWSWWooWWSWo","oWWSWooWSWWo","oWWWWooWWWWo",
+    "oWWWWooWWWWo","oWSWWooWSWWo","oWWSWooWWSWo","oWWWWooWWWWo",".oWWo..oWWo.","..oo....oo.."]},
+  ds:{pal:{o:"#0a0a1a",B:"#5c4327",F:"#8a6a42",W:"#ffffff"}, g:[
+    ".BB......BB.","BFFB....BFFB","BFFFBBBBFFFB",".BFFFFFFFFB.",".BFFFFFFFFB.",".BFoFFFFoFB.",
+    ".BFFFFFFFFB.",".BFFFWWFFFB.",".BFFWooWFFB.",".BFFFooFFFB.","..BFFFFFFB...","...BBBBBB..."]},
+  kt:{pal:{o:"#000000",H:"#2a2438",S:"#f2c94c",B:"#c0392b"}, g:[
+    ".....oo.....","....oHHo....","....oHHo....","...oHSHo....","...oHHHo....","..oHHHHHo...",
+    "..oHHHHHo...",".oHHHHHHHo..","oBBBBBBBBBo.","oBBBBBBBBBo.",".oooooooooo.","............"]},
+  ssg:{pal:{o:"#5a0713",R:"#ce0e2d",W:"#ffffff",B:"#2b6cb0",Y:"#f2a83b"}, g:[
+    ".....oo.....","....oRRo....","....RWWR....","...oRWWRo...","...RRBBRR...","...RRBBRR...",
+    "..oRRRRRRo..",".oRRRRRRRRo.","oRRoRRRRoRRo","....YYYY....",".....YY.....","......Y....."]},
+  lt:{pal:{o:"#041226",S:"#3b6ea5",F:"#e8b98a",N:"#c98f63"}, g:[
+    "............","..FF.FF.FF..",".FFFFFFFFF..",".FFFFFFFFFF.","FFNFNFNFNFFF","FFFFFFFFFFFF",
+    "FFFFFFFFFFFF",".FFFFFFFFFF.",".SFFFFFFFFS.",".SSSSSSSSSS.","..SSSSSSSS..","............"]},
+  hh:{pal:{o:"#3a1c00",F:"#ff6600",W:"#ffffff",Y:"#ffcf3a",B:"#241403"}, g:[
+    "............","...FFFFFF...","..FFFFFFFF..",".FFFFFFFFFF.",".FWWFFFFWWF.",".FWBFFFFBWF.",
+    ".FFFFFFFFFF.","..FFFYYFFF..","...FYYYYF...","....oYYo....",".....YY.....","............"]},
+  nc:{pal:{o:"#12233a",G:"#3f9e68",g:"#2e7d52",W:"#ffffff",B:"#12233a"}, g:[
+    "......ggg...",".....gGGGg..","..g.gGGGGGg.",".gGgGGGGGGGg",".gGGGGWBGGGg","gGGGGGGGGGG.",
+    "gGGGGGGGGG..","gGWBWBWBGG..",".gGGGGGGg...","..g.gg.g....","..g.g..g....","............"]},
+  kw:{pal:{o:"#2a0207",M:"#570514",W:"#ffffff",Y:"#f2c94c"}, g:[
+    "............","....YYYY....","...oMMMMo...","..oMMMMMMo..",".oMMMMMMMMo.","oMWWoMMoWWMo",
+    "oMWWoMMoWWMo",".oMMMMMMMMo.","..oMMMMMMo..","...oMMMMo...","....oMMo....","............"]},
+};
+const MASCOT={pal:{o:"#2b2b33",W:"#ffffff",S:"#e0403a",E:"#20202a",M:"#c2402f"},g:[
+  "....oooo....","..ooWWWWoo..",".oWSWWWWSWo.",".oWWSWWSWWo.","oWWWWWWWWWWo","oWEWoWWoEWWo",
+  "oWWWWWWWWWWo","oWWWWWWWWWWo",".oWMWWWWMWo.",".oWWMMMMWWo.","..ooWWWWoo..","....oooo...."]};
+const _iconCache={};
+function iconURL(key){
+  if(_iconCache[key]) return _iconCache[key];
+  const ic = key==="__mascot__"?MASCOT:ICONS[key];
+  const g=ic.g, n=g.length, cv=document.createElement("canvas");
+  cv.width=n; cv.height=n; const ctx=cv.getContext("2d");
+  for(let y=0;y<n;y++) for(let x=0;x<n;x++){ const ch=g[y][x]; if(ch==="."||ch===" ") continue; ctx.fillStyle=ic.pal[ch]; ctx.fillRect(x,y,1,1); }
+  const url=cv.toDataURL(); _iconCache[key]=url; return url;
+}
+function pxTag(id,cls){ return `<img class="pxicon ${cls||''}" src="${iconURL(id)}" alt="" draggable="false">`; }
+function reduceMotion(){ return !!(window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches); }
+
 /* ============================ DATA ============================ */
 /* 대표성 있는 2025 시즌 예시 데이터. rsg=경기당 득점, rag=경기당 실점 */
 const DATA = [
@@ -774,7 +866,7 @@ function renderStandings(){
     return `<tr>
       <td class="team"><span class="zone" style="background:${inPO?'var(--field)':'transparent'}"></span>
         <span class="rank">${i+1}</span>
-        <span class="teamtag"><span class="dot" style="background:${t.color}"></span>${t.name}</span></td>
+        <span class="teamtag"><span class="pxbadge sm" style="background:${t.color}22">${pxTag(t.id,'std')}</span>${t.name}</span></td>
       <td class="mono">${g}</td><td class="mono">${t.w}</td><td class="mono">${t.l}</td><td class="mono">${t.t}</td>
       <td class="pct mono">${pct.toFixed(3).replace(/^0/,'')}</td>
       <td class="mono">${i===0?'-':gb.toFixed(1)}</td>
@@ -796,7 +888,8 @@ function renderTeamGrid(){
     <button class="teamcard" data-team="${t.id}" type="button">
       <span class="bar" style="background:${t.color}"></span>
       <span class="rk">${i+1}위</span>
-      <div class="tn">${t.name}</div>
+      <div class="cardtop"><span class="pxbadge" style="background:${t.color}22">${pxTag(t.id,'card')}</span>
+        <div class="tn">${t.name}</div></div>
       <div class="rec">${t.w}승 ${t.l}패 ${t.t}무 · ${t.city}</div>
       <div class="cardtrend trend-${m.cls}"><span>${m.ic}</span>${m.k} <span class="mono" style="opacity:.7">${t.strk}·최근 ${t.l10}</span></div>
     </button>`;}).join("");
@@ -853,7 +946,7 @@ function showTeam(id){
     <button class="backbtn" id="backBtn" type="button">← 구단 목록</button>
     <div class="card">
       <div class="detail-head">
-        <div class="crest" style="background:${t.color}">${initials}</div>
+        <div class="crest" style="background:${t.color}">${pxTag(t.id,'big')}</div>
         <div>
           <div class="nm">${t.name}</div>
           <div class="sub">${t.city} · ${g}경기 ${t.w}승 ${t.l}패 ${t.t}무 (승률 ${pct})
@@ -950,7 +1043,7 @@ function h2hWins(a,b){ // a vs b over 16 games
 function renderH2H(){
   const rk=ranked();
   document.getElementById("h2hHead").innerHTML =
-    `<th class="row corner">구단 \\ 상대</th>` + rk.map(t=>`<th title="${t.name}"><span class="dot" style="background:${t.color};display:inline-block"></span><br>${t.short}</th>`).join("") + `<th>종합</th>`;
+    `<th class="row corner">구단 \\ 상대</th>` + rk.map(t=>`<th title="${t.name}">${pxTag(t.id,'h2h')}<br>${t.short}</th>`).join("") + `<th>종합</th>`;
   document.getElementById("h2hBody").innerHTML = rk.map(a=>{
     let tw=0,tl=0;
     const cells = rk.map(b=>{
@@ -962,7 +1055,7 @@ function renderH2H(){
         : `color-mix(in srgb, var(--loss) ${Math.round(Math.abs(edge)*70)}%, transparent)`;
       return `<td style="background:${col}"><span class="rec">${w}-${l}</span></td>`;
     }).join("");
-    return `<tr><th class="row"><span class="dot" style="background:${a.color};display:inline-block;margin-right:6px"></span>${a.name}</th>${cells}<td><span class="rec">${tw}-${tl}</span></td></tr>`;
+    return `<tr><th class="row"><span class="pxbadge sm" style="background:${a.color}22;margin-right:6px">${pxTag(a.id,'std')}</span>${a.name}</th>${cells}<td><span class="rec">${tw}-${tl}</span></td></tr>`;
   }).join("");
 }
 
@@ -1035,10 +1128,11 @@ function renderResults(R){
   const favH = R.winHp>=R.winAp;
   const el=document.getElementById("results");
   el.innerHTML=`
-    <div class="scoreboard">
+    <div class="scoreboard" id="scoreboard">
+      <div class="ribbon" id="ribbon">🎉 <b>${(favH?H:A).short}</b> 우세 예측 · 승률 ${pctStr(favH?R.winHp:R.winAp)}</div>
       <div class="sb-top">
         <div class="sb-team">
-          <div class="crest" style="background:${H.color}">${H.short}</div>
+          <div class="crest ${favH?'pop':''}" style="background:${H.color}">${pxTag(H.id,'big')}</div>
           <div class="nm">${H.name}</div><div class="role role-home">HOME</div>
         </div>
         <div style="text-align:center">
@@ -1046,7 +1140,7 @@ function renderResults(R){
           <div class="sb-exp">평균 예상 득점</div>
         </div>
         <div class="sb-team">
-          <div class="crest" style="background:${A.color}">${A.short}</div>
+          <div class="crest ${favH?'':'pop'}" style="background:${A.color}">${pxTag(A.id,'big')}</div>
           <div class="nm">${A.name}</div><div class="role role-away">AWAY</div>
         </div>
       </div>
@@ -1082,6 +1176,51 @@ function renderResults(R){
     </div>
   `;
   drawDist(R);
+  const sb=document.getElementById("scoreboard");
+  if(sb) confettiBurst(sb, [(favH?R.H:R.A).color, "#f2a83b", "#ffffff", (favH?R.A:R.H).color]);
+}
+function confettiBurst(host, colors){
+  if(reduceMotion()) return;
+  const r=host.getBoundingClientRect(); if(!r.width) return;
+  const cv=document.createElement("canvas"); cv.className="confetti";
+  cv.width=r.width; cv.height=r.height; host.appendChild(cv);
+  const ctx=cv.getContext("2d"), N=110, P=[];
+  for(let i=0;i<N;i++) P.push({x:Math.random()*cv.width, y:-8-Math.random()*cv.height*0.5,
+    vx:(Math.random()-0.5)*1.8, vy:2+Math.random()*3.2, s:3+Math.random()*4,
+    c:colors[i%colors.length], rot:Math.random()*6.28, vr:(Math.random()-0.5)*0.5});
+  let f=0;
+  (function frame(){
+    f++; ctx.clearRect(0,0,cv.width,cv.height);
+    P.forEach(p=>{ p.x+=p.vx; p.y+=p.vy; p.vy+=0.045; p.rot+=p.vr;
+      ctx.save(); ctx.translate(p.x,p.y); ctx.rotate(p.rot); ctx.globalAlpha=Math.max(0,1-f/95);
+      ctx.fillStyle=p.c; ctx.fillRect(-p.s/2,-p.s/2,p.s,p.s); ctx.restore(); });
+    if(f<95) requestAnimationFrame(frame); else cv.remove();
+  })();
+}
+const MASCOT_QUOTES=[
+  "끝날 때까지 끝난 게 아니다! ⚾",
+  "데이터는 거짓말 안 해 📊",
+  "9회말 투아웃부터가 진짜지",
+  "오늘 직관 가면 무조건 이기는 편",
+  "홈런 한 방이면 분위기 반전!",
+  "믿음의 야구, 가보자고! 🔥",
+  "오늘의 선발은... 두구두구 🥁",
+  "1점 차 승부가 제맛이야",
+  "가을야구, 함께 가시죠 🍁",
+  "삼진? 다음 타석에서 갚아주면 돼",
+];
+let _qi=Math.floor(Math.random()*MASCOT_QUOTES.length);
+function setupMascot(){
+  const btn=document.getElementById("mascotBtn"), bub=document.getElementById("bubble");
+  btn.innerHTML=`<img class="pxicon" src="${iconURL('__mascot__')}" alt="마스코트" draggable="false">`;
+  let timer=null;
+  const say=()=>{
+    _qi=(_qi+1)%MASCOT_QUOTES.length;
+    bub.textContent=MASCOT_QUOTES[_qi]; bub.hidden=false;
+    if(!reduceMotion()){ btn.classList.remove("jump"); void btn.offsetWidth; btn.classList.add("jump"); }
+    clearTimeout(timer); timer=setTimeout(()=>{ bub.hidden=true; }, 2800);
+  };
+  btn.addEventListener("click",say);
 }
 function keyFactors(R){
   const H=R.H,A=R.A;
@@ -1212,6 +1351,7 @@ document.addEventListener("DOMContentLoaded",()=>{
   fillSelects();
   initTabs();
   initTheme();
+  setupMascot();
   document.getElementById("homeStrat").addEventListener("change",updateNotes);
   document.getElementById("awayStrat").addEventListener("change",updateNotes);
   document.getElementById("runBtn").addEventListener("click",runSim);
