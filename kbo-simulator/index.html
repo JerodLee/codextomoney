@@ -245,6 +245,27 @@
   .nc-warn{border-left-color:var(--loss)}
   .nc-imp{border-left-color:var(--accent)}
 
+  /* Manager & club links */
+  .clubsec{margin-top:22px;padding-top:20px;border-top:1px solid var(--line-soft)}
+  .mgrcard{display:flex;gap:12px;align-items:flex-start;background:var(--surface-2);
+    border:1px solid var(--line-soft);border-radius:11px;padding:13px 15px}
+  .mgr-badge{width:36px;height:36px;border-radius:10px;background:var(--accent-ghost);display:flex;
+    align-items:center;justify-content:center;font-size:18px;flex:0 0 auto}
+  .mgr-name{font-weight:800;font-size:15px}
+  .mgr-since{font-size:11px;color:var(--ink-soft);font-weight:600;margin-left:4px}
+  .mgr-tact{font-size:12.5px;color:var(--ink-soft);margin-top:5px;line-height:1.5;max-width:70ch}
+  .linkrow{display:flex;flex-wrap:wrap;gap:8px}
+  .lchip{display:inline-flex;align-items:center;gap:7px;font-size:12.5px;font-weight:700;text-decoration:none;
+    color:var(--ink);background:var(--surface);border:1px solid var(--line);border-radius:9px;
+    padding:8px 12px;transition:border-color .12s,transform .1s}
+  .lchip:hover{border-color:var(--accent);transform:translateY(-1px)}
+  .lchip .li{font-size:14px;line-height:1}
+  .lchip.is-search{border-style:dashed}
+  .lchip .stag{font-size:9px;font-weight:800;color:var(--ink-faint);border:1px solid var(--line);
+    border-radius:4px;padding:1px 4px;margin-left:1px}
+  .linknote{font-size:11px;color:var(--ink-faint);margin-top:9px;line-height:1.5}
+  .linknote b{color:var(--ink-soft)}
+
   /* Player tooltip */
   .ptip{position:fixed;z-index:60;pointer-events:none;width:288px;max-width:calc(100vw - 20px);
     background:var(--surface);border:1px solid var(--line);border-radius:12px;box-shadow:var(--shadow);
@@ -759,6 +780,42 @@ const TEAM_EXTRA = {
   nc:{wk:"원투펀치 뒤 선발 붕괴, 불펜 불안", imp:"마운드 전면 리빌딩 필요"},
   kw:{wk:"전 포지션 뎁스 부족", imp:"유망주 성장 시간 확보(장기 리빌딩)"},
 };
+/* 구단 감독·최근 전술 평가·공식 사이트. 감독/전술 평가는 대표 예시, 사이트는 공식 도메인 */
+const CLUB = {
+  lg:{mgr:"염경엽", since:2023, site:"https://www.lgtwins.com",
+      tact:"발야구·기동력과 불펜 분업을 극대화. 뛰는 야구로 상대 배터리를 흔들지만, 단기전 과감함은 물음표."},
+  hh:{mgr:"김경문", since:2024, site:"https://www.hanwhaeagles.co.kr",
+      tact:"베테랑 중심의 정공법. 강력한 원투펀치에 의존하며, 뒷문·하위타선 활용은 개선 여지."},
+  ss:{mgr:"박진만", since:2022, site:"https://www.samsunglions.com",
+      tact:"젊은 선수 과감한 기용과 장타 중심 운영. 마운드 안정화가 상위권 도약의 관건."},
+  kia:{mgr:"이범호", since:2024, site:"https://www.tigers.co.kr",
+      tact:"공격적인 타격 지향과 김도영 중심의 활발한 주루. 투수 교체 타이밍은 유연한 편."},
+  ssg:{mgr:"이숭용", since:2024, site:"https://www.ssglanders.com",
+      tact:"베테랑과 신예의 조화를 모색. 최정 등 중심타선 의존도가 높아 테이블세터 과제."},
+  lt:{mgr:"김태형", since:2024, site:"https://www.giantsclub.com",
+      tact:"포수 출신답게 배터리·수비 조직력을 강조. 젊은 타선 성장 유도, 불펜 세팅이 숙제."},
+  kt:{mgr:"이강철", since:2019, site:"https://www.ktwiz.co.kr",
+      tact:"선발 야구와 안정적 불펜 분업의 계산된 야구. 다만 세대교체 속도 조절이 필요."},
+  ds:{mgr:"이승엽", since:2023, site:"https://www.doosanbears.com",
+      tact:"적극적 세대교체와 기동력 강화. 경험 부족을 시스템·수비로 보완하는 과도기."},
+  nc:{mgr:"이호준", since:2025, site:"https://www.ncdinos.com",
+      tact:"리빌딩 기조 속 유망주 실전 기용. 성적과 육성의 균형이 최대 숙제."},
+  kw:{mgr:"홍원기", since:2021, site:"https://www.heroesbaseball.co.kr",
+      tact:"철저한 리빌딩·육성 중심. 유망주에게 기회를 몰아주는 장기 플랜."},
+};
+function clubLinks(t){
+  const q=encodeURIComponent;
+  const star=ROSTERS[t.id].bat.reduce((a,x)=>x.ops>a.ops?x:a, ROSTERS[t.id].bat[0]).n;
+  const c=CLUB[t.id];
+  return [
+    {ic:"🌐", label:"공식 사이트",          url:c.site},
+    {ic:"▶️", label:"최근 경기·하이라이트",  url:`https://www.youtube.com/results?search_query=${q(t.name+" 하이라이트")}`},
+    {ic:"💬", label:"팬 커뮤니티",          url:`https://www.google.com/search?q=${q(t.name+" 팬 갤러리 커뮤니티")}`, search:true},
+    {ic:"🎮", label:"디스코드",             url:`https://www.google.com/search?q=${q(t.name+" 디스코드 서버")}`, search:true},
+    {ic:"📸", label:`${star} 인스타`,        url:`https://www.google.com/search?q=${q(star+" 인스타그램 instagram")}`, search:true},
+  ];
+}
+
 /* 선수별 확장(마우스오버): sal=연봉등급1~5, val=가성비 S/A/B/C/D, inj=부상횟수, tp=팀플레잉, note=진단 */
 const PLAYER_EXTRA = {
   "오스틴 딘":{sal:5,val:"A",inj:1,tp:88,note:"핵심 타점원. 후반기 체력 관리가 관건"},
@@ -943,6 +1000,7 @@ function showTeam(id){
   const g=t.w+t.l+t.t, pct=(t.w/(t.w+t.l)).toFixed(3).replace(/^0/,'');
   const initials = t.short;
   const m=momentum(t);
+  const club=CLUB[t.id], links=clubLinks(t);
   const leadBat = r.bat.reduce((a,x)=>x.ops>a.ops?x:a, r.bat[0]);
   const leadPit = r.pit.filter(x=>x.r==="선발").reduce((a,x)=>x.era<a.era?x:a, r.pit[0]);
   const nameCell=(nm,lead)=>`${lead?'<span class="lead">'+nm+'</span>':nm}<span class="tiphint">ⓘ</span>`;
@@ -1033,6 +1091,18 @@ function showTeam(id){
         <div class="notecards">
           <div class="notecard nc-warn"><div class="nk">취약 선수층</div><div class="nv">${t.wk||"—"}</div></div>
           <div class="notecard nc-imp"><div class="nk">한 줄 개선점</div><div class="nv">${t.imp||"—"}</div></div>
+        </div>
+
+        <div class="clubsec">
+          <div class="rost-title">감독 &amp; 최근 전술 평가</div>
+          <div class="mgrcard">
+            <div class="mgr-badge">👔</div>
+            <div><div class="mgr-name">${club.mgr} <span class="mgr-since">감독 · ${club.since}~</span></div>
+              <div class="mgr-tact">${club.tact}</div></div>
+          </div>
+          <div class="rost-title" style="margin-top:18px">구단 사이트 &amp; 팬 채널 <span class="hinttag">새 탭에서 열림</span></div>
+          <div class="linkrow">${links.map(l=>`<a class="lchip ${l.search?'is-search':''}" href="${l.url}" target="_blank" rel="noopener noreferrer"><span class="li">${l.ic}</span>${l.label}${l.search?'<span class="stag">검색</span>':''}</a>`).join("")}</div>
+          <div class="linknote">※ 공식 사이트·유튜브는 실제 링크입니다. 팬 커뮤니티·디스코드·인스타는 <b>검색 바로가기</b>로, 정확한 주소는 코드의 <code class="k">CLUB</code>에서 교체할 수 있어요.</div>
         </div>
       </div>
     </div>`;
