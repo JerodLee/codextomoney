@@ -314,6 +314,59 @@
     .grow .gpred{grid-column:1 / -1;text-align:center;padding-top:2px}
   }
 
+  /* News */
+  .newsgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:10px}
+  .newscard{background:var(--surface);border:1px solid var(--line);border-radius:var(--radius-sm);padding:12px 13px;box-shadow:var(--shadow)}
+  .nc-head{display:flex;align-items:center;gap:8px;font-size:13.5px;margin-bottom:9px}
+  .nlinks{display:flex;flex-wrap:wrap;gap:6px}
+  .nlink{font-size:11.5px;font-weight:700;text-decoration:none;color:var(--ink);background:var(--surface-2);
+    border:1px solid var(--line-soft);border-radius:7px;padding:5px 9px;transition:border-color .12s}
+  .nlink:hover{border-color:var(--accent);color:var(--accent)}
+  .newshero{display:flex;align-items:center;gap:14px;margin-bottom:14px}
+  .newshero .crest{width:46px;height:46px;border-radius:12px}
+  .newshero .nm{font-size:18px;font-weight:800}
+  .newshero .sub{font-size:12.5px;color:var(--ink-soft);margin-top:2px}
+  .scrapbox{margin-top:26px;padding-top:18px;border-top:1px solid var(--line-soft)}
+  .scrapadd{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px}
+  .scrapadd select{width:auto;min-width:120px}
+  .scrapadd input{flex:1;min-width:140px;font-family:inherit;font-size:13px;padding:9px 11px;border-radius:9px;
+    border:1px solid var(--line);background:var(--surface-2);color:var(--ink)}
+  .scrapadd input:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+  .minibtn{background:var(--surface-2);border:1px solid var(--line);color:var(--ink);border-radius:9px;
+    padding:9px 13px;font-family:inherit;font-size:12.5px;font-weight:700;cursor:pointer;white-space:nowrap}
+  .minibtn:hover{border-color:var(--accent);color:var(--accent)}
+  .minibtn.danger:hover{border-color:var(--loss);color:var(--loss)}
+  .scrapitem{display:flex;align-items:center;gap:9px;padding:9px 2px;border-bottom:1px solid var(--line-soft);font-size:13px}
+  .scraplink{flex:1;color:var(--ink);text-decoration:none;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .scraplink:hover{color:var(--accent);text-decoration:underline}
+  .scrapteam{font-size:10.5px;font-weight:800;color:var(--ink-faint)}
+  .scrapdel{background:none;border:none;color:var(--ink-faint);cursor:pointer;font-size:13px;padding:2px 6px;border-radius:6px}
+  .scrapdel:hover{color:var(--loss);background:var(--surface-2)}
+  .scrapempty{color:var(--ink-faint);font-size:12.5px;padding:14px 0}
+
+  /* Data manager */
+  .updbar{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;
+    background:var(--surface-2);border:1px solid var(--line-soft);border-radius:11px;padding:11px 14px;margin-bottom:14px}
+  .updstamp{font-size:12.5px;color:var(--ink-soft)}
+  .updbtns{display:flex;gap:8px;flex-wrap:wrap}
+  .dateinput{font-family:inherit;font-size:13px;padding:9px 11px;border-radius:9px;border:1px solid var(--line);
+    background:var(--surface-2);color:var(--ink);width:100%}
+  #impArea{margin-bottom:14px}
+  #impText{width:100%;min-height:120px;font-family:var(--font-mono);font-size:11.5px;padding:11px;border-radius:10px;
+    border:1px solid var(--line);background:var(--surface-2);color:var(--ink);resize:vertical}
+  .impbtns{display:flex;gap:8px;margin-top:8px}
+  table.edit{width:100%;border-collapse:collapse;font-size:13px;min-width:560px}
+  table.edit th{font-size:10.5px;color:var(--ink-faint);text-transform:uppercase;letter-spacing:.03em;
+    padding:7px 6px;border-bottom:1px solid var(--line);text-align:center;background:var(--surface-2)}
+  table.edit th.l{text-align:left}
+  table.edit td{padding:5px 6px;border-bottom:1px solid var(--line-soft);text-align:center}
+  table.edit td.l{text-align:left;font-weight:700;white-space:nowrap}
+  table.edit td.l .pxbadge{margin-right:7px}
+  .ei,.pe{width:62px;font-family:var(--font-mono);font-size:12.5px;padding:6px 7px;border-radius:7px;
+    border:1px solid var(--line);background:var(--surface);color:var(--ink);text-align:center}
+  .ei.wide{width:78px}
+  .ei:focus-visible,.pe:focus-visible{outline:2px solid var(--accent);outline-offset:1px}
+
   /* Head-to-head matrix */
   .matrixwrap{overflow-x:auto;border:1px solid var(--line);border-radius:var(--radius);background:var(--surface);box-shadow:var(--shadow)}
   table.h2h{border-collapse:separate;border-spacing:0;font-size:12px;min-width:560px;width:100%}
@@ -439,7 +492,9 @@
       <button class="tab" role="tab" aria-selected="false" data-tab="teams"><span class="n">02</span>구단·선수</button>
       <button class="tab" role="tab" aria-selected="false" data-tab="h2h"><span class="n">03</span>상대전적</button>
       <button class="tab" role="tab" aria-selected="false" data-tab="sched"><span class="n">04</span>남은 일정</button>
-      <button class="tab" role="tab" aria-selected="false" data-tab="sim"><span class="n">05</span>경기 시뮬레이션</button>
+      <button class="tab" role="tab" aria-selected="false" data-tab="news"><span class="n">05</span>뉴스</button>
+      <button class="tab" role="tab" aria-selected="false" data-tab="sim"><span class="n">06</span>경기 시뮬레이션</button>
+      <button class="tab" role="tab" aria-selected="false" data-tab="data"><span class="n">07</span>데이터 관리</button>
     </div>
   </div>
 </nav>
@@ -563,6 +618,65 @@
         </div>
       </div>
     </div>
+  </section>
+
+  <!-- NEWS -->
+  <section class="panel" id="panel-news" role="tabpanel">
+    <div class="sec-head">
+      <h2>뉴스 &amp; 기사</h2>
+      <p>구단을 골라 실시간 뉴스 소스로 이동 · 관심 기사를 스크랩해 모아보기</p>
+    </div>
+    <div class="sched-controls">
+      <label for="newsFilter">구단</label>
+      <select id="newsFilter"></select>
+      <span class="sched-hint">기사 본문은 각 언론사에서 실시간으로 열립니다(새 탭)</span>
+    </div>
+    <div id="newsHub"></div>
+    <div class="scrapbox">
+      <div class="rost-title">내 기사 스크랩 <span class="hinttag">브라우저에 저장</span></div>
+      <div class="scrapadd">
+        <select id="scrapTeam"></select>
+        <input id="scrapTitle" type="text" placeholder="기사 제목" maxlength="120">
+        <input id="scrapUrl" type="url" placeholder="https:// 기사 링크">
+        <button id="scrapAdd" class="minibtn" type="button">＋ 추가</button>
+      </div>
+      <div id="scrapList"></div>
+    </div>
+  </section>
+
+  <!-- DATA MANAGER -->
+  <section class="panel" id="panel-data" role="tabpanel">
+    <div class="sec-head">
+      <h2>데이터 관리 · 업데이트</h2>
+      <p>경기결과·성적·선수 스탯을 갱신하고 브라우저에 저장 · JSON으로 백업/복원</p>
+    </div>
+    <div class="updbar">
+      <span id="updStamp" class="updstamp"></span>
+      <div class="updbtns">
+        <button id="expBtn" class="minibtn" type="button">⬇ JSON 내보내기</button>
+        <button id="impBtn" class="minibtn" type="button">⬆ JSON 가져오기</button>
+        <button id="resetBtn" class="minibtn danger" type="button">↺ 기본값 초기화</button>
+      </div>
+    </div>
+    <div id="impArea" hidden>
+      <textarea id="impText" placeholder="여기에 내보낸 JSON을 붙여넣으세요"></textarea>
+      <div class="impbtns"><button id="impApply" class="minibtn" type="button">가져와서 적용</button>
+        <button id="impCancel" class="minibtn" type="button">취소</button></div>
+    </div>
+    <div class="varrow" style="max-width:320px">
+      <div><div class="field-l">일정 시작일</div><input id="schedStartInput" type="date" class="dateinput"></div>
+    </div>
+    <div class="rost-title" style="margin-top:18px">성적 · 경기결과 편집 <span class="hinttag">승·패·무, 득/실점, 최근10, 연속</span></div>
+    <div class="tablewrap">
+      <table class="edit"><thead><tr>
+        <th class="l">구단</th><th>승</th><th>패</th><th>무</th><th>득점/G</th><th>실점/G</th><th>최근10</th><th>연속</th>
+      </tr></thead><tbody id="editStand"></tbody></table>
+    </div>
+    <div class="rost-title" style="margin-top:20px">선수 스탯 편집 <span class="hinttag">구단 선택 후 수정</span></div>
+    <select id="editTeamSel" style="max-width:240px"></select>
+    <div id="editPlayers"></div>
+    <button id="applyBtn" class="runbtn" type="button" style="margin-top:18px">✔ 적용 &amp; 저장</button>
+    <p class="linknote" id="saveNote"></p>
   </section>
 
   <footer>
@@ -968,7 +1082,9 @@ function scheduleFor(id){
 }
 
 /* ============================ DERIVED ============================ */
-const LEAGUE_AVG = DATA.reduce((s,t)=>s+t.rsg,0)/DATA.length;
+let LEAGUE_AVG = DATA.reduce((s,t)=>s+t.rsg,0)/DATA.length;
+function recalcLeague(){ LEAGUE_AVG = DATA.reduce((s,t)=>s+t.rsg,0)/DATA.length; }
+let schedStart = {y:2025, m:8, d:1};   // 일정 시작일(편집 가능)
 const byId = Object.fromEntries(DATA.map(t=>[t.id,t]));
 function ranked(){ return [...DATA].sort((a,b)=> (b.w/(b.w+b.l)) - (a.w/(a.w+a.l))); }
 function pyth(rs,ra){ const e=1.83; return Math.pow(rs,e)/(Math.pow(rs,e)+Math.pow(ra,e)); }
@@ -1214,7 +1330,7 @@ function renderSchedule(){
   const days = filter==="all" ? 18 : 40;
   let html="", shown=0;
   for(let d=0; d<days; d++){
-    const dt=new Date(2025,7,1+d);                 // 2025-08-01 기준
+    const dt=new Date(schedStart.y, schedStart.m-1, schedStart.d+d);
     const mo=dt.getMonth()+1, day=dt.getDate(), dow=dt.getDay();
     const round=_rounds[d % _rounds.length];
     const flip=Math.floor(d/_rounds.length)%2===1;
@@ -1555,8 +1671,13 @@ function fillSelects(){
   document.getElementById("homeLineup").innerHTML=lopts;
   document.getElementById("awayLineup").innerHTML=lopts;
   fillStarters("home"); fillStarters("away");
+  const teamOpts=DATA.map(t=>`<option value="${t.id}">${t.name}</option>`).join("");
   document.getElementById("schedFilter").innerHTML =
-    `<option value="all">전체 구단 (하루 5경기)</option>` + DATA.map(t=>`<option value="${t.id}">${t.name}</option>`).join("");
+    `<option value="all">전체 구단 (하루 5경기)</option>` + teamOpts;
+  document.getElementById("newsFilter").innerHTML =
+    `<option value="all">전체 구단 모아보기</option>` + teamOpts;
+  document.getElementById("scrapTeam").innerHTML = teamOpts;
+  document.getElementById("editTeamSel").innerHTML = teamOpts;
   updateNotes();
 }
 function updateNotes(){
@@ -1593,6 +1714,183 @@ function fillStarters(side){
   sel.value=String(list.indexOf(best));
 }
 
+/* ============================ PERSISTENCE / UPDATE ============================ */
+const LS_KEY="kbo_board_v1";
+function lsGet(){ try{ return JSON.parse(localStorage.getItem(LS_KEY)||"null"); }catch(e){ return null; } }
+function lsSet(o){ try{ localStorage.setItem(LS_KEY, JSON.stringify(o)); return true; }catch(e){ return false; } }
+function escHtml(s){ return String(s).replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c])); }
+function safeUrl(u){ try{ const x=new URL(u); return (x.protocol==="http:"||x.protocol==="https:")?x.href:null; }catch(e){ return null; } }
+
+let updatedAt="기본 데이터 (2025 시즌 예시)";
+let SCRAPS=[];
+let curEditTeam=DATA[0].id;
+
+function collectState(){
+  return {
+    v:1, updatedAt, schedStart:{...schedStart},
+    teams:Object.fromEntries(DATA.map(t=>[t.id,
+      {w:t.w,l:t.l,t:t.t,rsg:t.rsg,rag:t.rag,tavg:t.tavg,tobp:t.tobp,tslg:t.tslg,tera:t.tera,twhip:t.twhip,l10:t.l10,strk:t.strk}])),
+    players:Object.fromEntries(Object.entries(ROSTERS).map(([k,r])=>[k,{
+      bat:r.bat.map(b=>({n:b.n,avg:b.avg,hr:b.hr,rbi:b.rbi,ops:b.ops,sb:b.sb})),
+      pit:r.pit.map(p=>({n:p.n,era:p.era,w:p.w,l:p.l,sv:p.sv,so:p.so,whip:p.whip,ip:p.ip})),
+    }])),
+    scraps:SCRAPS,
+  };
+}
+const DEFAULTS = JSON.parse(JSON.stringify(collectState()));
+function applyState(o, opts){
+  opts=opts||{};
+  if(o.schedStart && o.schedStart.y) schedStart={y:+o.schedStart.y,m:+o.schedStart.m,d:+o.schedStart.d};
+  if(o.teams) DATA.forEach(t=>{ const e=o.teams[t.id]; if(e) ["w","l","t","rsg","rag","tavg","tobp","tslg","tera","twhip","l10","strk"].forEach(f=>{ if(e[f]!==undefined) t[f]=e[f]; }); });
+  if(o.players) Object.entries(o.players).forEach(([k,r])=>{ const R=ROSTERS[k]; if(!R) return;
+    (r.bat||[]).forEach(src=>{ const b=R.bat.find(x=>x.n===src.n); if(b) Object.assign(b,src); });
+    (r.pit||[]).forEach(src=>{ const p=R.pit.find(x=>x.n===src.n); if(p) Object.assign(p,src); });
+  });
+  if(!opts.keepScraps && Array.isArray(o.scraps)) SCRAPS=o.scraps.filter(s=>s&&byId[s.team]&&safeUrl(s.url));
+  if(o.updatedAt) updatedAt=o.updatedAt;
+  recalcLeague();
+}
+function saveState(){ return lsSet(collectState()); }
+function stampNow(){ try{ updatedAt=new Date().toLocaleString("ko-KR"); }catch(e){ updatedAt="방금 업데이트"; } }
+function renderAll(){ renderStandings(); renderTeamGrid(); renderH2H(); renderSchedule(); if(document.getElementById("editStand")) renderDataMgr(); }
+
+/* ---------------- NEWS ---------------- */
+function teamNews(t){
+  const q=encodeURIComponent;
+  return [
+    {ic:"🟩",label:"네이버 뉴스",url:`https://search.naver.com/search.naver?where=news&sort=1&query=${q(t.name)}`},
+    {ic:"🟦",label:"구글 뉴스",url:`https://news.google.com/search?q=${q(t.name+" when:7d")}&hl=ko&gl=KR&ceid=KR:ko`},
+    {ic:"🟨",label:"다음 뉴스",url:`https://search.daum.net/search?w=news&sort=recency&q=${q(t.name)}`},
+    {ic:"▶️",label:"유튜브",url:`https://www.youtube.com/results?search_query=${q(t.name+" 뉴스")}&sp=CAI%253D`},
+    {ic:"🌐",label:"공식",url:CLUB[t.id].site},
+  ];
+}
+function renderNews(){
+  const scope=document.getElementById("newsFilter").value||"all";
+  const hub=document.getElementById("newsHub");
+  if(scope==="all"){
+    hub.innerHTML=`<div class="newsgrid">`+DATA.map(t=>{
+      const L=teamNews(t);
+      return `<div class="newscard"><div class="nc-head"><span class="pxbadge sm" style="background:${t.color}22">${pxTag(t.id,'std')}</span><b>${t.name}</b></div>
+        <div class="nlinks">${L.slice(0,4).map(l=>`<a class="nlink" href="${l.url}" target="_blank" rel="noopener noreferrer">${l.ic} ${l.label}</a>`).join("")}</div></div>`;
+    }).join("")+`</div>`;
+  } else {
+    const t=byId[scope], L=teamNews(t);
+    hub.innerHTML=`<div class="newshero"><div class="crest" style="background:${t.color}">${pxTag(t.id,'big')}</div>
+      <div><div class="nm">${t.name} 뉴스</div><div class="sub">최신순 정렬된 실시간 뉴스로 이동합니다 (새 탭)</div></div></div>
+      <div class="linkrow">${L.map(l=>`<a class="lchip" href="${l.url}" target="_blank" rel="noopener noreferrer"><span class="li">${l.ic}</span>${l.label}</a>`).join("")}</div>`;
+  }
+  renderScraps();
+}
+function renderScraps(){
+  const box=document.getElementById("scrapList");
+  const scope=document.getElementById("newsFilter").value||"all";
+  const list=SCRAPS.map((s,i)=>({s,i})).filter(o=>scope==="all"||o.s.team===scope);
+  if(!list.length){ box.innerHTML=`<div class="scrapempty">아직 스크랩한 기사가 없어요. 제목과 링크를 추가하면 구단별로 모여 저장됩니다.</div>`; return; }
+  box.innerHTML=list.map(({s,i})=>`<div class="scrapitem">
+    <span class="pxbadge sm" style="background:${byId[s.team].color}22">${pxTag(s.team,'std')}</span>
+    <a class="scraplink" href="${escHtml(s.url)}" target="_blank" rel="noopener noreferrer">${escHtml(s.title)}</a>
+    <span class="scrapteam">${byId[s.team].short}</span>
+    <button class="scrapdel" data-i="${i}" type="button" aria-label="삭제">✕</button></div>`).join("");
+  box.querySelectorAll(".scrapdel").forEach(b=>b.addEventListener("click",()=>{
+    SCRAPS.splice(+b.dataset.i,1); saveState(); renderScraps();
+  }));
+}
+function addScrap(){
+  const team=document.getElementById("scrapTeam").value;
+  const title=document.getElementById("scrapTitle").value.trim();
+  const raw=document.getElementById("scrapUrl").value.trim();
+  const url=safeUrl(raw);
+  if(!title||!url){ alert("제목과 올바른 http(s) 링크를 입력하세요."); return; }
+  SCRAPS.unshift({team,title,url});
+  saveState();
+  document.getElementById("scrapTitle").value=""; document.getElementById("scrapUrl").value="";
+  renderScraps();
+}
+
+/* ---------------- DATA MANAGER ---------------- */
+function renderDataMgr(){
+  document.getElementById("schedStartInput").value=`${schedStart.y}-${String(schedStart.m).padStart(2,"0")}-${String(schedStart.d).padStart(2,"0")}`;
+  document.getElementById("editStand").innerHTML=DATA.map(t=>`<tr data-id="${t.id}">
+    <td class="l"><span class="pxbadge sm" style="background:${t.color}22">${pxTag(t.id,'std')}</span>${t.short}</td>
+    <td><input class="ei" data-f="w" type="number" min="0" value="${t.w}"></td>
+    <td><input class="ei" data-f="l" type="number" min="0" value="${t.l}"></td>
+    <td><input class="ei" data-f="t" type="number" min="0" value="${t.t}"></td>
+    <td><input class="ei" data-f="rsg" type="number" step="0.01" value="${t.rsg}"></td>
+    <td><input class="ei" data-f="rag" type="number" step="0.01" value="${t.rag}"></td>
+    <td><input class="ei wide" data-f="l10" type="text" value="${t.l10}"></td>
+    <td><input class="ei" data-f="strk" type="text" value="${t.strk}"></td>
+  </tr>`).join("");
+  renderEditPlayers();
+  document.getElementById("updStamp").innerHTML=`마지막 업데이트 · <b>${escHtml(updatedAt)}</b>`;
+}
+function renderEditPlayers(){
+  const id=document.getElementById("editTeamSel").value; curEditTeam=id;
+  const r=ROSTERS[id];
+  const bat=r.bat.map((b,i)=>`<tr data-kind="bat" data-idx="${i}">
+    <td class="l">${b.n}</td>
+    <td><input class="pe" data-f="avg" type="number" step="0.001" value="${b.avg}"></td>
+    <td><input class="pe" data-f="hr" type="number" value="${b.hr}"></td>
+    <td><input class="pe" data-f="rbi" type="number" value="${b.rbi}"></td>
+    <td><input class="pe" data-f="ops" type="number" step="0.001" value="${b.ops}"></td>
+    <td><input class="pe" data-f="sb" type="number" value="${b.sb}"></td></tr>`).join("");
+  const pit=r.pit.map((p,i)=>`<tr data-kind="pit" data-idx="${i}">
+    <td class="l">${p.n}</td>
+    <td><input class="pe" data-f="era" type="number" step="0.01" value="${p.era}"></td>
+    <td><input class="pe" data-f="w" type="number" value="${p.w}"></td>
+    <td><input class="pe" data-f="l" type="number" value="${p.l}"></td>
+    <td><input class="pe" data-f="sv" type="number" value="${p.sv}"></td>
+    <td><input class="pe" data-f="so" type="number" value="${p.so}"></td>
+    <td><input class="pe" data-f="whip" type="number" step="0.01" value="${p.whip}"></td></tr>`).join("");
+  document.getElementById("editPlayers").innerHTML=
+    `<div class="tablewrap" style="margin-top:8px"><table class="edit"><thead><tr><th class="l">타자</th><th>타율</th><th>HR</th><th>타점</th><th>OPS</th><th>도루</th></tr></thead><tbody>${bat}</tbody></table></div>
+     <div class="tablewrap" style="margin-top:10px"><table class="edit"><thead><tr><th class="l">투수</th><th>ERA</th><th>승</th><th>패</th><th>SV</th><th>K</th><th>WHIP</th></tr></thead><tbody>${pit}</tbody></table></div>`;
+}
+function commitVisiblePlayers(){
+  const r=ROSTERS[curEditTeam]; if(!r) return;
+  document.querySelectorAll("#editPlayers tr").forEach(tr=>{
+    const arr=tr.dataset.kind==="bat"?r.bat:r.pit, obj=arr[+tr.dataset.idx]; if(!obj) return;
+    tr.querySelectorAll(".pe").forEach(inp=>{ const n=parseFloat(inp.value); if(!isNaN(n)) obj[inp.dataset.f]=n; });
+  });
+}
+function applyEdits(){
+  const ds=document.getElementById("schedStartInput").value;
+  if(ds){ const [y,m,d]=ds.split("-").map(Number); if(y&&m&&d) schedStart={y,m,d}; }
+  document.querySelectorAll("#editStand tr").forEach(tr=>{
+    const t=byId[tr.dataset.id]; if(!t) return;
+    tr.querySelectorAll(".ei").forEach(inp=>{
+      const f=inp.dataset.f, v=inp.value;
+      if(f==="l10"||f==="strk"){ if(v.trim()) t[f]=v.trim(); }
+      else { const n=parseFloat(v); if(!isNaN(n)&&n>=0) t[f]=n; }
+    });
+  });
+  commitVisiblePlayers();
+  recalcLeague(); stampNow();
+  const saved=saveState();
+  renderAll();
+  document.getElementById("saveNote").textContent = saved
+    ? `✔ 적용 완료 · 브라우저에 저장되었습니다 (${updatedAt})`
+    : `✔ 적용 완료 · 이 환경에선 자동 저장이 제한됩니다. JSON 내보내기로 백업하세요.`;
+}
+async function exportJSON(){
+  const data=JSON.stringify(collectState(),null,2), fn="kbo-data.json";
+  try{
+    if(window.claude && window.claude.downloads){ await window.claude.downloads.save({filename:fn,data}); return; }
+  }catch(e){ if(e&&e.code==="declined") return; }
+  try{
+    const blob=new Blob([data],{type:"application/json"});
+    const a=document.createElement("a"); a.href=URL.createObjectURL(blob); a.download=fn;
+    document.body.appendChild(a); a.click(); a.remove(); setTimeout(()=>URL.revokeObjectURL(a.href),1000);
+  }catch(e){ alert("내보내기를 사용할 수 없는 환경입니다."); }
+}
+function resetData(){
+  if(!confirm("모든 성적·선수 데이터를 기본값으로 되돌릴까요? (스크랩 기사는 유지)")) return;
+  applyState(JSON.parse(JSON.stringify(DEFAULTS)), {keepScraps:true});
+  updatedAt="기본 데이터 (2025 시즌 예시)";
+  saveState(); renderAll();
+  document.getElementById("saveNote").textContent="↺ 기본값으로 초기화되었습니다.";
+}
+
 /* ============================ TABS + INIT ============================ */
 function initTabs(){
   const tabs=[...document.querySelectorAll(".tab")];
@@ -1619,12 +1917,31 @@ renderResults=function(R){ window._lastR=R; _origRender(R); };
 window.addEventListener("resize",()=>{ if(document.getElementById("distChart") && window._lastR) drawDist(window._lastR); });
 
 document.addEventListener("DOMContentLoaded",()=>{
+  const saved=lsGet();
+  if(saved){ try{ applyState(saved); }catch(e){} }
+  fillSelects();
   renderStandings();
   renderTeamGrid();
   renderH2H();
-  fillSelects();
   renderSchedule();
+  renderNews();
+  renderDataMgr();
   document.getElementById("schedFilter").addEventListener("change",renderSchedule);
+  document.getElementById("newsFilter").addEventListener("change",renderNews);
+  document.getElementById("scrapAdd").addEventListener("click",addScrap);
+  document.getElementById("editTeamSel").addEventListener("change",()=>{ commitVisiblePlayers(); renderEditPlayers(); });
+  document.getElementById("applyBtn").addEventListener("click",applyEdits);
+  document.getElementById("expBtn").addEventListener("click",exportJSON);
+  document.getElementById("resetBtn").addEventListener("click",resetData);
+  document.getElementById("impBtn").addEventListener("click",()=>{ document.getElementById("impArea").hidden=false; });
+  document.getElementById("impCancel").addEventListener("click",()=>{ document.getElementById("impArea").hidden=true; });
+  document.getElementById("impApply").addEventListener("click",()=>{
+    const txt=document.getElementById("impText").value.trim(); if(!txt) return;
+    let obj; try{ obj=JSON.parse(txt); }catch(e){ alert("올바른 JSON이 아닙니다."); return; }
+    applyState(obj); stampNow(); saveState(); renderAll(); renderNews();
+    document.getElementById("impArea").hidden=true; document.getElementById("impText").value="";
+    document.getElementById("saveNote").textContent=`✔ JSON을 가져와 적용했습니다 (${updatedAt})`;
+  });
   initTabs();
   initTheme();
   setupMascot();
