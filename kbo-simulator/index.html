@@ -463,6 +463,13 @@
   .h2s-bar span{display:block;height:100%;border-radius:5px}
   .h2s-rec{text-align:right;font-weight:800}
 
+  /* Hall of Shame */
+  .shame-hero{background:linear-gradient(115deg,color-mix(in srgb,var(--loss) 15%,var(--surface)),var(--surface));border-color:color-mix(in srgb,var(--loss) 30%,var(--line))}
+  #shameContent .m-year{color:var(--loss)}
+  #shameContent .champrow:nth-child(1){background:color-mix(in srgb,var(--loss) 10%,var(--surface))}
+  #shameContent .gc-items{display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:8px}
+  #shameContent .gterm b{color:var(--loss)}
+
   /* Hall of Fame */
   .hof-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:12px}
   .hof-card{background:var(--surface);border:1px solid var(--line);border-radius:var(--radius);padding:15px;box-shadow:var(--shadow);position:relative;overflow:hidden}
@@ -680,6 +687,7 @@
       <button class="tab" role="tab" aria-selected="false" data-tab="entry"><span class="n">★</span>초보팬 가이드</button>
       <button class="tab" role="tab" aria-selected="false" data-tab="glossary"><span class="n">📖</span>야구 용어사전</button>
       <button class="tab" role="tab" aria-selected="false" data-tab="hof"><span class="n">🏆</span>명예의 전당</button>
+      <button class="tab" role="tab" aria-selected="false" data-tab="shame"><span class="n">😱</span>굴욕의 전당</button>
       <button class="tab" role="tab" aria-selected="true" data-tab="stand"><span class="n">01</span>순위·전력</button>
       <button class="tab" role="tab" aria-selected="false" data-tab="dash"><span class="n">📊</span>구단 대시보드</button>
       <button class="tab" role="tab" aria-selected="false" data-tab="teams"><span class="n">02</span>구단·선수</button>
@@ -715,6 +723,11 @@
   <!-- HALL OF FAME (명예의 전당) -->
   <section class="panel" id="panel-hof" role="tabpanel">
     <div id="hofContent"></div>
+  </section>
+
+  <!-- HALL OF SHAME (굴욕의 전당) -->
+  <section class="panel" id="panel-shame" role="tabpanel">
+    <div id="shameContent"></div>
   </section>
 
   <!-- STANDINGS -->
@@ -2493,6 +2506,55 @@ function renderHOF(){
     <p class="linknote" style="margin-top:14px">※ 선수·기록은 실제 KBO 역사 기반이며, 코멘트(드립)는 재미를 위한 각색입니다.</p>`;
 }
 
+/* ============================ HALL OF SHAME (굴욕의 전당) ============================ */
+const SEASON_YEAR=2025;
+const LAST_TITLE={kia:2024,lg:2023,ssg:2022,kt:2021,nc:2020,ds:2019,ss:2014,hh:1999,lt:1992,kw:null};
+const SHAME_MOMENTS=[
+  {year:"2001–2007",title:"롯데 '8888577'의 대서사시 🥲",story:"7년 연속 순위가 <b>8·8·8·8·5·7·7</b>. 부산 팬들은 이 숫자를 족보처럼 외운다. 인내심 하나는 KBO 최강 클래스."},
+  {year:"2003–2012",title:"LG, 그리고 'DTD'의 탄생 📉",story:"10년간 가을야구 실종. 여기서 '<b>내려갈 팀은 내려간다(DTD)</b>'는 불멸의 격언이 태어났다. 다행히 2023년에 29년 한을 풀었다."},
+  {year:"2010년대",title:"마리한화, 져도 만석 🦅",story:"장기 최하위에도 대전 구장은 늘 꽉 찼다. '<b>지는 데 중독된다</b>'는 '마리한화'는 사실 세계 최강 팬심의 다른 이름."},
+  {year:"2015~",title:"삼성 왕조, 화무십일홍 👑→🍂",story:"통합 4연패의 위엄 뒤, 여러 악재로 순식간에 하위권으로. 영원한 왕조는 없다는 걸 리그가 배운 순간."},
+  {year:"2015",title:"막내 KT의 혹독한 신고식 👶",story:"1군 첫 시즌 압도적 꼴찌로 데뷔. 하지만 6년 뒤 우승하며 '<b>존버는 승리한다</b>'를 몸소 증명."},
+  {year:"상시",title:"9회 '자동문' 불펜의 비극 🚪",story:"다 이긴 경기를 9회에 내주는 순간, 전국의 리모컨이 날아간다. 모든 구단이 한 번쯤 겪는 국룰 트라우마."},
+  {year:"상시",title:"무사 만루, 병살로 마무리 🙏→😭",story:"황금 찬스가 <b>병살타+삼진</b> 콤보로 증발하는 마법. 야구가 멘탈 스포츠라 불리는 이유 1위."},
+  {year:"미완",title:"키움, 준우승 수집가 🥈",story:"우승 문턱까지 몇 번이고 갔지만 아직 정상은 없음. 스타는 쏟아지는데 반지가 없는 육성 명가의 영원한 딜레마."},
+];
+const MEMES=[
+  ["8888577","롯데의 2001~2007 순위 밈. 8-8-8-8-5-7-7. 부산 팬 인내심의 상징이자 훈장."],
+  ["DTD","'Down Team Down·내려갈 팀은 내려간다'. LG 암흑기서 태어나 이제는 전 구단 공용 격언."],
+  ["마리한화","져도 만석인 한화 팬심. 지는 데 중독된다는 자학 개그이자 실은 최고의 애정."],
+  ["봄데","봄엔 1위, 여름부터 스르륵 추락하는 롯데를 이르는 말. 벚꽃과 함께 진다."],
+  ["자동문","나오면 실점하는 불펜. 상대 타자에게 문을 열어준다는 뜻."],
+  ["가을야구 실종","오랜 기간 포스트시즌에 못 가는 상태. 팬들은 '가을'을 봄처럼 기다린다."],
+  ["시즌권 환불각","팀이 부진할 때 팬들의 자조 섞인 유행어. 물론 대부분 환불 안 하고 또 본다."],
+  ["스윕 헌납","시리즈 전 경기를 내주는 것. 당한 팬덤은 일주일치 멘탈이 나간다."],
+];
+function renderShame(){
+  const moments=SHAME_MOMENTS.map(m=>`<div class="moment"><div class="m-year mono">${m.year}</div>
+    <div class="m-body"><div class="m-title">${m.title}</div><p>${m.story}</p></div></div>`).join("");
+  const drought=DATA.map(t=>{ const y=LAST_TITLE[t.id]; return {t,y,d:y?SEASON_YEAR-y:9999}; }).sort((a,b)=>b.d-a.d);
+  const rows=drought.map((x,i)=>{
+    const cups = !x.y ? "💀 우승 0회" : (x.d<=1 ? "🎉 최근 우승" : "🏜️".repeat(Math.min(Math.ceil(x.d/6),6)));
+    const yrs = x.y ? x.d+"년" : "—";
+    const note = x.y ? `${x.y}년 우승 이후 무관` : "창단 이래 무관 (준우승만 여러 번…)";
+    return `<div class="champrow"><span class="cr-rank mono">${i+1}</span>
+      <span class="pxbadge sm" style="background:${x.t.color}22">${pxTag(x.t.id,'std')}</span>
+      <b class="cr-name">${x.t.name}</b><span class="cr-cups">${cups}</span>
+      <span class="cr-n mono">${yrs}</span><span class="cr-note">${note}</span></div>`;
+  }).join("");
+  const memes=MEMES.map(([t,d])=>`<div class="gterm"><b>${t}</b><span>${d}</span></div>`).join("");
+  document.getElementById("shameContent").innerHTML=`
+    <div class="entry-hero shame-hero"><div class="eh-emblem" style="font-size:30px">😱</div>
+      <div><h2>KBO 굴욕의 전당</h2><p>흑역사도 역사다 — <b>팬들이 스스로 웃는 자학 아카이브</b> 🤣</p></div></div>
+    <div class="sec-head" style="margin-top:22px"><h2>🫠 전설의 흑역사 · 굴욕의 순간</h2><p>웃프지만 이것도 추억</p></div>
+    <div class="timeline">${moments}</div>
+    <div class="sec-head" style="margin-top:26px"><h2>🏜️ 우승 가뭄 랭킹</h2><p>마지막 우승 이후 흐른 시간 (2025 기준)</p></div>
+    <div class="champboard">${rows}</div>
+    <div class="sec-head" style="margin-top:26px"><h2>📚 웃픈 밈 사전</h2><p>알아두면 게시판에서 안 당한다</p></div>
+    <div class="gc-items">${memes}</div>
+    <p class="linknote" style="margin-top:14px">※ 특정 선수를 조롱하는 페이지가 아닙니다. 구단·팬덤이 함께 웃는 흑역사 아카이브로, <b>애정</b> 담아 준비했어요. 😊</p>`;
+}
+
 /* ============================ DASHBOARD (구단 360°) ============================ */
 let curDashTeam="lg";
 const RADAR=[
@@ -2849,6 +2911,7 @@ document.addEventListener("DOMContentLoaded",()=>{
   renderEntry();
   renderGlossary();
   renderHOF();
+  renderShame();
   document.getElementById("glossarySearch").addEventListener("input",renderGlossary);
   demoSeed();
   detectAPI().then(renderBoard);
