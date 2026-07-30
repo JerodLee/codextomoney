@@ -1,0 +1,12 @@
+# /etc/systemd/system/kbo-update.timer  (매일 07:00 KST 갱신)
+# 설치: sudo cp deploy/kbo-update.* /etc/systemd/system/ && sudo systemctl daemon-reload
+#       sudo systemctl enable --now kbo-update.timer
+[Unit]
+Description=Run KBO data update daily
+
+[Timer]
+OnCalendar=*-*-* 07:00:00
+Persistent=true
+
+[Install]
+WantedBy=timers.target

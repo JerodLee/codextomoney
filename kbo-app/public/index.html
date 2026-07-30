@@ -395,9 +395,24 @@
   .egc-links a:hover{border-color:var(--accent);color:var(--accent)}
 
   /* Fan board */
-  .bmode{font-size:12px;font-weight:700;border-radius:9px;padding:9px 13px;margin-bottom:14px}
+  .bannerrow{display:flex;align-items:center;gap:10px;justify-content:space-between;margin-bottom:14px;flex-wrap:wrap}
+  .bmode{font-size:12px;font-weight:700;border-radius:9px;padding:8px 12px}
   .bmode.ok{background:color-mix(in srgb,var(--win) 14%,transparent);color:var(--win)}
   .bmode.local{background:var(--surface-2);color:var(--ink-soft);border:1px dashed var(--line)}
+  .adminchip{font-size:11.5px;font-weight:800;border-radius:8px;padding:7px 11px;cursor:pointer;font-family:inherit;
+    background:var(--surface-2);border:1px solid var(--line);color:var(--ink-soft)}
+  .adminchip:hover{border-color:var(--ink-faint);color:var(--ink)}
+  .adminchip.on{background:var(--accent);color:#1a1204;border-color:var(--accent)}
+  .modrow{display:flex;align-items:center;gap:6px;margin-top:7px;flex-wrap:wrap}
+  .modbtn{font-size:10.5px;font-weight:700;border-radius:6px;padding:3px 8px;cursor:pointer;font-family:inherit;
+    background:none;border:1px solid var(--line);color:var(--ink-faint)}
+  .modbtn:hover{color:var(--ink);border-color:var(--ink-faint)}
+  .modbtn.del:hover{color:var(--loss);border-color:var(--loss)}
+  .hiddenbadge{font-size:10px;font-weight:800;color:var(--loss);background:color-mix(in srgb,var(--loss) 14%,transparent);border-radius:5px;padding:2px 7px}
+  .post.is-hidden{opacity:.55}
+  .cmod{display:inline-flex;gap:4px;margin-left:auto;flex:0 0 auto}
+  .cbtn{background:none;border:none;cursor:pointer;font-size:11px;color:var(--ink-faint);padding:2px 4px;border-radius:5px}
+  .cbtn:hover{color:var(--loss);background:var(--surface-2)}
   .board-controls{display:flex;align-items:center;gap:9px;flex-wrap:wrap;margin-bottom:14px}
   .board-controls select{width:auto;min-width:150px}
   .board-sort{display:flex;gap:4px;background:var(--surface-2);border:1px solid var(--line);border-radius:9px;padding:3px}
@@ -2161,7 +2176,9 @@ function renderEntry(){
 }
 
 /* ============================ FAN BOARD (팬 게시판) ============================ */
-let API_OK=false, bSort="new";
+let API_OK=false, bSort="new", boardIsAdmin=false;
+let adminToken=(function(){ try{ return localStorage.getItem("kbo_admin_token")||""; }catch(e){ return ""; } })();
+function hdrs(json){ const h=json?{"content-type":"application/json"}:{}; if(adminToken) h["x-admin-token"]=adminToken; return h; }
 async function detectAPI(){
   try{ const r=await fetch("/api/health",{cache:"no-store"}); const j=await r.json(); API_OK=!!(j&&j.ok); }
   catch(e){ API_OK=false; }
@@ -2177,30 +2194,59 @@ function demoSeed(){
   demoSave(o);
 }
 async function boardList(team,sort){
-  if(API_OK){ const r=await fetch(`/api/board?team=${encodeURIComponent(team)}&sort=${sort}`); return (await r.json()).posts; }
-  let posts=demoLoad().posts.slice();
+  if(API_OK){ const r=await fetch(`/api/board?team=${encodeURIComponent(team)}&sort=${sort}`,{headers:hdrs()}); const j=await r.json(); boardIsAdmin=!!j.admin; return j.posts; }
+  boardIsAdmin=true;
+  let posts=demoLoad().posts.filter(p=>!p.hidden);
   if(team!=="all") posts=posts.filter(p=>p.team===team);
   posts.sort((a,b)=> sort==="hot"?(b.score-a.score)||(b.ts-a.ts):b.ts-a.ts);
   return posts.map(p=>({...p,comments:(p.comments||[]).length}));
 }
 async function boardCreate(d){
-  if(API_OK){ const r=await fetch("/api/board",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify(d)}); if(!r.ok) throw await r.json(); return (await r.json()).post; }
+  if(API_OK){ const r=await fetch("/api/board",{method:"POST",headers:hdrs(true),body:JSON.stringify(d)}); if(!r.ok) throw await r.json(); return (await r.json()).post; }
   const o=demoLoad(); const post={id:"d"+Date.now().toString(36),team:d.team,nick:d.nick||"익명팬",title:d.title,body:d.body,ts:Date.now(),score:0,voters:{},comments:[]};
   o.posts.unshift(post); demoSave(o); return post;
 }
 async function boardGet(id){
-  if(API_OK){ const r=await fetch(`/api/board/${id}`); if(!r.ok) throw 0; return (await r.json()).post; }
-  return demoLoad().posts.find(p=>p.id===id);
+  if(API_OK){ const r=await fetch(`/api/board/${id}`,{headers:hdrs()}); if(!r.ok) throw 0; return (await r.json()).post; }
+  const p=demoLoad().posts.find(p=>p.id===id);
+  if(p) p.comments=(p.comments||[]).map((c,i)=>({...c,idx:i}));
+  return p;
 }
 async function boardComment(id,d){
-  if(API_OK){ const r=await fetch(`/api/board/${id}/comment`,{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify(d)}); if(!r.ok) throw await r.json(); return; }
+  if(API_OK){ const r=await fetch(`/api/board/${id}/comment`,{method:"POST",headers:hdrs(true),body:JSON.stringify(d)}); if(!r.ok) throw await r.json(); return; }
   const o=demoLoad(); const p=o.posts.find(x=>x.id===id); if(p){ (p.comments=p.comments||[]).push({nick:d.nick||"익명팬",body:d.body,ts:Date.now()}); demoSave(o); }
 }
 async function boardVote(id,dir){
-  if(API_OK){ const r=await fetch(`/api/board/${id}/vote`,{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({dir})}); return (await r.json()).score; }
+  if(API_OK){ const r=await fetch(`/api/board/${id}/vote`,{method:"POST",headers:hdrs(true),body:JSON.stringify({dir})}); return (await r.json()).score; }
   const o=demoLoad(); const p=o.posts.find(x=>x.id===id); if(!p) return 0;
   p.voters=p.voters||{}; if(p.voters.me===dir) delete p.voters.me; else p.voters.me=dir;
   p.score=Object.values(p.voters).reduce((s,v)=>s+v,0); demoSave(o); return p.score;
+}
+async function boardReport(id){
+  if(API_OK){ await fetch(`/api/board/${id}/report`,{method:"POST",headers:hdrs(true),body:"{}"}); return; }
+  const o=demoLoad(); const p=o.posts.find(x=>x.id===id); if(p){ p.reports=(p.reports||0)+1; if(p.reports>=3) p.hidden=true; demoSave(o); }
+}
+async function boardReportComment(id,idx){
+  if(API_OK){ await fetch(`/api/board/${id}/comment/${idx}/report`,{method:"POST",headers:hdrs(true),body:"{}"}); return; }
+}
+async function boardDelete(id){
+  if(API_OK){ await fetch(`/api/board/${id}`,{method:"DELETE",headers:hdrs()}); return; }
+  const o=demoLoad(); o.posts=o.posts.filter(x=>x.id!==id); demoSave(o);
+}
+async function boardDeleteComment(id,idx){
+  if(API_OK){ await fetch(`/api/board/${id}/comment/${idx}`,{method:"DELETE",headers:hdrs()}); return; }
+  const o=demoLoad(); const p=o.posts.find(x=>x.id===id); if(p&&p.comments){ p.comments.splice(idx,1); demoSave(o); }
+}
+async function boardUnhide(id){
+  if(API_OK){ await fetch(`/api/board/${id}/unhide`,{method:"POST",headers:hdrs(true),body:"{}"}); return; }
+  const o=demoLoad(); const p=o.posts.find(x=>x.id===id); if(p){ p.hidden=false; p.reports=0; demoSave(o); }
+}
+function setAdminToken(){
+  const cur=adminToken; const v=prompt("관리자 토큰을 입력하세요 (해제하려면 비워두고 확인):", cur);
+  if(v===null) return;
+  adminToken=v.trim();
+  try{ if(adminToken) localStorage.setItem("kbo_admin_token",adminToken); else localStorage.removeItem("kbo_admin_token"); }catch(e){}
+  renderBoard();
 }
 function timeAgo(ts){ const s=Math.max(1,Math.floor((Date.now()-ts)/1000));
   if(s<60) return "방금"; if(s<3600) return Math.floor(s/60)+"분 전"; if(s<86400) return Math.floor(s/3600)+"시간 전"; return Math.floor(s/86400)+"일 전"; }
@@ -2208,21 +2254,30 @@ function flairHtml(id){ return byId[id]
   ? `<span class="flair" style="color:${byId[id].color}"><span class="pxbadge sm" style="background:${byId[id].color}22">${pxTag(id,'std')}</span>${byId[id].short}</span>`
   : `<span class="flair etc">기타</span>`; }
 function postRow(p){
-  return `<div class="post" data-id="${p.id}">
+  const mod=`<div class="modrow">
+    <button class="modbtn" data-act="report" type="button">🚩 신고</button>
+    ${boardIsAdmin?`<button class="modbtn del" data-act="del" type="button">🗑 삭제</button>${p.hidden?`<button class="modbtn" data-act="unhide" type="button">👁 숨김해제</button>`:""}`:""}
+    ${p.hidden?`<span class="hiddenbadge">숨김 · 신고 ${p.reports||0}</span>`:""}
+  </div>`;
+  return `<div class="post ${p.hidden?"is-hidden":""}" data-id="${p.id}">
     <div class="votecol"><button class="v-up" type="button" aria-label="추천">▲</button>
       <span class="v-score mono">${p.score||0}</span>
       <button class="v-dn" type="button" aria-label="비추천">▼</button></div>
     <div class="postmain">
       <div class="posttitle">${escHtml(p.title)} <span class="cc">💬 ${p.comments||0}</span></div>
       <div class="postmeta">${flairHtml(p.team)} · ${escHtml(p.nick)} · ${timeAgo(p.ts)}</div>
+      ${mod}
     </div></div>`;
 }
 async function renderBoard(){
-  document.getElementById("boardBanner").innerHTML = API_OK
-    ? `<div class="bmode ok">🌐 서버 연결됨 · 모두가 함께 쓰는 공용 게시판</div>`
-    : `<div class="bmode local">🔒 미리보기(로컬) 모드 · 지금은 내 브라우저에만 저장됩니다. EC2에 배포하면 공용 게시판으로 전환돼요.</div>`;
   const team=document.getElementById("boardTeam").value||"all";
   let posts=[]; try{ posts=await boardList(team,bSort); }catch(e){}
+  const modeHtml = API_OK
+    ? `<span class="bmode ok">🌐 서버 연결됨 · 공용 게시판</span>`
+    : `<span class="bmode local">🔒 미리보기(로컬) 모드 · 내 브라우저에만 저장</span>`;
+  document.getElementById("boardBanner").innerHTML =
+    `<div class="bannerrow">${modeHtml}<button class="adminchip ${adminToken?"on":""}" id="adminToggle" type="button">🛡 ${adminToken?"관리자 ON":"관리자"}</button></div>`;
+  document.getElementById("adminToggle").addEventListener("click",setAdminToken);
   const box=document.getElementById("boardList");
   if(!posts.length){ box.innerHTML=`<div class="empty"><div class="big">🗣️</div><div><b>아직 글이 없어요</b></div><div style="font-size:12.5px">첫 글로 배틀을 시작하세요!</div></div>`; return; }
   box.innerHTML=posts.map(postRow).join("");
@@ -2231,13 +2286,20 @@ async function renderBoard(){
     el.querySelector(".posttitle").addEventListener("click",()=>openPost(id));
     el.querySelector(".v-up").addEventListener("click",async()=>{ el.querySelector(".v-score").textContent=await boardVote(id,1); });
     el.querySelector(".v-dn").addEventListener("click",async()=>{ el.querySelector(".v-score").textContent=await boardVote(id,-1); });
+    el.querySelectorAll(".modbtn").forEach(mb=>mb.addEventListener("click",async e=>{
+      e.stopPropagation();
+      const act=mb.dataset.act;
+      if(act==="report"){ await boardReport(id); alert("신고가 접수되었습니다. 감사합니다."); renderBoard(); }
+      else if(act==="del"){ if(confirm("이 글을 삭제할까요?")){ await boardDelete(id); renderBoard(); } }
+      else if(act==="unhide"){ await boardUnhide(id); renderBoard(); }
+    }));
   });
 }
 async function openPost(id){
   let p; try{ p=await boardGet(id); }catch(e){}
   if(!p){ renderBoard(); return; }
   const box=document.getElementById("boardList");
-  const comments=(p.comments||[]).map(c=>`<div class="citem"><span class="cn">${escHtml(c.nick)}</span><span class="cb">${escHtml(c.body)}</span><span class="ct">${timeAgo(c.ts)}</span></div>`).join("")||`<div class="scrapempty">첫 댓글을 남겨보세요.</div>`;
+  const comments=(p.comments||[]).map(c=>`<div class="citem"><span class="cn">${escHtml(c.nick)}</span><span class="cb">${escHtml(c.body)}</span><span class="ct">${timeAgo(c.ts)}</span><span class="cmod"><button class="cbtn" data-crep="${c.idx}" type="button">🚩</button>${boardIsAdmin?`<button class="cbtn" data-cdel="${c.idx}" type="button">🗑</button>`:""}</span></div>`).join("")||`<div class="scrapempty">첫 댓글을 남겨보세요.</div>`;
   box.innerHTML=`<button class="backbtn" id="bBack" type="button">← 목록</button>
     <div class="postfull">
       <div class="postmeta">${flairHtml(p.team)} · ${escHtml(p.nick)} · ${timeAgo(p.ts)}</div>
@@ -2256,6 +2318,8 @@ async function openPost(id){
     const nick=document.getElementById("cNick").value.trim();
     try{ await boardComment(id,{nick,body}); openPost(id); }catch(e){ alert("등록 실패, 잠시 후 다시 시도하세요."); }
   });
+  box.querySelectorAll("[data-crep]").forEach(b=>b.addEventListener("click",async()=>{ await boardReportComment(id,+b.dataset.crep); alert("신고가 접수되었습니다."); }));
+  box.querySelectorAll("[data-cdel]").forEach(b=>b.addEventListener("click",async()=>{ if(confirm("이 댓글을 삭제할까요?")){ await boardDeleteComment(id,+b.dataset.cdel); openPost(id); } }));
 }
 async function submitPost(){
   const d={ team:document.getElementById("wfTeam").value,

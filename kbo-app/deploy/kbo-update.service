@@ -1,0 +1,13 @@
+# /etc/systemd/system/kbo-update.service  (oneshot — 타이머가 호출)
+[Unit]
+Description=KBO data update (oneshot)
+After=network.target
+
+[Service]
+Type=oneshot
+WorkingDirectory=/opt/kbo-app
+Environment=BASE_URL=http://127.0.0.1:3000
+Environment=ADMIN_TOKEN=change-me
+# 실제 데이터 피드가 있으면 아래 주석을 해제하고 URL 지정:
+# Environment=DATA_SOURCE_URL=https://your-feed.example.com/kbo.json
+ExecStart=/usr/bin/node scripts/update-data.mjs
