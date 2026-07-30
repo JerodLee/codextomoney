@@ -1,0 +1,11 @@
+services:
+  kbo:
+    build: .
+    ports:
+      - "3000:3000"
+    environment:
+      - PORT=3000
+      - ADMIN_TOKEN=${ADMIN_TOKEN:-}
+    volumes:
+      - ./data:/app/data
+    restart: unless-stopped
