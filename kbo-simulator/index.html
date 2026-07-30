@@ -314,6 +314,42 @@
     .grow .gpred{grid-column:1 / -1;text-align:center;padding-top:2px}
   }
 
+  /* Issues (선수 이슈 레이더) */
+  .impact-box{display:flex;flex-direction:column;gap:7px;margin-bottom:14px}
+  .imp{font-size:12.5px;font-weight:600;border-radius:9px;padding:9px 12px}
+  .imp.bad{background:color-mix(in srgb,var(--loss) 13%,transparent);color:var(--loss)}
+  .imp.info{background:var(--surface-2);color:var(--ink-soft)}
+  .impbtn{align-self:flex-start;background:var(--accent);color:#1a1204;border-color:var(--accent);font-weight:800}
+  .impbtn:hover{filter:brightness(1.06);color:#1a1204}
+  .issue{display:flex;gap:0;background:var(--surface);border:1px solid var(--line);border-radius:var(--radius-sm);
+    margin-bottom:8px;overflow:hidden;box-shadow:var(--shadow)}
+  .iv-bar{width:4px;flex:0 0 auto;background:var(--ink-faint)}
+  .sv-crit .iv-bar{background:var(--loss)} .sv-warn .iv-bar{background:#D89A2E}
+  .sv-good .iv-bar{background:var(--win)} .sv-info .iv-bar{background:var(--ink-faint)}
+  .iv-main{padding:11px 13px;min-width:0;flex:1}
+  .iv-top{display:flex;align-items:center;gap:7px;flex-wrap:wrap;margin-bottom:5px}
+  .iv-team{font-size:11.5px;font-weight:800}
+  .iv-cat{font-size:10.5px;font-weight:800;background:var(--surface-2);border:1px solid var(--line-soft);border-radius:6px;padding:2px 7px;color:var(--ink-soft)}
+  .sv-crit .iv-cat{background:color-mix(in srgb,var(--loss) 13%,transparent);color:var(--loss);border-color:transparent}
+  .sv-good .iv-cat{background:color-mix(in srgb,var(--win) 13%,transparent);color:var(--win);border-color:transparent}
+  .iv-player{font-size:11px;font-weight:800;color:var(--accent);background:var(--accent-ghost);border-radius:6px;padding:2px 7px}
+  .iv-rumor{font-size:9.5px;font-weight:800;color:#fff;background:var(--ink-faint);border-radius:5px;padding:2px 6px}
+  .iv-local{font-size:9.5px;font-weight:800;color:var(--ink-soft);border:1px dashed var(--line);border-radius:5px;padding:1px 6px}
+  .iv-title{display:block;font-size:14px;font-weight:700;color:var(--ink);text-decoration:none;line-height:1.4}
+  .iv-title:hover{color:var(--accent);text-decoration:underline}
+  .iv-meta{font-size:11px;color:var(--ink-faint);margin-top:5px;display:flex;align-items:center;gap:8px}
+  .iv-del{background:none;border:none;color:var(--ink-faint);font-size:10.5px;cursor:pointer;text-decoration:underline;padding:0;font-family:inherit}
+  .iv-del:hover{color:var(--loss)}
+  #issueAddForm{background:var(--surface);border:1px solid var(--line);border-radius:var(--radius);padding:14px;margin-bottom:14px;box-shadow:var(--shadow)}
+  #issueAddForm input[type=text],#issueAddForm input[type=url]{width:100%;font-family:inherit;font-size:13.5px;padding:10px 11px;border-radius:9px;border:1px solid var(--line);background:var(--surface-2);color:var(--ink);margin-bottom:8px}
+  #issueAddForm .wf-row input{margin-bottom:0}
+  .iarumor{display:flex;align-items:center;gap:6px;font-size:12px;color:var(--ink-soft);margin-bottom:10px;font-weight:600}
+  .commhub{margin-top:24px;padding-top:18px;border-top:1px solid var(--line-soft)}
+  .commrow{display:flex;align-items:center;gap:10px;padding:8px 0;border-bottom:1px solid var(--line-soft);flex-wrap:wrap}
+  .commrow:last-of-type{border-bottom:none}
+  .commname{font-size:12.5px;font-weight:800;min-width:130px}
+  .commkws{display:flex;gap:6px;flex-wrap:wrap}
+
   /* News */
   .newsgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:10px}
   .newscard{background:var(--surface);border:1px solid var(--line);border-radius:var(--radius-sm);padding:12px 13px;box-shadow:var(--shadow)}
@@ -723,6 +759,7 @@
       <button class="tab" role="tab" aria-selected="false" data-tab="teams"><span class="n">02</span>구단·선수</button>
       <button class="tab" role="tab" aria-selected="false" data-tab="h2h"><span class="n">03</span>상대전적</button>
       <button class="tab" role="tab" aria-selected="false" data-tab="sched"><span class="n">04</span>남은 일정</button>
+      <button class="tab" role="tab" aria-selected="false" data-tab="issues"><span class="n">🚨</span>선수 이슈</button>
       <button class="tab" role="tab" aria-selected="false" data-tab="news"><span class="n">05</span>뉴스</button>
       <button class="tab" role="tab" aria-selected="false" data-tab="sim"><span class="n">06</span>경기 시뮬레이션</button>
       <button class="tab" role="tab" aria-selected="false" data-tab="data"><span class="n">07</span>데이터 관리</button>
@@ -903,6 +940,40 @@
           <div style="font-size:12.5px;max-width:34ch">각 구단의 득점력·실점력에 전략 보정과 홈 이점을 반영해 경기를 반복 시뮬레이션합니다.</div>
         </div>
       </div>
+    </div>
+  </section>
+
+  <!-- ISSUES (선수 이슈 레이더) -->
+  <section class="panel" id="panel-issues" role="tabpanel">
+    <div class="sec-head">
+      <h2>선수 이슈 레이더 🚨</h2>
+      <p>경기에 영향을 주는 소식만 — 부상·이탈 / 복귀 / 선발 예고 / 라인업 / 이적</p>
+    </div>
+    <div id="issueBanner"></div>
+    <div class="board-controls">
+      <select id="issueTeam"></select>
+      <select id="issueCat"></select>
+      <button id="issueAddToggle" class="minibtn" type="button">✍ 직접 등록</button>
+    </div>
+    <div id="issueAddForm" hidden>
+      <div class="wf-row">
+        <select id="iaTeam"></select>
+        <select id="iaCat"></select>
+        <input id="iaPlayer" type="text" placeholder="선수명(선택)" maxlength="30">
+      </div>
+      <input id="iaTitle" type="text" placeholder="제목 (예: OOO 햄스트링 통증으로 결장)" maxlength="200">
+      <input id="iaUrl" type="url" placeholder="https:// 출처 링크">
+      <label class="iarumor"><input id="iaRumor" type="checkbox"> 미확인 루머로 표시</label>
+      <div class="wf-actions"><button id="iaSubmit" class="runbtn" type="button">등록</button>
+        <button id="iaCancel" class="minibtn" type="button">취소</button></div>
+    </div>
+    <div id="issueImpact"></div>
+    <div id="issueList"></div>
+    <div class="commhub">
+      <div class="rost-title">커뮤니티에서 직접 확인 <span class="hinttag">키워드 검색으로 새 탭 열기</span></div>
+      <div id="commLinks"></div>
+      <p class="linknote">※ 커뮤니티 <b>게시글 본문은 수집하지 않습니다</b>(약관·저작권). 또한 커뮤니티발 정보는 미확인 루머가 많아
+        선수의 부상·건강을 단정하지 않도록 <b>루머 표시</b>를 사용하세요. 확정 정보는 구단 공식 발표·기사를 우선하세요.</p>
     </div>
   </section>
 
@@ -2144,6 +2215,11 @@ function fillSelects(){
   document.getElementById("wfTeam").innerHTML = teamOpts + `<option value="etc">기타/공통</option>`;
   const dsel=document.getElementById("dashTeam"); dsel.innerHTML=teamOpts; dsel.value=curDashTeam;
   document.getElementById("historyFilter").innerHTML = `<option value="all">전체 연표</option>` + teamOpts;
+  const catOpts=ISSUE_CATS.map(c=>`<option value="${c.k}">${c.ic} ${c.k}</option>`).join("");
+  document.getElementById("issueTeam").innerHTML=`<option value="all">${L("전체 구단","All clubs")}</option>`+teamOpts;
+  document.getElementById("issueCat").innerHTML=`<option value="all">${L("전체 카테고리","All categories")}</option>`+catOpts;
+  document.getElementById("iaTeam").innerHTML=teamOpts;
+  document.getElementById("iaCat").innerHTML=catOpts;
   updateNotes();
 }
 function updateNotes(){
@@ -2219,6 +2295,104 @@ function applyState(o, opts){
 function saveState(){ return lsSet(collectState()); }
 function stampNow(){ try{ updatedAt=new Date().toLocaleString("ko-KR"); }catch(e){ updatedAt="방금 업데이트"; } }
 function renderAll(){ renderStandings(); renderTeamGrid(); renderH2H(); renderSchedule(); if(document.getElementById("editStand")) renderDataMgr(); }
+
+/* ---------------- ISSUES (선수 이슈 레이더) ---------------- */
+const ISSUE_CATS=[
+  {k:"부상·이탈",sev:"critical",ic:"🩹"},{k:"복귀·콜업",sev:"good",ic:"💪"},
+  {k:"선발 예고",sev:"info",ic:"⚾"},{k:"라인업·출장",sev:"info",ic:"📋"},{k:"이적·계약",sev:"warning",ic:"🔁"},
+];
+const COMMUNITIES=[
+  {n:"MLBPARK 불펜",site:"mlbpark.donga.com"},{n:"디시 국내야구",site:"gall.dcinside.com"},
+  {n:"에펨코리아 야구",site:"fmkorea.com"},{n:"네이버 뉴스",site:null},
+];
+let ISSUES_LOCAL=[]; // 수동 등록(브라우저 저장)
+function issuesLocalLoad(){ try{ return JSON.parse(localStorage.getItem("kbo_issues_local")||"[]"); }catch(e){ return []; } }
+function issuesLocalSave(){ try{ localStorage.setItem("kbo_issues_local",JSON.stringify(ISSUES_LOCAL)); }catch(e){} }
+function commSearchUrl(c,q){
+  const query = c.site ? `site:${c.site} ${q}` : q;
+  return c.site ? `https://www.google.com/search?q=${encodeURIComponent(query)}`
+                : `https://search.naver.com/search.naver?where=news&sort=1&query=${encodeURIComponent(q)}`;
+}
+function renderCommLinks(){
+  const teamSel=document.getElementById("issueTeam").value||"all";
+  const base = teamSel==="all" ? "KBO" : byId[teamSel].ko||byId[teamSel].name;
+  const kws=["부상","선발","라인업","복귀"];
+  document.getElementById("commLinks").innerHTML = COMMUNITIES.map(c=>`
+    <div class="commrow"><span class="commname">${c.n}</span>
+      <span class="commkws">${kws.map(k=>`<a class="nlink" target="_blank" rel="noopener noreferrer" href="${commSearchUrl(c,base+" "+k)}">${k}</a>`).join("")}</span>
+    </div>`).join("");
+}
+async function fetchIssues(){
+  const team=document.getElementById("issueTeam").value||"all";
+  const cat=document.getElementById("issueCat").value||"all";
+  let items=[], live=false, updatedAt=null;
+  if(API_OK){
+    try{ const r=await fetch(`/api/issues?team=${encodeURIComponent(team)}&cat=${encodeURIComponent(cat)}`);
+      const j=await r.json(); items=j.items||[]; updatedAt=j.updatedAt; live=true; }catch(e){}
+  }
+  let local=ISSUES_LOCAL.slice();
+  if(team!=="all") local=local.filter(x=>x.team===team);
+  if(cat!=="all") local=local.filter(x=>x.cat===cat);
+  return {items:[...local,...items].sort((a,b)=>(b.ts||0)-(a.ts||0)), live, updatedAt};
+}
+function sevClass(s){ return {critical:"sv-crit",warning:"sv-warn",good:"sv-good",info:"sv-info"}[s]||"sv-info"; }
+function issueCard(x){
+  const t=byId[x.team];
+  const ic=(ISSUE_CATS.find(c=>c.k===x.cat)||{}).ic||"•";
+  return `<div class="issue ${sevClass(x.sev)}">
+    <div class="iv-bar"></div>
+    <div class="iv-main">
+      <div class="iv-top">
+        ${t?`<span class="pxbadge sm" style="background:${t.color}22">${pxTag(x.team,'std')}</span><span class="iv-team">${escHtml(t.name)}</span>`:`<span class="iv-team">기타</span>`}
+        <span class="iv-cat">${ic} ${escHtml(x.cat)}</span>
+        ${x.player?`<span class="iv-player">${escHtml(x.player)}</span>`:""}
+        ${x.rumor?`<span class="iv-rumor">미확인 루머</span>`:""}
+        ${x.local?`<span class="iv-local">직접 등록</span>`:""}
+      </div>
+      <a class="iv-title" href="${escHtml(x.url)}" target="_blank" rel="noopener noreferrer">${escHtml(x.title)}</a>
+      <div class="iv-meta">${escHtml(x.source||"")}${x.source?" · ":""}${timeAgo(x.ts)}
+        ${x.local?`<button class="iv-del" data-id="${escHtml(x.id)}" type="button">삭제</button>`:""}</div>
+    </div></div>`;
+}
+async function renderIssues(){
+  const {items,live,updatedAt}=await fetchIssues();
+  document.getElementById("issueBanner").innerHTML = live
+    ? `<div class="bmode ok">🌐 서버 수집 연결됨${updatedAt?` · 마지막 수집 ${timeAgo(updatedAt)}`:""} · 뉴스 기반 자동 이슈</div>`
+    : `<div class="bmode local">🔒 수집 서버 미연결 · 직접 등록한 이슈와 커뮤니티 검색만 표시됩니다 (EC2 배포 + 스크레이퍼 실행 시 자동 수집)</div>`;
+  // 영향 요약
+  const crit=items.filter(x=>x.sev==="critical"), starters=items.filter(x=>x.cat==="선발 예고");
+  const impact=[];
+  if(crit.length) impact.push(`<div class="imp bad">🩹 <b>${crit.length}건</b>의 부상·이탈 이슈 — 해당 팀 전력 하향 반영 필요${crit[0].player?` (예: ${escHtml(crit[0].player)})`:""}</div>`);
+  if(starters.length) impact.push(`<div class="imp info">⚾ <b>${starters.length}건</b>의 선발 예고 — 시뮬레이션의 선발 투수를 맞춰 설정하세요</div>`);
+  const teamSel=document.getElementById("issueTeam").value||"all";
+  if(teamSel!=="all") impact.push(`<button class="minibtn impbtn" id="issueSimBtn" type="button">⚾ ${escHtml(byId[teamSel].name)}로 시뮬 돌리기</button>`);
+  document.getElementById("issueImpact").innerHTML = impact.length?`<div class="impact-box">${impact.join("")}</div>`:"";
+  const sb=document.getElementById("issueSimBtn"); if(sb) sb.addEventListener("click",()=>goSim(teamSel,""));
+  // 목록
+  const box=document.getElementById("issueList");
+  box.innerHTML = items.length ? items.map(issueCard).join("")
+    : `<div class="empty"><div class="big">🚨</div><div><b>표시할 이슈가 없어요</b></div>
+       <div style="font-size:12.5px">아래 커뮤니티 검색으로 확인하거나, "직접 등록"으로 이슈를 추가하세요.</div></div>`;
+  box.querySelectorAll(".iv-del").forEach(b=>b.addEventListener("click",()=>{
+    ISSUES_LOCAL=ISSUES_LOCAL.filter(x=>x.id!==b.dataset.id); issuesLocalSave(); renderIssues();
+  }));
+  renderCommLinks();
+}
+function addIssueManual(){
+  const team=document.getElementById("iaTeam").value, cat=document.getElementById("iaCat").value;
+  const player=document.getElementById("iaPlayer").value.trim();
+  const title=document.getElementById("iaTitle").value.trim();
+  const url=safeUrl(document.getElementById("iaUrl").value.trim());
+  if(!title||!url){ alert("제목과 올바른 http(s) 출처 링크를 입력하세요."); return; }
+  const sev=(ISSUE_CATS.find(c=>c.k===cat)||{}).sev||"info";
+  ISSUES_LOCAL.unshift({id:"m"+Date.now().toString(36),team,cat,sev,player,title,url,
+    source:"직접 등록",ts:Date.now(),rumor:document.getElementById("iaRumor").checked,local:true});
+  issuesLocalSave();
+  ["iaPlayer","iaTitle","iaUrl"].forEach(id=>document.getElementById(id).value="");
+  document.getElementById("iaRumor").checked=false;
+  document.getElementById("issueAddForm").hidden=true;
+  renderIssues();
+}
 
 /* ---------------- NEWS ---------------- */
 function teamNews(t){
@@ -3060,6 +3234,7 @@ function initTabs(){
     document.getElementById("panel-"+tab.dataset.tab).classList.add("active");
     if(tab.dataset.tab==="dash") renderDashboard(document.getElementById("dashTeam").value||curDashTeam);
     if(tab.dataset.tab==="board") renderBoard();
+    if(tab.dataset.tab==="issues") renderIssues();
   }));
 }
 function initTheme(){
@@ -3080,6 +3255,7 @@ const TAB_LABEL={
   shame:["굴욕의 전당","Hall of Shame"],history:["KBO 연표","Timeline"],stand:["순위·전력","Standings"],
   dash:["구단 대시보드","Dashboard"],teams:["구단·선수","Teams & Players"],h2h:["상대전적","Head-to-Head"],
   sched:["남은 일정","Schedule"],news:["뉴스","News"],sim:["경기 시뮬레이션","Simulation"],data:["데이터 관리","Data"],board:["팬 게시판","Fan Board"],
+  issues:["선수 이슈","Player Alerts"],
 };
 const SEC={
   "panel-stand":["정규시즌 순위표","Regular Season Standings","승률 순 · GB(게임차)·득실·최근10경기·연속기록 포함","By win% · games behind, run diff, last 10, streak"],
@@ -3092,6 +3268,7 @@ const SEC={
   "panel-data":["데이터 관리 · 업데이트","Data Manager","경기결과·성적·선수 스탯을 갱신하고 브라우저에 저장 · JSON 백업/복원","Edit results, stats and rosters; save locally; JSON backup/restore"],
   "panel-glossary":["야구 용어사전 📖","Baseball Glossary 📖","타격·투구·수비·세이버·작전·문화까지 — 검색으로 바로 찾기","Batting, pitching, sabermetrics, tactics — search to find"],
   "panel-history":["KBO 연표 📜","KBO Timeline 📜","1982 원년부터 오늘까지 — 연도별 우승 구단과 그해의 명장면","1982 to today — champions and highlights by year"],
+  "panel-issues":["선수 이슈 레이더 🚨","Player Alert Radar 🚨","경기에 영향을 주는 소식만 — 부상·이탈 / 복귀 / 선발 예고 / 라인업 / 이적","Only news that affects games — injuries, returns, starters, lineups, transfers"],
   "panel-board":["팬 게시판 🔥","Fan Board 🔥","구단 깃발 달고 한 마디! 응원·드립·설전 환영 (단, 인신공격·개인정보·혐오는 금지)","Rep your club! Cheers and banter welcome (no personal attacks, doxxing or hate)"],
 };
 const BTN={
@@ -3141,6 +3318,13 @@ document.addEventListener("DOMContentLoaded",()=>{
   document.getElementById("schedFilter").addEventListener("change",renderSchedule);
   document.getElementById("dashTeam").addEventListener("change",e=>renderDashboard(e.target.value));
   document.getElementById("newsFilter").addEventListener("change",renderNews);
+  ISSUES_LOCAL=issuesLocalLoad();
+  document.getElementById("issueTeam").addEventListener("change",renderIssues);
+  document.getElementById("issueCat").addEventListener("change",renderIssues);
+  document.getElementById("issueAddToggle").addEventListener("click",()=>{ const f=document.getElementById("issueAddForm"); f.hidden=!f.hidden; });
+  document.getElementById("iaSubmit").addEventListener("click",addIssueManual);
+  document.getElementById("iaCancel").addEventListener("click",()=>{ document.getElementById("issueAddForm").hidden=true; });
+  renderCommLinks();
   document.getElementById("scrapAdd").addEventListener("click",addScrap);
   document.getElementById("editTeamSel").addEventListener("change",()=>{ commitVisiblePlayers(); renderEditPlayers(); });
   document.getElementById("applyBtn").addEventListener("click",applyEdits);

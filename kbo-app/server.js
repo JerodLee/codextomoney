@@ -15,6 +15,7 @@ const ADMIN_TOKEN = process.env.ADMIN_TOKEN || ""; // 데이터 동기화(POST /
 fs.mkdirSync(DATA_DIR, { recursive: true });
 const BOARD_FILE = path.join(DATA_DIR, "board.json");
 const DATASET_FILE = path.join(DATA_DIR, "dataset.json");
+const ISSUES_FILE = path.join(DATA_DIR, "issues.json");
 
 // ---------- 작은 JSON 스토어 (직렬화된 원자적 쓰기) ----------
 function readJSON(file, fallback) {
@@ -182,6 +183,37 @@ app.post("/api/board/:id/unhide", async (req, res) => {
   p.hidden = false; p.reports = 0;
   await writeJSON(BOARD_FILE, board);
   res.json({ ok: true });
+});
+
+// ---------- 선수 이슈(부상·선발·라인업) ----------
+// 스크레이퍼가 POST 로 올리고, 프론트가 GET 으로 읽는다. 출처 링크를 항상 보존한다.
+app.get("/api/issues", (req, res) => {
+  const store = readJSON(ISSUES_FILE, null) || { items: [], updatedAt: null };
+  const team = req.query.team || "all";
+  const cat = req.query.cat || "all";
+  let items = Array.isArray(store.items) ? store.items : [];
+  if (team !== "all") items = items.filter((x) => x.team === team);
+  if (cat !== "all") items = items.filter((x) => x.cat === cat);
+  items = items.slice().sort((a, b) => (b.ts || 0) - (a.ts || 0)).slice(0, 300);
+  res.json({ items, updatedAt: store.updatedAt || null });
+});
+app.post("/api/issues", async (req, res) => {
+  if (!isAdmin(req)) return res.status(401).json({ error: "unauthorized" });
+  const src = Array.isArray(req.body?.items) ? req.body.items : [];
+  const items = src.slice(0, 1000).map((x) => ({
+    id: clip(x.id, 40) || crypto.randomUUID().slice(0, 8),
+    team: TEAMS.has(x.team) ? x.team : "etc",
+    cat: clip(x.cat, 20) || "기타",
+    sev: ["critical", "warning", "info", "good"].includes(x.sev) ? x.sev : "info",
+    player: clip(x.player, 30),
+    title: clip(x.title, 200),
+    url: /^https?:\/\//.test(x.url || "") ? clip(x.url, 500) : "",
+    source: clip(x.source, 60),
+    ts: Number.isFinite(+x.ts) ? +x.ts : Date.now(),
+    rumor: !!x.rumor,
+  })).filter((x) => x.title && x.url);
+  await writeJSON(ISSUES_FILE, { items, updatedAt: Date.now() });
+  res.json({ ok: true, count: items.length });
 });
 
 // ---------- 데이터셋 동기화 (관리자 토큰) ----------
