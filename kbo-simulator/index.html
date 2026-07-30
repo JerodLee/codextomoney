@@ -341,6 +341,9 @@
     border:1px solid var(--line);background:var(--surface-2);color:var(--ink);font-weight:600;cursor:pointer}
   select:focus-visible,.tab:focus-visible,button:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
   .strat-note{font-size:11.5px;color:var(--ink-soft);margin-top:6px;min-height:16px;line-height:1.4}
+  .varrow{display:grid;grid-template-columns:1fr 1fr;gap:9px;margin-top:6px}
+  .varrow .field-l{margin:6px 0 5px}
+  .varrow select{font-size:12.5px;padding:8px 9px}
   .simmeta{display:flex;align-items:center;gap:10px;margin-top:18px}
   .simmeta label{font-size:11px;color:var(--ink-soft);font-weight:700}
   .runbtn{width:100%;margin-top:16px;background:var(--accent);color:#1a1204;border:none;border-radius:10px;
@@ -363,6 +366,14 @@
   .sb-score{font-family:var(--font-mono);font-size:44px;font-weight:800;line-height:1;letter-spacing:-.02em;font-variant-numeric:tabular-nums}
   .sb-vs{font-family:var(--font-mono);font-size:13px;color:var(--ink-faint);font-weight:700;padding:0 4px}
   .sb-exp{text-align:center;font-size:11px;color:var(--ink-soft);padding:0 0 4px}
+  .talk{max-width:150px;font-size:11.5px;font-weight:800;line-height:1.3;text-align:center;
+    padding:6px 10px;border-radius:11px;position:relative;margin-bottom:6px;animation:bubblein .25s ease;word-break:keep-all}
+  .talk::after{content:"";position:absolute;left:50%;bottom:-4px;transform:translateX(-50%) rotate(45deg);width:9px;height:9px}
+  .talk.win{background:var(--accent);color:#1a1204}
+  .talk.win::after{background:var(--accent)}
+  .talk.lose{background:var(--surface-3);color:var(--ink-soft)}
+  .talk.lose::after{background:var(--surface-3)}
+  @media(max-width:520px){.talk{font-size:10px;max-width:108px;padding:5px 7px}}
 
   .winbar-wrap{padding:16px 18px 20px}
   .winbar-label{display:flex;justify-content:space-between;font-size:12px;font-weight:700;margin-bottom:7px}
@@ -513,12 +524,20 @@
       <div class="control">
         <div class="field-l">홈 구단 <span class="badge-side badge-home">HOME</span></div>
         <select id="homeTeam"></select>
+        <div class="varrow">
+          <div><div class="field-l">선발 투수</div><select id="homeStarter"></select></div>
+          <div><div class="field-l">타선 컨디션</div><select id="homeLineup" class="lineup-sel"></select></div>
+        </div>
         <div class="field-l" style="margin-top:12px">홈 전략</div>
         <select id="homeStrat"></select>
         <div class="strat-note" id="homeStratNote"></div>
 
         <div class="field-l" style="margin-top:20px">원정 구단 <span class="badge-side badge-away">AWAY</span></div>
         <select id="awayTeam"></select>
+        <div class="varrow">
+          <div><div class="field-l">선발 투수</div><select id="awayStarter"></select></div>
+          <div><div class="field-l">타선 컨디션</div><select id="awayLineup" class="lineup-sel"></select></div>
+        </div>
         <div class="field-l" style="margin-top:12px">원정 전략</div>
         <select id="awayStrat"></select>
         <div class="strat-note" id="awayStratNote"></div>
@@ -1234,6 +1253,42 @@ function renderSchedule(){
     : `${byId[filter].name}의 잔여 ${shown}경기 (홈 이점 반영 예상 승률)`;
 }
 
+/* ============================ SIM VARIABLES ============================ */
+const LINEUP={
+  hot:{f:1.07, label:"🔥 폭발 (주축 타자 호조)"},
+  normal:{f:1.00, label:"➖ 보통"},
+  cold:{f:0.92, label:"🧊 침체 (주축 타자 부진)"},
+};
+function startersOf(id){ return ROSTERS[id].pit.filter(p=>p.r==="선발"); }
+function starterFactor(id, era){          // <1 이면 상대 타선 억제(좋은 선발)
+  const list=startersOf(id), avg=list.reduce((s,p)=>s+p.era,0)/list.length;
+  return Math.max(0.80, Math.min(1.20, 0.6*(era/avg)+0.4));
+}
+/* 승자 도발 / 패자 자학 드립 (돌릴 때마다 랜덤) */
+const WIN_LINES=[
+  "꺼져 유사 야구단 색기들! 🔥",
+  "이게 바로 클래스 차이 ㅋㅋ",
+  "울지 마라, 내일도 질 테니까 😎",
+  "홈런 맛 좀 봤냐~ 🍖",
+  "가을야구는 우리가 간다 🍁",
+  "연습 좀 더 하고 오렴 👋",
+  "유사 야구단이라며? 미안해서 어쩌나 이겨버려서 😏",
+  "오늘 승리는 예약석이었어 🎟️",
+  "직관 값 뽑았다 이 말이야!",
+];
+const LOSE_LINES=[
+  "포장마차나 해야겠다… 🍢",
+  "감독님 죄송합니다 🙏",
+  "야구 접고 축구나 볼까 ⚽",
+  "치킨 시켜먹고 잊자… 🍗",
+  "내일은 이기겠지… 아마도 ㅠㅠ",
+  "이게 야구냐고오오 😭",
+  "그래도 우리가 인기는 더 많아! (정신승리)",
+  "정신력으로 안 되는 게 있구나…",
+  "심판 탓… 은 아니고 우리가 못했다 🥲",
+];
+const rand=arr=>arr[Math.floor(Math.random()*arr.length)];
+
 /* ============================ SIMULATION ENGINE ============================ */
 function gaussian(){ let u=0,v=0; while(u===0)u=Math.random(); while(v===0)v=Math.random();
   return Math.sqrt(-2*Math.log(u))*Math.cos(2*Math.PI*v); }
@@ -1258,11 +1313,17 @@ function sampleRuns(mean, dispersion){ // negative-binomial via gamma-poisson
 }
 const HOME_ADV = 1.040;
 
-function simulate(homeId, awayId, sh, sa, N){
+function simulate(homeId, awayId, sh, sa, N, opts){
   const H=byId[homeId], A=byId[awayId];
   const stH=STRATEGIES[sh], stA=STRATEGIES[sa];
-  let expH = (H.rsg * A.rag / LEAGUE_AVG) * stH.off * stA.def * HOME_ADV;
-  let expA = (A.rsg * H.rag / LEAGUE_AVG) * stA.off * stH.def;
+  opts = opts || {};
+  const sH=opts.sH||startersOf(homeId)[0], sA=opts.sA||startersOf(awayId)[0];
+  const lineH=opts.lineH||"normal", lineA=opts.lineA||"normal";
+  const sfH=starterFactor(homeId, sH.era), sfA=starterFactor(awayId, sA.era); // 낮을수록 상대 억제
+  const luH=LINEUP[lineH].f, luA=LINEUP[lineA].f;
+  // H 득점 = H타선(전략·컨디션) × A수비(전략·선발) × 홈이점
+  let expH = (H.rsg * A.rag / LEAGUE_AVG) * stH.off * stA.def * luH * sfA * HOME_ADV;
+  let expA = (A.rsg * H.rag / LEAGUE_AVG) * stA.off * stH.def * luA * sfH;
   const dispH=stH.varr, dispA=stA.varr;
 
   let winH=0,winA=0,sumH=0,sumA=0,extra=0,shutH=0,shutA=0;
@@ -1288,6 +1349,7 @@ function simulate(homeId, awayId, sh, sa, N){
   scoreMap.forEach((v,k)=>{ if(v>topCnt){topCnt=v;topScore=k;} });
   return {
     H,A,stH,stA,N,
+    sH,sA,lineH,lineA,
     winH,winA, winHp:winH/N, winAp:winA/N,
     expH,expA, avgH:sumH/N, avgA:sumA/N,
     extraP:extra/N, shutHp:shutH/N, shutAp:shutA/N,
@@ -1301,12 +1363,15 @@ function pctStr(x){ return (x*100).toFixed(1)+"%"; }
 function renderResults(R){
   const H=R.H,A=R.A;
   const favH = R.winHp>=R.winAp;
+  const winLine=rand(WIN_LINES), loseLine=rand(LOSE_LINES);
+  const homeTalk=favH?winLine:loseLine, awayTalk=favH?loseLine:winLine;
   const el=document.getElementById("results");
   el.innerHTML=`
     <div class="scoreboard" id="scoreboard">
       <div class="ribbon" id="ribbon">🎉 <b>${(favH?H:A).short}</b> 우세 예측 · 승률 ${pctStr(favH?R.winHp:R.winAp)}</div>
       <div class="sb-top">
         <div class="sb-team">
+          <div class="talk ${favH?'win':'lose'}">${homeTalk}</div>
           <div class="crest ${favH?'pop':''}" style="background:${H.color}">${pxTag(H.id,'big')}</div>
           <div class="nm">${H.name}</div><div class="role role-home">HOME</div>
         </div>
@@ -1315,6 +1380,7 @@ function renderResults(R){
           <div class="sb-exp">평균 예상 득점</div>
         </div>
         <div class="sb-team">
+          <div class="talk ${favH?'lose':'win'}">${awayTalk}</div>
           <div class="crest ${favH?'':'pop'}" style="background:${A.color}">${pxTag(A.id,'big')}</div>
           <div class="nm">${A.name}</div><div class="role role-away">AWAY</div>
         </div>
@@ -1410,6 +1476,18 @@ function keyFactors(R){
   items.push(factRow(pitEdge>=0?H.short:A.short, "마운드 안정감",
     `${H.short} ${H.rag.toFixed(2)} vs ${A.short} ${A.rag.toFixed(2)} (실점/경기, 낮을수록 우위)`,
     (pitEdge>=0?'+':'')+pitEdge.toFixed(2), pitEdge>=0));
+  // starter matchup (lower ERA better)
+  const sEdge=(R.sA.era - R.sH.era);
+  items.push(factRow(sEdge>=0?H.short:A.short, "선발 매치업",
+    `${H.short} ${R.sH.n}(ERA ${R.sH.era.toFixed(2)}) vs ${A.short} ${R.sA.n}(ERA ${R.sA.era.toFixed(2)})`,
+    (sEdge>=0?'+':'')+sEdge.toFixed(2), sEdge>=0));
+  // lineup condition (only if either not normal)
+  if(R.lineH!=="normal" || R.lineA!=="normal"){
+    const luEdge=LINEUP[R.lineH].f - LINEUP[R.lineA].f;
+    items.push(factRow(luEdge>=0?H.short:A.short, "타선 컨디션",
+      `${H.short} ${LINEUP[R.lineH].label.replace(/^[^ ]+ /,'')} vs ${A.short} ${LINEUP[R.lineA].label.replace(/^[^ ]+ /,'')}`,
+      (luEdge>=0?'+':'')+(luEdge*100).toFixed(0)+'%', luEdge>=0));
+  }
   // strategy
   items.push(factRow(H.short, "홈 전략 · "+R.stH.label.split(" ")[0], R.stH.desc, "HOME", true));
   items.push(factRow(A.short, "원정 전략 · "+R.stA.label.split(" ")[0], R.stA.desc, "AWAY", false));
@@ -1473,6 +1551,10 @@ function fillSelects(){
   ht.value="lg"; at.value="kia";
   document.getElementById("homeStrat").innerHTML=sopts;
   document.getElementById("awayStrat").innerHTML=sopts;
+  const lopts=Object.entries(LINEUP).map(([k,v])=>`<option value="${k}"${k==="normal"?" selected":""}>${v.label}</option>`).join("");
+  document.getElementById("homeLineup").innerHTML=lopts;
+  document.getElementById("awayLineup").innerHTML=lopts;
+  fillStarters("home"); fillStarters("away");
   document.getElementById("schedFilter").innerHTML =
     `<option value="all">전체 구단 (하루 5경기)</option>` + DATA.map(t=>`<option value="${t.id}">${t.name}</option>`).join("");
   updateNotes();
@@ -1492,8 +1574,23 @@ function runSim(){
       `<div class="empty"><div class="big">⚠️</div><div><b>같은 구단끼리는 맞대결할 수 없어요</b></div><div style="font-size:12.5px">홈과 원정에 서로 다른 구단을 선택하세요.</div></div>`;
     return;
   }
-  const R=simulate(homeId,awayId,sh,sa,N);
+  const hs=startersOf(homeId), as=startersOf(awayId);
+  const opts={
+    sH: hs[Math.min(+document.getElementById("homeStarter").value||0, hs.length-1)],
+    sA: as[Math.min(+document.getElementById("awayStarter").value||0, as.length-1)],
+    lineH: document.getElementById("homeLineup").value||"normal",
+    lineA: document.getElementById("awayLineup").value||"normal",
+  };
+  const R=simulate(homeId,awayId,sh,sa,N,opts);
   renderResults(R);
+}
+function fillStarters(side){
+  const teamId=document.getElementById(side+"Team").value;
+  const list=startersOf(teamId);
+  const best=list.reduce((a,b)=>b.era<a.era?b:a, list[0]);
+  const sel=document.getElementById(side+"Starter");
+  sel.innerHTML=list.map((p,i)=>`<option value="${i}">${p.n} · ERA ${p.era.toFixed(2)}</option>`).join("");
+  sel.value=String(list.indexOf(best));
 }
 
 /* ============================ TABS + INIT ============================ */
@@ -1533,12 +1630,17 @@ document.addEventListener("DOMContentLoaded",()=>{
   setupMascot();
   document.getElementById("homeStrat").addEventListener("change",updateNotes);
   document.getElementById("awayStrat").addEventListener("change",updateNotes);
+  document.getElementById("homeTeam").addEventListener("change",()=>fillStarters("home"));
+  document.getElementById("awayTeam").addEventListener("change",()=>fillStarters("away"));
   document.getElementById("runBtn").addEventListener("click",runSim);
   document.getElementById("swapBtn").addEventListener("click",()=>{
     const h=document.getElementById("homeTeam"), a=document.getElementById("awayTeam");
     const hv=h.value; h.value=a.value; a.value=hv;
     const hs=document.getElementById("homeStrat"), as=document.getElementById("awayStrat");
     const hsv=hs.value; hs.value=as.value; as.value=hsv;
+    const hl=document.getElementById("homeLineup"), al=document.getElementById("awayLineup");
+    const hlv=hl.value; hl.value=al.value; al.value=hlv;
+    fillStarters("home"); fillStarters("away");
     updateNotes();
   });
 });
