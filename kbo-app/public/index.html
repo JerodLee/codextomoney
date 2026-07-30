@@ -388,6 +388,15 @@
   .egc-facts{display:grid;grid-template-columns:1fr 1fr;gap:6px 10px;font-size:12px;padding:10px 0;border-top:1px solid var(--line-soft);border-bottom:1px solid var(--line-soft)}
   .egc-facts span{color:var(--ink-faint);margin-right:5px}
   .egc-facts b{font-weight:700}
+  .egc-slogan{font-size:12.5px;font-weight:700;font-style:italic;color:var(--accent);margin:2px 0 10px}
+  .egc-identity{display:flex;align-items:flex-end;gap:14px;padding:10px 0;border-top:1px solid var(--line-soft);margin-bottom:2px}
+  .jwrap{display:flex;flex-direction:column;align-items:center;gap:3px}
+  .jersey{width:52px;height:auto;display:block;filter:drop-shadow(0 1px 1px rgba(0,0,0,.12))}
+  .jwrap span{font-size:9.5px;font-weight:800;color:var(--ink-faint);letter-spacing:.06em}
+  .swatches{display:flex;align-items:center;gap:5px;margin-left:auto}
+  .swatches i{width:16px;height:16px;border-radius:5px;box-shadow:0 0 0 1px rgba(0,0,0,.1) inset}
+  .sw-lbl{font-size:9.5px;color:var(--ink-faint);font-weight:700}
+  .dh-slogan{font-size:12.5px;font-weight:700;font-style:italic;color:var(--tc);margin-top:3px}
   .egc-hist{font-size:12px;color:var(--ink-soft);line-height:1.5;margin:10px 0}
   .egc-links{display:flex;gap:8px}
   .egc-links a{flex:1;text-align:center;font-size:12px;font-weight:700;text-decoration:none;color:var(--ink);
@@ -691,6 +700,7 @@
         <div class="bubble" id="bubble" hidden></div>
         <button class="mascot" id="mascotBtn" type="button" aria-label="마스코트 응원 듣기" title="눌러서 응원 한마디!"></button>
       </div>
+      <button class="themebtn" id="langbtn" type="button">EN</button>
       <button class="themebtn" id="themebtn" type="button">◐ 테마</button>
     </div>
     <p class="subline">
@@ -996,6 +1006,10 @@
 
 <script>
 "use strict";
+/* ============================ I18N ============================ */
+let LANG="ko";
+function L(ko,en){ return (LANG==="en" && en!=null) ? en : ko; }
+
 /* ============================ PIXEL ICONS ============================ */
 /* 12x12 도트 마스코트. '.'=투명, 그 외 문자 -> 아이콘별 팔레트 */
 const ICONS = {
@@ -1044,6 +1058,21 @@ function iconURL(key){
 }
 function pxTag(id,cls){ return `<img class="pxicon ${cls||''}" src="${iconURL(id)}" alt="" draggable="false">`; }
 function reduceMotion(){ return !!(window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches); }
+/* 팀 컬러로 원본 렌더링한 유니폼(공식 유니폼 사진이 아닌 컬러 기반 오리지널) */
+function jerseySVG(id, away){
+  const t=byId[id];
+  const body = away ? t.color : "#ffffff";
+  const trim = away ? "#ffffff" : t.color;
+  const c2   = t.c2 || t.color;
+  const ink  = away ? "#ffffff" : t.color;
+  return `<svg class="jersey" viewBox="0 0 100 112" role="img" aria-label="${escHtml(t.short)} ${away?'원정':'홈'} 유니폼">
+    <path d="M40 10 L32 12 L8 26 L18 47 L30 40 L30 104 L70 104 L70 40 L82 47 L92 26 L68 12 L60 10 Q50 21 40 10 Z"
+      fill="${body}" stroke="${trim}" stroke-width="3" stroke-linejoin="round"/>
+    <path d="M32 101 L68 101" stroke="${c2}" stroke-width="4"/>
+    <path d="M12 30 L20 43" stroke="${c2}" stroke-width="3"/><path d="M88 30 L80 43" stroke="${c2}" stroke-width="3"/>
+    <text x="50" y="72" text-anchor="middle" font-size="21" font-weight="800" fill="${ink}" font-family="sans-serif">${escHtml(t.short)}</text>
+  </svg>`;
+}
 
 /* ============================ DATA ============================ */
 /* 대표성 있는 2025 시즌 예시 데이터. rsg=경기당 득점, rag=경기당 실점 */
@@ -1460,6 +1489,20 @@ Object.entries(ROSTERS).forEach(([id,r])=>{[...r.bat,...r.pit].forEach(pl=>{
   PMAP[id+"|"+pl.n]=pl;
 });});
 DATA.forEach(t=>{const e=TEAM_EXTRA[t.id];if(e)Object.assign(t,e);});
+/* 구단 정체성: 영문명·서브컬러·대표 슬로건(슬로건은 매년 바뀔 수 있어 대표 문구) */
+const IDENTITY={
+  lg:{en:"LG Twins", c2:"#000000", sloganKo:"함께 만드는 위대한 도전", sloganEn:"Our Great Challenge, Together"},
+  hh:{en:"Hanwha Eagles", c2:"#111111", sloganKo:"최강 한화, 다시 날다", sloganEn:"Eagles Soar Again"},
+  ss:{en:"Samsung Lions", c2:"#1D2B5C", sloganKo:"다시, 왕조", sloganEn:"Dynasty, Again"},
+  kia:{en:"KIA Tigers", c2:"#111111", sloganKo:"제왕의 귀환", sloganEn:"Return of the Kings"},
+  ssg:{en:"SSG Landers", c2:"#0F2148", sloganKo:"인천의 자존심, 랜더스", sloganEn:"Pride of Incheon"},
+  lt:{en:"Lotte Giants", c2:"#D2001C", sloganKo:"부산 갈매기, 다시 비상", sloganEn:"Busan, Fly Again"},
+  kt:{en:"KT Wiz", c2:"#E4002B", sloganKo:"마법 같은 반란", sloganEn:"Let the Magic Rise"},
+  ds:{en:"Doosan Bears", c2:"#E00025", sloganKo:"허슬두! 다시 뛴다", sloganEn:"Hustle Doosan"},
+  nc:{en:"NC Dinos", c2:"#C7A054", sloganKo:"공룡의 포효", sloganEn:"Roar of the Dinos"},
+  kw:{en:"Kiwoom Heroes", c2:"#B48A38", sloganKo:"영웅의 탄생", sloganEn:"Heroes Rise"},
+};
+DATA.forEach(t=>{ const e=IDENTITY[t.id]; if(e){ t.en=e.en; t.ko=t.name; t.c2=e.c2; t.sloganKo=e.sloganKo; t.sloganEn=e.sloganEn; } });
 
 /* 부문별 리그 순위(취약부문 진단) */
 const METRICS=[
@@ -2330,7 +2373,14 @@ function renderEntry(){
     const e=ENTRY[t.id];
     return `<div class="egc">
       <div class="egc-top"><div class="crest" style="background:${t.color}">${pxTag(t.id,'big')}</div>
-        <div><div class="egc-name">${t.name}</div><div class="egc-city">${t.city}</div></div></div>
+        <div><div class="egc-name">${L(t.name,t.en||t.name)}</div><div class="egc-city">${t.city}</div></div></div>
+      <div class="egc-slogan">“${L(t.sloganKo,t.sloganEn)}”</div>
+      <div class="egc-identity">
+        <div class="jwrap">${jerseySVG(t.id,false)}<span>${L("홈","HOME")}</span></div>
+        <div class="jwrap">${jerseySVG(t.id,true)}<span>${L("원정","AWAY")}</span></div>
+        <div class="swatches"><i style="background:${t.color}" title="메인"></i><i style="background:${t.c2}" title="서브"></i>
+          <span class="sw-lbl">${L("팀 컬러","Colors")}</span></div>
+      </div>
       <div class="egc-facts">
         <div><span>주경기장</span><b>${e.stadium}</b></div>
         <div><span>수용</span><b>${e.cap}</b></div>
@@ -2695,7 +2745,8 @@ function renderDashboard(id){
       <div class="crest" style="background:${t.color}">${pxTag(id,'big')}</div>
       <div class="dh-main">
         <div class="dh-name">${t.name} <span class="trend trend-${m.cls}"><span>${m.ic}</span>${m.k}</span></div>
-        <div class="dh-sub">${t.city} · ${pos}위 · ${t.w}승 ${t.l}패 ${t.t}무 · 최근 ${t.l10} (${t.strk})</div>
+        <div class="dh-slogan">“${L(t.sloganKo,t.sloganEn)}”</div>
+        <div class="dh-sub">${t.city} · ${pos}${L("위","th")} · ${t.w}${L("승","W")} ${t.l}${L("패","L")} ${t.t}${L("무","T")} · ${L("최근","L10")} ${t.l10} (${t.strk})</div>
       </div>
       <div class="dh-rank mono">${pos}<span>위</span></div>
     </div>
@@ -3023,6 +3074,55 @@ function initTheme(){
   });
 }
 
+/* ---------------- i18n ---------------- */
+const TAB_LABEL={
+  entry:["초보팬 가이드","Beginner's Guide"],glossary:["야구 용어사전","Glossary"],hof:["명예의 전당","Hall of Fame"],
+  shame:["굴욕의 전당","Hall of Shame"],history:["KBO 연표","Timeline"],stand:["순위·전력","Standings"],
+  dash:["구단 대시보드","Dashboard"],teams:["구단·선수","Teams & Players"],h2h:["상대전적","Head-to-Head"],
+  sched:["남은 일정","Schedule"],news:["뉴스","News"],sim:["경기 시뮬레이션","Simulation"],data:["데이터 관리","Data"],board:["팬 게시판","Fan Board"],
+};
+const SEC={
+  "panel-stand":["정규시즌 순위표","Regular Season Standings","승률 순 · GB(게임차)·득실·최근10경기·연속기록 포함","By win% · games behind, run diff, last 10, streak"],
+  "panel-dash":["구단 360° 대시보드","Team 360° Dashboard","한 구단의 전력·성적·선수·일정·상대전적을 한 화면에서 입체적으로","One club's power, form, roster, schedule and H2H at a glance"],
+  "panel-teams":["구단별 전력 & 선수 현황","Clubs & Full Rosters","구단 카드를 눌러 라인업·투수진 상세를 확인하세요","Tap a club card for its full lineup and pitching staff"],
+  "panel-h2h":["구단 상호 전적","Head-to-Head Matrix","행(가로) 팀 기준 · 승-패 · 팀당 상대 16경기 기준 추정","Row team vs column · W-L · est. over 16 games"],
+  "panel-sched":["남은 경기 일정","Remaining Schedule","정규시즌 잔여 매치업 · 경기별 예상 승률 포함 · 하루 5경기(10개 구단)","Remaining fixtures with predicted win% · 5 games/day"],
+  "panel-news":["뉴스 & 기사","News & Articles","구단을 골라 실시간 뉴스 소스로 이동 · 관심 기사를 스크랩해 모아보기","Pick a club to jump to live news · scrap articles"],
+  "panel-sim":["경기 시뮬레이션","Game Simulation","홈/원정 구단과 전략을 고르고 실행 — 수천 경기를 돌려 승률·예상 스코어를 산출","Pick clubs and strategy, run thousands of games for win% and scores"],
+  "panel-data":["데이터 관리 · 업데이트","Data Manager","경기결과·성적·선수 스탯을 갱신하고 브라우저에 저장 · JSON 백업/복원","Edit results, stats and rosters; save locally; JSON backup/restore"],
+  "panel-glossary":["야구 용어사전 📖","Baseball Glossary 📖","타격·투구·수비·세이버·작전·문화까지 — 검색으로 바로 찾기","Batting, pitching, sabermetrics, tactics — search to find"],
+  "panel-history":["KBO 연표 📜","KBO Timeline 📜","1982 원년부터 오늘까지 — 연도별 우승 구단과 그해의 명장면","1982 to today — champions and highlights by year"],
+  "panel-board":["팬 게시판 🔥","Fan Board 🔥","구단 깃발 달고 한 마디! 응원·드립·설전 환영 (단, 인신공격·개인정보·혐오는 금지)","Rep your club! Cheers and banter welcome (no personal attacks, doxxing or hate)"],
+};
+const BTN={
+  runBtn:["⚾ 시뮬레이션 실행","⚾ Run Simulation"],swapBtn:["↔ 홈·원정 바꾸기","↔ Swap Home/Away"],
+  writeToggle:["✍ 글쓰기","✍ Write"],wfSubmit:["등록","Post"],wfCancel:["취소","Cancel"],
+  expBtn:["⬇ JSON 내보내기","⬇ Export JSON"],impBtn:["⬆ JSON 가져오기","⬆ Import JSON"],resetBtn:["↺ 기본값 초기화","↺ Reset"],
+  applyBtn:["✔ 적용 & 저장","✔ Apply & Save"],scrapAdd:["＋ 추가","＋ Add"],themebtn:["◐ 테마","◐ Theme"],
+};
+const STAND_TH=[["순위 / 구단","Rank / Team"],["경기","G"],["승","W"],["패","L"],["무","T"],["승률","PCT"],["GB","GB"],["득점","RS"],["실점","RA"],["득실차","DIFF"],["최근10","L10"],["연속","STRK"]];
+const SUBLINE=[`<span class="datachip">DATA · 2025 시즌 기준</span> 10개 구단의 순위·전력·주요 선수 데이터를 정리하고, 매치업별 전략을 골라 몬테카를로 방식으로 승패·스코어를 예측합니다.`,
+  `<span class="datachip">DATA · 2025 Season</span> Standings, power and roster data for all 10 KBO clubs — pick a matchup and strategy to predict wins, losses and scores via Monte Carlo.`];
+function applyLang(){
+  document.documentElement.setAttribute("lang", LANG);
+  DATA.forEach(t=>{ t.name = LANG==="en" ? (t.en||t.ko||t.name) : (t.ko||t.name); });
+  document.getElementById("langbtn").textContent = LANG==="en" ? "한국어" : "EN";
+  document.querySelectorAll(".tab").forEach(tab=>{ const lab=TAB_LABEL[tab.dataset.tab]; if(!lab) return;
+    const n=tab.querySelector(".n"); const icon=n?n.textContent:"";
+    tab.innerHTML=`<span class="n">${icon}</span>${L(lab[0],lab[1])}`; });
+  for(const pid in SEC){ const s=SEC[pid]; const h=document.querySelector("#"+pid+" .sec-head h2"), p=document.querySelector("#"+pid+" .sec-head p");
+    if(h) h.textContent=L(s[0],s[1]); if(p&&s[2]!=null) p.textContent=L(s[2],s[3]); }
+  for(const id in BTN){ const el=document.getElementById(id); if(el) el.textContent=L(BTN[id][0],BTN[id][1]); }
+  const sl=document.querySelector(".subline"); if(sl) sl.innerHTML=L(SUBLINE[0],SUBLINE[1]);
+  document.querySelectorAll("#panel-stand thead th").forEach((th,i)=>{ if(STAND_TH[i]) th.textContent=L(STAND_TH[i][0],STAND_TH[i][1]); });
+  document.querySelectorAll("select").forEach(sel=>{ [...(sel.options||[])].forEach(o=>{ if(byId[o.value]) o.textContent=byId[o.value].name; }); });
+  // re-render dynamic panels
+  try{ renderStandings(); renderTeamGrid(); renderH2H(); renderSchedule(); renderNews();
+    if(document.getElementById("editStand")) renderDataMgr();
+    renderEntry(); renderGlossary(); renderHOF(); renderShame(); renderHistory(); renderDashboard(curDashTeam); renderBoard(); }catch(e){}
+}
+function initLang(){ document.getElementById("langbtn").addEventListener("click",()=>{ LANG = LANG==="en"?"ko":"en"; applyLang(); }); }
+
 // keep last result for redraw on theme/resize
 const _origRender=renderResults;
 renderResults=function(R){ window._lastR=R; _origRender(R); };
@@ -3076,6 +3176,7 @@ document.addEventListener("DOMContentLoaded",()=>{
   document.getElementById("wfCancel").addEventListener("click",()=>{ document.getElementById("writeForm").hidden=true; });
   initTabs();
   initTheme();
+  initLang();
   setupMascot();
   document.getElementById("homeStrat").addEventListener("change",updateNotes);
   document.getElementById("awayStrat").addEventListener("change",updateNotes);
