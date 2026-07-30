@@ -265,6 +265,34 @@
     color:var(--ink-soft);line-height:1.45}
   .tip-note b{color:var(--ink);margin-right:4px}
 
+  /* Schedule */
+  .sched-controls{display:flex;align-items:center;gap:10px;margin-bottom:16px;flex-wrap:wrap}
+  .sched-controls label{font-size:12px;font-weight:800;letter-spacing:.04em;text-transform:uppercase;color:var(--ink-soft)}
+  .sched-controls select{width:auto;min-width:210px}
+  .sched-hint{font-size:12px;color:var(--ink-faint);font-weight:600}
+  .sday{margin-bottom:12px;border:1px solid var(--line);border-radius:var(--radius);background:var(--surface);overflow:hidden;box-shadow:var(--shadow)}
+  .sday-h{display:flex;align-items:center;gap:9px;padding:9px 14px;background:var(--surface-2);border-bottom:1px solid var(--line);font-weight:800;font-size:13px}
+  .sday-h .sdow{color:var(--ink-soft);font-size:12px}
+  .sday-h .sdow.we{color:var(--loss)}
+  .sday-h .scount{margin-left:auto;font-size:11px;font-weight:700;color:var(--ink-faint)}
+  .sgames{display:flex;flex-direction:column}
+  .grow{display:grid;grid-template-columns:1fr 22px 1fr 1.15fr;align-items:center;gap:8px;padding:9px 14px;
+    border-bottom:1px solid var(--line-soft);font-size:13px}
+  .grow:last-child{border-bottom:none}
+  .grow.hl{background:var(--accent-ghost)}
+  .grow .gt{display:flex;align-items:center;gap:7px;font-weight:700;min-width:0}
+  .grow .gt.away{justify-content:flex-end}
+  .grow .gt.home{justify-content:flex-start}
+  .grow .gt.gw{color:var(--accent)}
+  .grow .gvs{text-align:center;color:var(--ink-faint);font-size:11px;font-family:var(--font-mono)}
+  .grow .gpred{text-align:right;font-size:12px;color:var(--ink-soft);white-space:nowrap}
+  .grow .gpred b{color:var(--ink)}
+  .pxbadge.tiny{width:20px;height:20px;padding:2px;border-radius:5px}
+  @media(max-width:520px){
+    .grow{grid-template-columns:1fr 18px 1fr;row-gap:4px}
+    .grow .gpred{grid-column:1 / -1;text-align:center;padding-top:2px}
+  }
+
   /* Head-to-head matrix */
   .matrixwrap{overflow-x:auto;border:1px solid var(--line);border-radius:var(--radius);background:var(--surface);box-shadow:var(--shadow)}
   table.h2h{border-collapse:separate;border-spacing:0;font-size:12px;min-width:560px;width:100%}
@@ -378,7 +406,8 @@
       <button class="tab" role="tab" aria-selected="true" data-tab="stand"><span class="n">01</span>순위·전력</button>
       <button class="tab" role="tab" aria-selected="false" data-tab="teams"><span class="n">02</span>구단·선수</button>
       <button class="tab" role="tab" aria-selected="false" data-tab="h2h"><span class="n">03</span>상대전적</button>
-      <button class="tab" role="tab" aria-selected="false" data-tab="sim"><span class="n">04</span>경기 시뮬레이션</button>
+      <button class="tab" role="tab" aria-selected="false" data-tab="sched"><span class="n">04</span>남은 일정</button>
+      <button class="tab" role="tab" aria-selected="false" data-tab="sim"><span class="n">05</span>경기 시뮬레이션</button>
     </div>
   </div>
 </nav>
@@ -437,6 +466,20 @@
     </div>
     <div class="scrollhint"><span>↔</span> 표를 좌우로 밀어 10개 구단을 모두 확인하세요 (구단명 열은 고정됩니다)</div>
     <div class="legend"><span>초록빛 = 우세, 붉은빛 = 열세. 셀 색이 진할수록 격차가 큼.</span></div>
+  </section>
+
+  <!-- SCHEDULE -->
+  <section class="panel" id="panel-sched" role="tabpanel">
+    <div class="sec-head">
+      <h2>남은 경기 일정</h2>
+      <p>정규시즌 잔여 매치업 · 경기별 예상 승률 포함 · 하루 5경기(10개 구단)</p>
+    </div>
+    <div class="sched-controls">
+      <label for="schedFilter">구단 필터</label>
+      <select id="schedFilter"></select>
+      <span class="sched-hint" id="schedHint"></span>
+    </div>
+    <div id="schedList"></div>
   </section>
 
   <!-- SIMULATION -->
@@ -1059,6 +1102,68 @@ function renderH2H(){
   }).join("");
 }
 
+/* ============================ RENDER: SCHEDULE ============================ */
+function roundRobin(ids){
+  const arr=ids.slice(), n=arr.length, rounds=[];
+  for(let r=0;r<n-1;r++){
+    const games=[];
+    for(let i=0;i<n/2;i++) games.push([arr[i], arr[n-1-i]]);
+    rounds.push(games);
+    arr.splice(1,0,arr.pop());   // rotate keeping first fixed
+  }
+  return rounds;
+}
+const _rounds = roundRobin(DATA.map(t=>t.id));
+function predictGame(homeId,awayId){
+  const H=byId[homeId], A=byId[awayId];
+  const eH=H.rsg*A.rag/LEAGUE_AVG*1.04, eA=A.rsg*H.rag/LEAGUE_AVG;
+  return {wpH:pyth(eH,eA), eH, eA};
+}
+const WEEK=["일","월","화","수","목","금","토"];
+function renderSchedule(){
+  const filter=document.getElementById("schedFilter").value || "all";
+  const days = filter==="all" ? 18 : 40;
+  let html="", shown=0;
+  for(let d=0; d<days; d++){
+    const dt=new Date(2025,7,1+d);                 // 2025-08-01 기준
+    const mo=dt.getMonth()+1, day=dt.getDate(), dow=dt.getDay();
+    const round=_rounds[d % _rounds.length];
+    const flip=Math.floor(d/_rounds.length)%2===1;
+    let rows="";
+    round.forEach(pair=>{
+      let [x,y]=pair; if(flip){ const t=x; x=y; y=t; }
+      const homeId=x, awayId=y;                     // x=home this cycle
+      if(filter!=="all" && homeId!==filter && awayId!==filter) return;
+      const H=byId[homeId], A=byId[awayId];
+      const pr=predictGame(homeId,awayId);
+      const favHome=pr.wpH>=0.5;
+      const favShort=favHome?H.short:A.short;
+      const favPct=Math.round((favHome?pr.wpH:1-pr.wpH)*100);
+      const hl=(filter!=="all");
+      rows+=`<div class="grow ${hl?'hl':''}">
+        <span class="gt away ${!favHome?'gw':''}">${A.short}<span class="pxbadge tiny" style="background:${A.color}22">${pxTag(A.id,'std')}</span></span>
+        <span class="gvs">@</span>
+        <span class="gt home ${favHome?'gw':''}"><span class="pxbadge tiny" style="background:${H.color}22">${pxTag(H.id,'std')}</span>${H.short}</span>
+        <span class="gpred" title="예상 스코어 ${pr.eH.toFixed(1)} : ${pr.eA.toFixed(1)}"><b>${favShort}</b> 우세 <span class="mono">${favPct}%</span></span>
+      </div>`;
+    });
+    if(!rows) continue;
+    shown++;
+    const we = dow===0||dow===6;
+    html+=`<div class="sday">
+      <div class="sday-h"><span class="sdate mono">${mo}/${day}</span>
+        <span class="sdow ${we?'we':''}">(${WEEK[dow]})</span>
+        <span class="scount">${round.filter(p=>filter==="all"||p.includes(filter)).length}경기</span></div>
+      <div class="sgames">${rows}</div></div>`;
+  }
+  document.getElementById("schedList").innerHTML = html ||
+    `<div class="empty"><div class="big">📅</div><div><b>표시할 일정이 없습니다</b></div></div>`;
+  const hint=document.getElementById("schedHint");
+  hint.textContent = filter==="all"
+    ? `향후 ${days}일 · ${shown}일간의 매치업`
+    : `${byId[filter].name}의 잔여 ${shown}경기 (홈 이점 반영 예상 승률)`;
+}
+
 /* ============================ SIMULATION ENGINE ============================ */
 function gaussian(){ let u=0,v=0; while(u===0)u=Math.random(); while(v===0)v=Math.random();
   return Math.sqrt(-2*Math.log(u))*Math.cos(2*Math.PI*v); }
@@ -1298,6 +1403,8 @@ function fillSelects(){
   ht.value="lg"; at.value="kia";
   document.getElementById("homeStrat").innerHTML=sopts;
   document.getElementById("awayStrat").innerHTML=sopts;
+  document.getElementById("schedFilter").innerHTML =
+    `<option value="all">전체 구단 (하루 5경기)</option>` + DATA.map(t=>`<option value="${t.id}">${t.name}</option>`).join("");
   updateNotes();
 }
 function updateNotes(){
@@ -1349,6 +1456,8 @@ document.addEventListener("DOMContentLoaded",()=>{
   renderTeamGrid();
   renderH2H();
   fillSelects();
+  renderSchedule();
+  document.getElementById("schedFilter").addEventListener("change",renderSchedule);
   initTabs();
   initTheme();
   setupMascot();
