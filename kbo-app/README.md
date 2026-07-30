@@ -119,6 +119,25 @@ sudo systemctl daemon-reload && sudo systemctl enable --now kbo-update.timer
 
 > 앱의 "데이터 관리" 탭에서 JSON 내보내기 → 그 파일을 `SEED_FILE`로 지정하면, 손으로 편집한 데이터를 그대로 서버에 반영할 수도 있습니다.
 
+### 자동 수집 스크레이퍼 (Wikipedia)
+
+`scripts/scrape-kbo.mjs` 가 Wikipedia의 "YYYY KBO League season" 순위표를 파싱해 앱 데이터셋으로 만들어 줍니다(사실 데이터·CC BY-SA).
+
+```bash
+# 순위 수집 → data/dataset.json 저장
+node scripts/scrape-kbo.mjs --year 2025
+# 수집 후 서버에 바로 반영 (모든 사용자 공유)
+ADMIN_TOKEN=xxx node scripts/scrape-kbo.mjs --year 2025 --post
+# 파서 오프라인 테스트(위키텍스트 샘플)
+node scripts/scrape-kbo.mjs --source fixture --file sample.wikitext
+```
+
+- **매일 자동화**: `kbo-update.service` 의 `ExecStart` 를 `node scripts/scrape-kbo.mjs --year 2025 --post` 로 바꾸면 타이머가 매일 최신 순위를 수집·반영합니다.
+- **주의 ①(망)**: 스크레이퍼는 외부망이 열린 환경(EC2/로컬)에서 실행해야 합니다. 개발 샌드박스나 폐쇄망에서는 동작하지 않습니다.
+- **주의 ②(표 레이아웃)**: 위키 순위표의 열 순서가 시즌마다 다를 수 있습니다. 파싱이 어긋나면 스크립트 상단 `COLS`(팀·승·패·무 열 위치)만 조정하세요.
+- **범위**: 현재 수집 항목은 **순위(승·패·무)** 입니다. 득점/실점·선수 스탯 등 세부 지표는 순위표에 없는 경우가 많아, 필요하면 별도 소스/파서를 추가해야 합니다(요청 시 확장 가능).
+- **소스 매너**: 팩트(숫자)만 처리하며, User-Agent 명시·저빈도 호출로 소스를 존중합니다. 각 소스의 이용약관/robots를 확인하세요.
+
 ## 문제 해결 (Troubleshooting)
 
 - **접속이 안 됨**: EC2 **보안 그룹** 인바운드에 `3000/tcp`(또는 nginx 사용 시 80/443)가 열려 있는지 확인.
