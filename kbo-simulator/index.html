@@ -1174,8 +1174,96 @@ const PLAYER_EXTRA = {
   "후라도Jr":{sal:2,val:"D",inj:2,tp:76,note:"부진 외인. 교체 검토 대상"},
   "주승우":{sal:1,val:"B",inj:0,tp:83,note:"영건 마무리. 경험 축적 필요"},
 };
+/* 로스터 확장 — 주전+뎁스로 전체 선수 풀 구성(대표 예시, 데이터 관리에서 교체 가능) */
+const ROSTER_MORE = {
+  lg:{bat:[
+    {n:"박동원",p:"C",avg:.255,hr:18,rbi:70,ops:.760,sb:1},{n:"김현수",p:"DH",avg:.285,hr:6,rbi:58,ops:.780,sb:2},
+    {n:"오지환",p:"SS",avg:.265,hr:10,rbi:55,ops:.740,sb:12},{n:"문성주",p:"LF",avg:.290,hr:4,rbi:52,ops:.760,sb:6},
+    {n:"구본혁",p:"2B",avg:.250,hr:2,rbi:28,ops:.660,sb:5},{n:"이영빈",p:"1B",avg:.245,hr:3,rbi:25,ops:.650,sb:3}],
+    pit:[{n:"최원태",r:"선발",era:4.30,w:9,l:10,sv:0,so:120,whip:1.38,ip:155},{n:"정우영",r:"불펜",era:3.60,w:4,l:5,sv:3,so:55,whip:1.35,ip:62},
+    {n:"김진성",r:"불펜",era:3.40,w:3,l:3,sv:5,so:50,whip:1.25,ip:55},{n:"함덕주",r:"불펜",era:3.80,w:2,l:3,sv:8,so:58,whip:1.33,ip:52},
+    {n:"백승현",r:"불펜",era:4.20,w:1,l:2,sv:1,so:40,whip:1.40,ip:42}]},
+  ds:{bat:[
+    {n:"허경민",p:"3B",avg:.285,hr:5,rbi:50,ops:.740,sb:7},{n:"김재호",p:"SS",avg:.250,hr:3,rbi:30,ops:.660,sb:2},
+    {n:"조수행",p:"CF",avg:.270,hr:1,rbi:25,ops:.680,sb:40},{n:"라모스",p:"RF",avg:.270,hr:20,rbi:75,ops:.790,sb:3},
+    {n:"안재석",p:"2B",avg:.245,hr:2,rbi:22,ops:.640,sb:4},{n:"양찬열",p:"LF",avg:.250,hr:4,rbi:28,ops:.670,sb:5}],
+    pit:[{n:"이영하",r:"선발",era:4.40,w:8,l:9,sv:0,so:110,whip:1.40,ip:150},{n:"김강률",r:"불펜",era:3.50,w:3,l:4,sv:6,so:52,whip:1.30,ip:58},
+    {n:"정철원",r:"불펜",era:3.90,w:4,l:5,sv:10,so:60,whip:1.36,ip:60},{n:"이병헌",r:"불펜",era:3.70,w:2,l:3,sv:2,so:55,whip:1.32,ip:50},
+    {n:"최승용",r:"선발",era:4.60,w:6,l:9,sv:0,so:95,whip:1.44,ip:130}]},
+  kia:{bat:[
+    {n:"김태군",p:"C",avg:.265,hr:7,rbi:45,ops:.700,sb:0},{n:"박찬호",p:"SS",avg:.280,hr:3,rbi:45,ops:.720,sb:20},
+    {n:"이우성",p:"1B",avg:.285,hr:9,rbi:60,ops:.780,sb:3},{n:"최원준",p:"CF",avg:.270,hr:5,rbi:45,ops:.730,sb:15},
+    {n:"변우혁",p:"1B",avg:.245,hr:10,rbi:40,ops:.720,sb:1},{n:"김규성",p:"2B",avg:.250,hr:1,rbi:25,ops:.640,sb:10}],
+    pit:[{n:"이의리",r:"선발",era:3.90,w:8,l:7,sv:0,so:120,whip:1.32,ip:140},{n:"전상현",r:"불펜",era:3.50,w:4,l:4,sv:3,so:58,whip:1.28,ip:60},
+    {n:"최지민",r:"불펜",era:3.60,w:3,l:4,sv:5,so:55,whip:1.30,ip:58},{n:"임기영",r:"불펜",era:4.00,w:5,l:4,sv:2,so:50,whip:1.36,ip:70},
+    {n:"곽도규",r:"불펜",era:3.80,w:2,l:2,sv:1,so:48,whip:1.34,ip:45}]},
+  ss:{bat:[
+    {n:"강민호",p:"C",avg:.270,hr:15,rbi:68,ops:.790,sb:0},{n:"김지찬",p:"CF",avg:.295,hr:3,rbi:45,ops:.760,sb:40},
+    {n:"류지혁",p:"2B",avg:.275,hr:4,rbi:40,ops:.730,sb:6},{n:"김성윤",p:"LF",avg:.280,hr:2,rbi:30,ops:.720,sb:12},
+    {n:"맥키넌",p:"1B",avg:.270,hr:12,rbi:60,ops:.760,sb:2},{n:"이성규",p:"LF",avg:.245,hr:18,rbi:52,ops:.760,sb:3}],
+    pit:[{n:"백정현",r:"선발",era:4.50,w:7,l:9,sv:0,so:95,whip:1.42,ip:140},{n:"이승현",r:"불펜",era:3.40,w:4,l:3,sv:2,so:60,whip:1.28,ip:58},
+    {n:"김태훈",r:"불펜",era:3.90,w:3,l:4,sv:4,so:50,whip:1.36,ip:55},{n:"최지광",r:"불펜",era:4.10,w:2,l:3,sv:3,so:52,whip:1.40,ip:50},
+    {n:"이재익",r:"불펜",era:4.00,w:2,l:2,sv:1,so:45,whip:1.38,ip:48}]},
+  ssg:{bat:[
+    {n:"이지영",p:"C",avg:.265,hr:3,rbi:40,ops:.680,sb:1},{n:"오태곤",p:"2B",avg:.255,hr:8,rbi:45,ops:.700,sb:10},
+    {n:"하재훈",p:"DH",avg:.250,hr:12,rbi:50,ops:.740,sb:5},{n:"고명준",p:"1B",avg:.260,hr:10,rbi:48,ops:.720,sb:1},
+    {n:"최준우",p:"2B",avg:.250,hr:3,rbi:30,ops:.660,sb:4},{n:"정준재",p:"SS",avg:.265,hr:1,rbi:25,ops:.680,sb:20}],
+    pit:[{n:"더거",r:"선발",era:4.20,w:10,l:9,sv:0,so:140,whip:1.36,ip:170},{n:"문승원",r:"불펜",era:3.90,w:5,l:5,sv:3,so:70,whip:1.34,ip:90},
+    {n:"노경은",r:"불펜",era:3.60,w:4,l:4,sv:8,so:55,whip:1.30,ip:65},{n:"김민",r:"불펜",era:4.30,w:2,l:3,sv:2,so:50,whip:1.42,ip:52},
+    {n:"이로운",r:"불펜",era:4.00,w:2,l:2,sv:1,so:45,whip:1.38,ip:44}]},
+  lt:{bat:[
+    {n:"유강남",p:"C",avg:.250,hr:10,rbi:50,ops:.710,sb:0},{n:"황성빈",p:"CF",avg:.295,hr:2,rbi:35,ops:.740,sb:30},
+    {n:"손호영",p:"3B",avg:.285,hr:15,rbi:65,ops:.800,sb:5},{n:"정훈",p:"1B",avg:.260,hr:5,rbi:35,ops:.700,sb:2},
+    {n:"김민석",p:"LF",avg:.270,hr:4,rbi:35,ops:.720,sb:10},{n:"이학주",p:"SS",avg:.240,hr:2,rbi:22,ops:.630,sb:6}],
+    pit:[{n:"윌커슨",r:"선발",era:4.00,w:11,l:9,sv:0,so:150,whip:1.34,ip:175},{n:"구승민",r:"불펜",era:3.70,w:4,l:4,sv:5,so:58,whip:1.33,ip:60},
+    {n:"김상수",r:"불펜",era:3.80,w:3,l:3,sv:4,so:50,whip:1.35,ip:55},{n:"최준용",r:"불펜",era:3.60,w:3,l:3,sv:10,so:55,whip:1.30,ip:52},
+    {n:"박진",r:"불펜",era:4.20,w:2,l:2,sv:1,so:42,whip:1.40,ip:45}]},
+  hh:{bat:[
+    {n:"최재훈",p:"C",avg:.255,hr:3,rbi:35,ops:.680,sb:1},{n:"하주석",p:"SS",avg:.260,hr:6,rbi:40,ops:.700,sb:8},
+    {n:"김태연",p:"3B",avg:.270,hr:8,rbi:48,ops:.740,sb:4},{n:"페라자",p:"LF",avg:.275,hr:25,rbi:80,ops:.820,sb:6},
+    {n:"이원석",p:"3B",avg:.250,hr:7,rbi:40,ops:.700,sb:2},{n:"최인호",p:"RF",avg:.255,hr:3,rbi:28,ops:.680,sb:7}],
+    pit:[{n:"문동주",r:"선발",era:3.70,w:10,l:8,sv:0,so:145,whip:1.30,ip:160},{n:"엄상백",r:"선발",era:4.20,w:9,l:9,sv:0,so:120,whip:1.38,ip:155},
+    {n:"김서현",r:"불펜",era:3.60,w:3,l:4,sv:5,so:62,whip:1.32,ip:55},{n:"박상원",r:"불펜",era:3.80,w:4,l:3,sv:8,so:55,whip:1.34,ip:58},
+    {n:"이민우",r:"불펜",era:4.10,w:2,l:3,sv:2,so:48,whip:1.40,ip:50}]},
+  kt:{bat:[
+    {n:"장성우",p:"C",avg:.265,hr:12,rbi:58,ops:.750,sb:0},{n:"김상수",p:"2B",avg:.270,hr:3,rbi:40,ops:.710,sb:10},
+    {n:"문상철",p:"1B",avg:.270,hr:15,rbi:65,ops:.780,sb:1},{n:"조용호",p:"LF",avg:.275,hr:1,rbi:30,ops:.700,sb:15},
+    {n:"안현민",p:"RF",avg:.280,hr:9,rbi:50,ops:.760,sb:5},{n:"권동진",p:"SS",avg:.245,hr:4,rbi:25,ops:.660,sb:3}],
+    pit:[{n:"쿠에바스",r:"선발",era:3.80,w:12,l:8,sv:0,so:150,whip:1.30,ip:175},{n:"우규민",r:"불펜",era:3.90,w:3,l:3,sv:4,so:45,whip:1.36,ip:55},
+    {n:"손동현",r:"불펜",era:3.60,w:4,l:4,sv:6,so:60,whip:1.30,ip:58},{n:"김민수",r:"불펜",era:4.00,w:2,l:3,sv:3,so:50,whip:1.38,ip:52},
+    {n:"성재헌",r:"불펜",era:4.30,w:1,l:2,sv:1,so:40,whip:1.42,ip:42}]},
+  nc:{bat:[
+    {n:"박세혁",p:"C",avg:.250,hr:4,rbi:38,ops:.680,sb:1},{n:"서호철",p:"2B",avg:.280,hr:6,rbi:45,ops:.740,sb:8},
+    {n:"김형준",p:"C",avg:.245,hr:10,rbi:45,ops:.720,sb:0},{n:"마틴",p:"RF",avg:.275,hr:22,rbi:78,ops:.810,sb:5},
+    {n:"최정원",p:"SS",avg:.260,hr:2,rbi:28,ops:.680,sb:12},{n:"오영수",p:"1B",avg:.255,hr:7,rbi:40,ops:.700,sb:1}],
+    pit:[{n:"카스타노",r:"선발",era:4.10,w:10,l:9,sv:0,so:130,whip:1.36,ip:170},{n:"류진욱",r:"불펜",era:3.50,w:4,l:4,sv:6,so:58,whip:1.28,ip:60},
+    {n:"김영규",r:"불펜",era:3.80,w:3,l:3,sv:3,so:55,whip:1.34,ip:58},{n:"하준영",r:"불펜",era:4.20,w:2,l:3,sv:2,so:50,whip:1.40,ip:48},
+    {n:"최성영",r:"불펜",era:4.30,w:2,l:2,sv:1,so:45,whip:1.42,ip:50}]},
+  kw:{bat:[
+    {n:"김동헌",p:"C",avg:.255,hr:6,rbi:42,ops:.700,sb:1},{n:"변상권",p:"RF",avg:.270,hr:8,rbi:48,ops:.740,sb:4},
+    {n:"임지열",p:"DH",avg:.250,hr:14,rbi:52,ops:.740,sb:1},{n:"오선진",p:"SS",avg:.245,hr:2,rbi:25,ops:.640,sb:3},
+    {n:"원성준",p:"LF",avg:.260,hr:3,rbi:30,ops:.680,sb:5},{n:"고영우",p:"2B",avg:.265,hr:5,rbi:38,ops:.710,sb:6}],
+    pit:[{n:"김선기",r:"선발",era:4.60,w:7,l:11,sv:0,so:100,whip:1.44,ip:140},{n:"정찬헌",r:"불펜",era:4.00,w:3,l:4,sv:5,so:50,whip:1.38,ip:55},
+    {n:"조영건",r:"불펜",era:4.10,w:2,l:3,sv:2,so:52,whip:1.40,ip:52},{n:"양현",r:"불펜",era:4.20,w:2,l:2,sv:3,so:45,whip:1.42,ip:48},
+    {n:"김윤하",r:"불펜",era:4.50,w:1,l:2,sv:1,so:40,whip:1.46,ip:40}]},
+};
+Object.entries(ROSTER_MORE).forEach(([id,r])=>{
+  (r.bat||[]).forEach(b=>{ b._more=true; ROSTERS[id].bat.push(b); });
+  (r.pit||[]).forEach(p=>{ p._more=true; ROSTERS[id].pit.push(p); });
+});
+function deriveExtra(p){
+  const isPit = p.era!==undefined;
+  const sal = isPit ? (p.era<3.5?4:p.era<4.3?3:2) : (p.ops>0.85?4:p.ops>0.75?3:2);
+  const val = isPit ? (p.era<3.6?"A":p.era<4.4?"B":"C") : (p.ops>0.85?"A":p.ops>0.74?"B":"C");
+  return {sal, val, inj:0, tp:78, note:isPit?"로테이션·불펜 뎁스 자원":"스쿼드 뎁스 자원 — 출전 기회 확보가 관건"};
+}
 const PMAP = {};
-Object.values(ROSTERS).forEach(r=>{[...r.bat,...r.pit].forEach(pl=>{const e=PLAYER_EXTRA[pl.n];if(e)Object.assign(pl,e);PMAP[pl.n]=pl;});});
+Object.entries(ROSTERS).forEach(([id,r])=>{[...r.bat,...r.pit].forEach(pl=>{
+  pl._team=id;
+  const e = (!pl._more && PLAYER_EXTRA[pl.n]) ? PLAYER_EXTRA[pl.n] : deriveExtra(pl);
+  Object.assign(pl, e);
+  PMAP[id+"|"+pl.n]=pl;
+});});
 DATA.forEach(t=>{const e=TEAM_EXTRA[t.id];if(e)Object.assign(t,e);});
 
 /* 부문별 리그 순위(취약부문 진단) */
@@ -1271,11 +1359,15 @@ function showTeam(id){
   const leadBat = r.bat.reduce((a,x)=>x.ops>a.ops?x:a, r.bat[0]);
   const leadPit = r.pit.filter(x=>x.r==="선발").reduce((a,x)=>x.era<a.era?x:a, r.pit[0]);
   const nameCell=(nm,lead)=>`${lead?'<span class="lead">'+nm+'</span>':nm}<span class="tiphint">ⓘ</span>`;
-  const batRows = r.bat.map(b=>`<tr class="prow" data-pl="${b.n}">
+  const POS_ORDER={C:0,"1B":1,"2B":2,"3B":3,SS:4,LF:5,CF:6,RF:7,DH:8};
+  const ROLE_ORDER={"선발":0,"불펜":1,"마무리":2};
+  const bats=[...r.bat].sort((a,b)=>((POS_ORDER[a.p]??9)-(POS_ORDER[b.p]??9)));
+  const pits=[...r.pit].sort((a,b)=>((ROLE_ORDER[a.r]??3)-(ROLE_ORDER[b.r]??3))||(a.era-b.era));
+  const batRows = bats.map(b=>`<tr class="prow" data-pl="${t.id}|${b.n}">
       <td class="l">${nameCell(b.n,b.n===leadBat.n)}<span class="pos">${b.p}</span></td>
       <td>${b.avg.toFixed(3).replace(/^0/,'')}</td><td>${b.hr}</td><td>${b.rbi}</td>
       <td>${b.ops.toFixed(3).replace(/^0/,'')}</td><td>${b.sb}</td></tr>`).join("");
-  const pitRows = r.pit.map(p=>`<tr class="prow" data-pl="${p.n}">
+  const pitRows = pits.map(p=>`<tr class="prow" data-pl="${t.id}|${p.n}">
       <td class="l">${nameCell(p.n,p.n===leadPit.n)}<span class="pos">${p.r}</span></td>
       <td>${p.era.toFixed(2)}</td><td>${p.w}</td><td>${p.l}</td><td>${p.sv}</td>
       <td>${p.so}</td><td>${p.whip.toFixed(2)}</td><td>${p.ip.toFixed(1)}</td></tr>`).join("");
@@ -1329,12 +1421,12 @@ function showTeam(id){
         </div>
       </div>
       <div class="rostwrap">
-        <div class="rost-title">주요 타자 <span class="hinttag">행에 마우스를 올리면 연봉·가성비·진단</span></div>
+        <div class="rost-title">전체 타자 (${r.bat.length}명) <span class="hinttag">포지션순 · 행에 마우스를 올리면 연봉·가성비·진단</span></div>
         <table class="rost">
           <thead><tr><th class="l">선수</th><th>타율</th><th>홈런</th><th>타점</th><th>OPS</th><th>도루</th></tr></thead>
           <tbody>${batRows}</tbody>
         </table>
-        <div class="rost-title" style="margin-top:20px">주요 투수 <span class="hinttag">행에 마우스를 올리면 연봉·가성비·진단</span></div>
+        <div class="rost-title" style="margin-top:20px">전체 투수 (${r.pit.length}명) <span class="hinttag">선발→불펜→마무리 · 행에 마우스를 올리면 연봉·가성비·진단</span></div>
         <table class="rost">
           <thead><tr><th class="l">선수</th><th>ERA</th><th>승</th><th>패</th><th>세이브</th><th>탈삼진</th><th>WHIP</th><th>이닝</th></tr></thead>
           <tbody>${pitRows}</tbody>
