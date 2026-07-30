@@ -409,6 +409,37 @@
   .gterm b{display:block;font-size:13.5px;font-weight:800;color:var(--accent);margin-bottom:3px}
   .gterm span{font-size:12.5px;color:var(--ink-soft);line-height:1.5}
 
+  /* Hall of Fame */
+  .hof-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:12px}
+  .hof-card{background:var(--surface);border:1px solid var(--line);border-radius:var(--radius);padding:15px;box-shadow:var(--shadow);position:relative;overflow:hidden}
+  .hof-card::before{content:"";position:absolute;inset:0 0 auto 0;height:3px;background:linear-gradient(90deg,var(--accent),transparent)}
+  .hof-top{display:flex;align-items:center;gap:12px;margin-bottom:11px}
+  .hof-top .crest{width:44px;height:44px;border-radius:12px}
+  .hof-name{font-size:16px;font-weight:800}
+  .hof-nick{font-size:12px;color:var(--accent);font-weight:700}
+  .hof-meta{font-size:11.5px;color:var(--ink-soft);margin-top:2px}
+  .hof-rec{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:5px}
+  .hof-rec li{font-size:12.5px;color:var(--ink);padding-left:16px;position:relative;line-height:1.45}
+  .hof-rec li::before{content:"⚾";position:absolute;left:0;font-size:9px;top:3px}
+  .hof-quip{margin-top:11px;padding-top:11px;border-top:1px dashed var(--line);font-size:12px;color:var(--ink-soft);line-height:1.5;font-style:italic}
+  .timeline{position:relative;padding-left:8px}
+  .moment{display:grid;grid-template-columns:82px 1fr;gap:14px;padding:12px 0;border-bottom:1px solid var(--line-soft)}
+  .moment:last-child{border-bottom:none}
+  .m-year{font-weight:800;font-size:14px;color:var(--accent);text-align:right;padding-top:2px}
+  .m-title{font-weight:800;font-size:14.5px;margin-bottom:5px}
+  .m-body p{margin:0;font-size:13px;color:var(--ink-soft);line-height:1.6}
+  .m-body p b{color:var(--ink)}
+  .champboard{display:flex;flex-direction:column;border:1px solid var(--line);border-radius:var(--radius);overflow:hidden;box-shadow:var(--shadow)}
+  .champrow{display:grid;grid-template-columns:26px 22px 1fr auto auto;align-items:center;gap:10px;padding:10px 14px;border-bottom:1px solid var(--line-soft);background:var(--surface);font-size:13px}
+  .champrow:last-child{border-bottom:none}
+  .champrow:nth-child(1){background:color-mix(in srgb,var(--accent) 10%,var(--surface))}
+  .cr-rank{font-weight:800;color:var(--ink-faint);text-align:center}
+  .cr-name{font-weight:700}
+  .cr-cups{font-size:11px;letter-spacing:-2px;overflow:hidden;max-width:150px;white-space:nowrap}
+  .cr-n{font-weight:800;text-align:right}
+  .cr-note{font-size:11px;color:var(--ink-soft);grid-column:3 / -1;margin-top:2px}
+  @media(max-width:640px){.champrow{grid-template-columns:22px 20px 1fr auto;row-gap:2px}.cr-cups{display:none}}
+
   /* Fan board */
   .bannerrow{display:flex;align-items:center;gap:10px;justify-content:space-between;margin-bottom:14px;flex-wrap:wrap}
   .bmode{font-size:12px;font-weight:700;border-radius:9px;padding:8px 12px}
@@ -594,6 +625,7 @@
     <div class="tabrow" role="tablist">
       <button class="tab" role="tab" aria-selected="false" data-tab="entry"><span class="n">★</span>초보팬 가이드</button>
       <button class="tab" role="tab" aria-selected="false" data-tab="glossary"><span class="n">📖</span>야구 용어사전</button>
+      <button class="tab" role="tab" aria-selected="false" data-tab="hof"><span class="n">🏆</span>명예의 전당</button>
       <button class="tab" role="tab" aria-selected="true" data-tab="stand"><span class="n">01</span>순위·전력</button>
       <button class="tab" role="tab" aria-selected="false" data-tab="teams"><span class="n">02</span>구단·선수</button>
       <button class="tab" role="tab" aria-selected="false" data-tab="h2h"><span class="n">03</span>상대전적</button>
@@ -623,6 +655,11 @@
       <input id="glossarySearch" type="search" placeholder="🔍 용어 검색 (예: OPS, 세이브, 끝내기, 유광점퍼)" autocomplete="off">
     </div>
     <div id="glossaryList"></div>
+  </section>
+
+  <!-- HALL OF FAME (명예의 전당) -->
+  <section class="panel" id="panel-hof" role="tabpanel">
+    <div id="hofContent"></div>
   </section>
 
   <!-- STANDINGS -->
@@ -2304,6 +2341,89 @@ function renderGlossary(){
     : `<div class="empty"><div class="big">🔍</div><div><b>"${escHtml(q)}" 검색 결과가 없어요</b></div><div style="font-size:12.5px">다른 키워드로 찾아보세요.</div></div>`;
 }
 
+/* ============================ HALL OF FAME (명예의 전당) ============================ */
+const LEGENDS=[
+  {name:"선동열",nick:"국보투수",team:"kia",teamName:"해태 타이거즈",pos:"투수",era:"1985–1995",
+    records:["통산 방어율 1.20 (역대 최저·불멸)","0점대 방어율 시즌 3회","통산 146승 40세이브"],
+    quip:"타자들은 그와 승부하느니 그냥 삼진 당하고 벤치로 돌아가는 게 정신건강에 이로웠다고 한다."},
+  {name:"최동원",nick:"무쇠팔",team:"lt",teamName:"롯데 자이언츠",pos:"투수",era:"1983–1990",
+    records:["1984 한국시리즈 5경기 등판 4승 (혼자 우승)","1984시즌 27승 223탈삼진","롯데 첫 우승의 주역"],
+    quip:"요즘 이렇게 굴렸다간 감독이 노동청에 잡혀간다. 부산은 아직도 이 이야기로 밤을 샌다."},
+  {name:"이승엽",nick:"국민타자·라이온킹",team:"ss",teamName:"삼성 라이온즈",pos:"1루수/지명",era:"1995–2017",
+    records:["KBO 통산 467홈런","2003 시즌 56홈런 (당시 아시아 신기록)","2008 베이징 올림픽 결승 결승 투런"],
+    quip:"거르면 볼넷, 안 거르면 담장 밖. 투수들 사이에서 '그냥 눈 감고 던지자'가 유행했다."},
+  {name:"이종범",nick:"바람의 아들",team:"kia",teamName:"해태 타이거즈",pos:"유격수/외야",era:"1993–2011",
+    records:["1994 타율 .393 · 196안타","1994 단일시즌 84도루 (최다)","공·수·주 완성형 괴물"],
+    quip:"1루에 서 있으면 어느새 3루에 있었다. 상대 배터리의 공공의 적, 물리 법칙의 배신자."},
+  {name:"이대호",nick:"조선의 4번타자",team:"lt",teamName:"롯데 자이언츠",pos:"1루수/지명",era:"2001–2022",
+    records:["2010 타격 7관왕 (역대 유일)","2010 9경기 연속 홈런 (세계 신기록)","통산 374홈런"],
+    quip:"거르면 볼넷, 안 거르면 홈런. 투수 입장에선 '이미 진 게임'이라는 명제의 산증인."},
+  {name:"양준혁",nick:"양신",team:"ss",teamName:"삼성 라이온즈",pos:"외야/지명",era:"1993–2010",
+    records:["통산 2318안타 (당시 최다)","통산 타율 .316 · 351홈런","은퇴까지 꾸준함 그 자체"],
+    quip:"볼넷을 골라도 1루까지 전력질주. 야구를 대충 하는 법을 끝내 배우지 못한 남자."},
+  {name:"오승환",nick:"끝판대장·돌부처",team:"ss",teamName:"삼성 라이온즈",pos:"마무리",era:"2005–현재",
+    records:["KBO 통산 최다 세이브","표정 변화 0 (별명의 유래)","한·미·일 마무리 정복"],
+    quip:"9회에 그가 나오면 경기 끝. 관중은 짐을 싸기 시작하고 상대 더그아웃은 조용해졌다."},
+  {name:"류현진",nick:"괴물",team:"hh",teamName:"한화 이글스",pos:"투수",era:"2006–2012",
+    records:["2006 신인 다승·탈삼진·방어율 트리플크라운","신인왕 + MVP 동시 수상 (전무후무)","이후 MLB 진출"],
+    quip:"데뷔 시즌에 다 이겨버린 신인. 선배들: '반칙 아니냐?' 류현진: '죄송합니다.'"},
+  {name:"장종훈",nick:"연습생 신화",team:"hh",teamName:"빙그레 이글스",pos:"내야/지명",era:"1986–2005",
+    records:["연습생 출신 홈런왕","1991 최초 30홈런-100타점","홈런왕 3연패"],
+    quip:"'노력'이라는 단어를 국어사전에서 찾으면 그의 사진이 나온다는 소문이 있다."},
+  {name:"이만수",nick:"헐크",team:"ss",teamName:"삼성 라이온즈",pos:"포수",era:"1982–1997",
+    records:["원년 최초 홈런·타점왕","1983 홈런왕","삼성 라이온즈의 창세기"],
+    quip:"프로야구 원년, 그가 방망이를 돌리면 관중석이 술렁였다. KBO 첫 슈퍼스타."},
+  {name:"박용택",nick:"미스터 LG",team:"lg",teamName:"LG 트윈스",pos:"외야/지명",era:"2002–2020",
+    records:["통산 최다안타 (2504안타)","원클럽맨 19시즌","꾸준함의 끝판왕"],
+    quip:"화려하진 않았지만 매일 안타를 쳤다. 그렇게 19년, 아무도 못 넘던 기록의 주인이 됐다."},
+  {name:"김성한",nick:"오리 궁둥이",team:"kia",teamName:"해태 타이거즈",pos:"투수/내야",era:"1982–1995",
+    records:["원년 MVP","투수와 타자를 동시에 (원년엔 다 했다)","해태 왕조의 시작"],
+    quip:"선발 등판도 하고 홈런도 치고 MVP도 받고. 이도류? 원년엔 그게 그냥 야구였다."},
+];
+const MOMENTS=[
+  {year:"1984",title:"최동원, 혼자서 우승했다 🦾",story:"한국시리즈 7차전 승부에서 5경기에 등판해 <b>4승</b>. 롯데의 첫 우승을 오롯이 어깨로 짊어졌다. 지금 기준으론 상상도 못 할 혹사이자, 다시는 안 나올 전설."},
+  {year:"1994",title:"바람의 아들, 물리학을 배신하다 🌪️",story:"이종범이 타율 <b>.393</b>에 <b>84도루</b>. 출루가 곧 실점이었다. 투수들은 그가 1루에 나가면 그냥 눈을 감았다는 목격담이 전해진다."},
+  {year:"1999",title:"한화의 처음이자 (아직도) 마지막 우승 🦅",story:"'대성불패' 구대성이 선발과 마무리를 오가며 팀을 업고 갔다. 이글스 팬들은 그날 이후 <b>26년째</b> \"내년엔…\"을 외치는 중."},
+  {year:"2003",title:"이승엽 56호, 아시아가 흔들렸다 💥",story:"한 시즌 <b>56홈런</b>. 거르면 볼넷 헌납, 승부하면 담장 너머 헌납. 상대 투수들에게 남은 선택지는 기도뿐이었다."},
+  {year:"2008",title:"베이징의 기적, 9전 전승 금메달 🥇",story:"예선부터 결승까지 <b>전승</b>으로 올림픽 금메달. 결승서 이승엽의 결승포, 마지막은 정대현의 병살타. 온 국민이 새벽에 소리를 질렀다."},
+  {year:"2009",title:"나지완의 끝내기, 광주가 폭발하다 🎆",story:"한국시리즈 7차전 9회말, 나지완의 <b>끝내기 홈런</b>으로 KIA 우승. 상대 팬들은 화면 앞에서 그대로 얼어붙었다."},
+  {year:"2010",title:"이대호, 9경기 연속 홈런 (세계신기록) 🐉",story:"<b>9경기 연속 홈런</b> + 타격 7관왕. '조선의 4번타자'는 별명이 아니라 그 해 4번타자의 정의 그 자체였다."},
+  {year:"2011–2014",title:"삼성 라이온즈, 통합 4연패 왕조 👑",story:"정규시즌+한국시리즈를 <b>4년 내리</b> 석권. 나머지 9개 구단이 사이좋게 '준우승 자판기'가 됐던 시절."},
+  {year:"2023",title:"LG, 29년 묵은 한을 풀다 😭",story:"1994년 이후 <b>첫 통합우승</b>. 장롱 속 유광점퍼가 드디어 제철을 만났고, 잠실은 그날 눈물바다가 됐다."},
+  {year:"2024",title:"KIA 통합우승 & 김도영 쇼 ⚡",story:"김도영이 <b>38홈런 40도루</b>로 최연소 정규시즌 MVP. 40-40은 두 개 차이로 아깝게 놓쳤지만, 온 리그가 그의 이름을 불렀다."},
+];
+const DYNASTY={kia:"해태 왕조(80~90년대) + KIA 계승",ss:"2011~14 통합 4연패 왕조",ds:"미러클 두산",ssg:"SK 왕조 + 2022 와이어투와이어",lg:"1994→2023, 29년의 한풀이",lt:"부산 갈매기의 자존심",hh:"1999, 그리고 긴 기다림",kt:"막내의 반란(2021)",nc:"창단 첫 별(2020)",kw:"우승은 아직… 육성 명가"};
+function renderHOF(){
+  const legends=LEGENDS.map(l=>{ const t=byId[l.team], color=t?t.color:"#888";
+    return `<div class="hof-card">
+      <div class="hof-top"><div class="crest" style="background:${color}">${t?pxTag(l.team,'big'):'⭐'}</div>
+        <div><div class="hof-name">${l.name} <span class="hof-nick">“${l.nick}”</span></div>
+          <div class="hof-meta">${l.teamName} · ${l.pos} · ${l.era}</div></div></div>
+      <ul class="hof-rec">${l.records.map(r=>`<li>${r}</li>`).join("")}</ul>
+      <div class="hof-quip">💬 ${l.quip}</div></div>`;
+  }).join("");
+  const moments=MOMENTS.map(m=>`<div class="moment"><div class="m-year mono">${m.year}</div>
+    <div class="m-body"><div class="m-title">${m.title}</div><p>${m.story}</p></div></div>`).join("");
+  const champs=[...DATA].map(t=>({t,titles:ENTRY[t.id].titles})).sort((a,b)=>b.titles-a.titles);
+  const champRows=champs.map((c,i)=>`<div class="champrow">
+    <span class="cr-rank mono">${i+1}</span>
+    <span class="pxbadge sm" style="background:${c.t.color}22">${pxTag(c.t.id,'std')}</span>
+    <b class="cr-name">${c.t.name}</b>
+    <span class="cr-cups">${c.titles?'🏆'.repeat(c.titles):'—'}</span>
+    <span class="cr-n mono">${c.titles}회</span>
+    <span class="cr-note">${DYNASTY[c.t.id]||''}</span></div>`).join("");
+  document.getElementById("hofContent").innerHTML=`
+    <div class="entry-hero"><div class="eh-emblem" style="font-size:30px">🏆</div>
+      <div><h2>KBO 명예의 전당</h2><p>레전드와 전설의 순간들 — <b>팩트는 진짜, 드립은 서비스</b> 😎</p></div></div>
+    <div class="sec-head" style="margin-top:22px"><h2>👑 전설의 선수</h2><p>KBO 역사를 만든 이름들</p></div>
+    <div class="hof-grid">${legends}</div>
+    <div class="sec-head" style="margin-top:26px"><h2>🔥 전설의 경기 · 순간</h2><p>그날 거기 있었다면 평생 자랑거리</p></div>
+    <div class="timeline">${moments}</div>
+    <div class="sec-head" style="margin-top:26px"><h2>🏆 우승 기록</h2><p>통합·한국시리즈 우승 기준 (전신 구단 포함)</p></div>
+    <div class="champboard">${champRows}</div>
+    <p class="linknote" style="margin-top:14px">※ 선수·기록은 실제 KBO 역사 기반이며, 코멘트(드립)는 재미를 위한 각색입니다.</p>`;
+}
+
 /* ============================ FAN BOARD (팬 게시판) ============================ */
 let API_OK=false, bSort="new", boardIsAdmin=false;
 let adminToken=(function(){ try{ return localStorage.getItem("kbo_admin_token")||""; }catch(e){ return ""; } })();
@@ -2515,6 +2635,7 @@ document.addEventListener("DOMContentLoaded",()=>{
   });
   renderEntry();
   renderGlossary();
+  renderHOF();
   document.getElementById("glossarySearch").addEventListener("input",renderGlossary);
   demoSeed();
   detectAPI().then(renderBoard);
