@@ -409,6 +409,60 @@
   .gterm b{display:block;font-size:13.5px;font-weight:800;color:var(--accent);margin-bottom:3px}
   .gterm span{font-size:12.5px;color:var(--ink-soft);line-height:1.5}
 
+  /* Dashboard (구단 360°) */
+  .dash-hero{display:flex;align-items:center;gap:16px;background:linear-gradient(115deg,color-mix(in srgb,var(--tc) 16%,var(--surface)),var(--surface));
+    border:1px solid var(--line);border-left:5px solid var(--tc);border-radius:var(--radius);padding:16px 18px;box-shadow:var(--shadow)}
+  .dash-hero .crest{width:52px;height:52px;border-radius:13px;flex:0 0 auto}
+  .dh-main{flex:1;min-width:0}
+  .dh-name{font-size:19px;font-weight:800;display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+  .dh-sub{font-size:12.5px;color:var(--ink-soft);margin-top:3px}
+  .dh-rank{font-size:34px;font-weight:800;color:var(--tc);line-height:1;font-variant-numeric:tabular-nums}
+  .dh-rank span{font-size:14px;color:var(--ink-soft);margin-left:2px}
+  .dtiles{display:grid;grid-template-columns:repeat(auto-fit,minmax(110px,1fr));gap:9px;margin-top:14px}
+  .dtile{background:var(--surface);border:1px solid var(--line);border-radius:var(--radius-sm);padding:11px 13px;box-shadow:var(--shadow)}
+  .dt-k{font-size:10.5px;color:var(--ink-soft);font-weight:700;text-transform:uppercase;letter-spacing:.03em}
+  .dt-v{font-size:22px;font-weight:800;margin-top:3px}
+  .dt-s{font-size:11px;color:var(--ink-faint);margin-top:1px}
+  .dash-grid{display:grid;grid-template-columns:1fr;gap:12px;margin-top:14px}
+  @media(min-width:760px){.dash-grid{grid-template-columns:1fr 1fr}}
+  .dcard{background:var(--surface);border:1px solid var(--line);border-radius:var(--radius);padding:15px 16px;box-shadow:var(--shadow);margin-top:12px}
+  .dash-grid .dcard{margin-top:0}
+  .dcard h3{font-size:14px;font-weight:800;margin-bottom:12px;display:flex;align-items:baseline;gap:8px}
+  .radar-legend{display:flex;justify-content:center;gap:18px;font-size:12px;color:var(--ink-soft);font-weight:600;margin-top:6px}
+  .radar-legend i{display:inline-block;width:14px;height:0;vertical-align:middle;margin-right:6px}
+  .radar-legend .ri-team{height:10px;border-radius:3px}
+  .radar-legend .ri-lg{border-top:2px dashed var(--ink-soft)}
+  .pyth-row{display:grid;grid-template-columns:88px 1fr 52px;align-items:center;gap:9px;font-size:12.5px;margin-bottom:8px;color:var(--ink-soft)}
+  .pbar{height:12px;background:var(--surface-3);border-radius:7px;overflow:hidden}
+  .pbar span{display:block;height:100%;border-radius:7px}
+  .pyth-row b{text-align:right}
+  .pyth-note{font-size:12px;color:var(--ink-soft);background:var(--surface-2);border-radius:8px;padding:8px 11px;margin:4px 0 12px}
+  .diff-tiles{display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin-bottom:12px}
+  .diff-tiles div{background:var(--surface-2);border-radius:8px;padding:8px;text-align:center}
+  .diff-tiles span{font-size:10.5px;color:var(--ink-soft);display:block}
+  .diff-tiles b{font-size:16px;font-weight:800}
+  .sw-box{display:flex;flex-direction:column;gap:6px}
+  .sw{font-size:12px;color:var(--ink-soft)}
+  .sw b{display:inline-block;min-width:34px;font-size:10px;padding:1px 6px;border-radius:5px;margin-right:6px;color:#fff}
+  .sw.good b{background:var(--win)} .sw.bad b{background:var(--loss)}
+  .kp-row{display:grid;grid-template-columns:1fr 1fr 1fr;gap:9px}
+  .kp{background:var(--surface-2);border:1px solid var(--line-soft);border-radius:9px;padding:11px;text-align:center}
+  .kp-role{font-size:10px;color:var(--ink-soft);font-weight:800;text-transform:uppercase;letter-spacing:.04em}
+  .kp-name{font-size:14px;font-weight:800;margin:4px 0 2px}
+  .kp-stat{font-size:12.5px;color:var(--ink);font-weight:800}
+  .kp-more{font-size:11.5px;color:var(--ink-faint);margin-top:10px}
+  .upc{display:flex;flex-direction:column;gap:6px}
+  .upc-row{display:grid;grid-template-columns:44px 40px 1fr auto;align-items:center;gap:8px;font-size:12.5px;padding:7px 9px;background:var(--surface-2);border-radius:8px}
+  .upc-ha{font-size:10px;font-weight:800;text-align:center;border-radius:5px;padding:2px 0}
+  .upc-ha.sh{background:var(--accent-ghost);color:var(--accent)} .upc-ha.sa{background:var(--surface-3);color:var(--ink-soft)}
+  .upc-o{display:flex;align-items:center;gap:6px;font-weight:700}
+  .h2s{display:grid;grid-template-columns:repeat(auto-fill,minmax(230px,1fr));gap:6px 16px}
+  .h2s-row{display:grid;grid-template-columns:22px 34px 1fr 44px;align-items:center;gap:8px;font-size:12.5px}
+  .h2s-name{font-weight:700}
+  .h2s-bar{height:8px;background:var(--surface-3);border-radius:5px;overflow:hidden}
+  .h2s-bar span{display:block;height:100%;border-radius:5px}
+  .h2s-rec{text-align:right;font-weight:800}
+
   /* Hall of Fame */
   .hof-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:12px}
   .hof-card{background:var(--surface);border:1px solid var(--line);border-radius:var(--radius);padding:15px;box-shadow:var(--shadow);position:relative;overflow:hidden}
@@ -627,6 +681,7 @@
       <button class="tab" role="tab" aria-selected="false" data-tab="glossary"><span class="n">📖</span>야구 용어사전</button>
       <button class="tab" role="tab" aria-selected="false" data-tab="hof"><span class="n">🏆</span>명예의 전당</button>
       <button class="tab" role="tab" aria-selected="true" data-tab="stand"><span class="n">01</span>순위·전력</button>
+      <button class="tab" role="tab" aria-selected="false" data-tab="dash"><span class="n">📊</span>구단 대시보드</button>
       <button class="tab" role="tab" aria-selected="false" data-tab="teams"><span class="n">02</span>구단·선수</button>
       <button class="tab" role="tab" aria-selected="false" data-tab="h2h"><span class="n">03</span>상대전적</button>
       <button class="tab" role="tab" aria-selected="false" data-tab="sched"><span class="n">04</span>남은 일정</button>
@@ -686,6 +741,19 @@
       <span><span class="zone" style="background:var(--field)"></span> 가을야구(1~5위) 진출권</span>
       <span><b>득실차</b> 시즌 누적 득점 − 실점</span>
     </div>
+  </section>
+
+  <!-- DASHBOARD (구단 360°) -->
+  <section class="panel" id="panel-dash" role="tabpanel">
+    <div class="sec-head">
+      <h2>구단 360° 대시보드</h2>
+      <p>한 구단의 전력·성적·선수·일정·상대전적을 한 화면에서 입체적으로</p>
+    </div>
+    <div class="sched-controls">
+      <label for="dashTeam">구단 선택</label>
+      <select id="dashTeam"></select>
+    </div>
+    <div id="dashContent"></div>
   </section>
 
   <!-- TEAMS -->
@@ -1984,6 +2052,7 @@ function fillSelects(){
   document.getElementById("editTeamSel").innerHTML = teamOpts;
   document.getElementById("boardTeam").innerHTML = `<option value="all">전체 게시판</option>` + teamOpts;
   document.getElementById("wfTeam").innerHTML = teamOpts + `<option value="etc">기타/공통</option>`;
+  const dsel=document.getElementById("dashTeam"); dsel.innerHTML=teamOpts; dsel.value=curDashTeam;
   updateNotes();
 }
 function updateNotes(){
@@ -2424,6 +2493,146 @@ function renderHOF(){
     <p class="linknote" style="margin-top:14px">※ 선수·기록은 실제 KBO 역사 기반이며, 코멘트(드립)는 재미를 위한 각색입니다.</p>`;
 }
 
+/* ============================ DASHBOARD (구단 360°) ============================ */
+let curDashTeam="lg";
+const RADAR=[
+  {key:"rsg",label:"득점력",hi:true},{key:"tavg",label:"타율",hi:true},{key:"tobp",label:"출루",hi:true},
+  {key:"tslg",label:"장타",hi:true},{key:"tera",label:"방어",hi:false},{key:"twhip",label:"WHIP",hi:false},
+];
+function radarNorm(key,hi){
+  const vals=DATA.map(t=>t[key]); const mn=Math.min(...vals), mx=Math.max(...vals), span=(mx-mn)||1;
+  return id=>{ const n=(byId[id][key]-mn)/span*100; return hi?n:100-n; };
+}
+function renderDashboard(id){
+  curDashTeam=id; const t=byId[id]; const rk=ranked(); const pos=rk.findIndex(x=>x.id===id)+1;
+  const g=t.w+t.l+t.t, pct=t.w/(t.w+t.l), m=momentum(t);
+  const gb=((rk[0].w-rk[0].l)-(t.w-t.l))/2;
+  const rs=Math.round(t.rsg*g), ra=Math.round(t.rag*g), diff=rs-ra;
+  const pyw=pyth(t.rsg,t.rag);
+  const R=(key,hi)=>rankOf(id,{key,hi});
+  const tiles=[
+    {k:"순위",v:pos+"위",s:pos===1?"리그 선두 👑":gb.toFixed(1)+" GB"},
+    {k:"승률",v:pct.toFixed(3).replace(/^0/,""),s:`${t.w}승 ${t.l}패 ${t.t}무`},
+    {k:"득점 / 경기",v:t.rsg.toFixed(2),s:`리그 ${R("rsg",true)}위`},
+    {k:"실점 / 경기",v:t.rag.toFixed(2),s:`리그 ${R("rag",false)}위`},
+    {k:"팀 타율",v:t.tavg.toFixed(3).replace(/^0/,""),s:`리그 ${R("tavg",true)}위`},
+    {k:"팀 ERA",v:t.tera.toFixed(2),s:`리그 ${R("tera",false)}위`},
+  ];
+  const tileHtml=tiles.map(x=>`<div class="dtile"><div class="dt-k">${x.k}</div><div class="dt-v mono">${x.v}</div><div class="dt-s">${x.s}</div></div>`).join("");
+  // strengths / weaknesses
+  const ranked6=METRICS.map(mm=>({mm,rk:rankOf(id,mm)}));
+  const strong=ranked6.filter(x=>x.rk<=3).sort((a,b)=>a.rk-b.rk);
+  const weak=ranked6.filter(x=>x.rk>=8).sort((a,b)=>b.rk-a.rk);
+  // key players
+  const topBat=ROSTERS[id].bat.reduce((a,b)=>b.ops>a.ops?b:a);
+  const sp=ROSTERS[id].pit.filter(p=>p.r==="선발"); const ace=sp.length?sp.reduce((a,b)=>b.era<a.era?b:a):ROSTERS[id].pit[0];
+  const closer=ROSTERS[id].pit.find(p=>p.r==="마무리")||ROSTERS[id].pit.reduce((a,b)=>(b.sv||0)>(a.sv||0)?b:a);
+  const kp=(role,p,stat)=>`<div class="kp"><div class="kp-role">${role}</div><div class="kp-name">${p.n}</div><div class="kp-stat mono">${stat}</div></div>`;
+  // upcoming
+  const upc=scheduleFor(id).map(gm=>{ const o=byId[gm.opp];
+    const homeId=gm.home?id:gm.opp, awayId=gm.home?gm.opp:id; const pr=predictGame(homeId,awayId);
+    const wp=Math.round((gm.home?pr.wpH:1-pr.wpH)*100);
+    return `<div class="upc-row"><span class="mono">${gm.m}/${gm.d}</span><span class="upc-ha ${gm.home?'sh':'sa'}">${gm.home?'홈':'원정'}</span>
+      <span class="upc-o"><span class="pxbadge sm" style="background:${o.color}22">${pxTag(o.id,'std')}</span>${o.short}</span>
+      <span class="mono ${wp>=55?'wp-hi':wp<=45?'wp-lo':'wp-mid'}">${wp}%</span></div>`;
+  }).join("");
+  // head-to-head
+  const h2h=DATA.filter(x=>x.id!==id).map(o=>{ const w=h2hWins(t,o); return {o,w,l:16-w}; }).sort((a,b)=>b.w-a.w);
+  const h2hHtml=h2h.map(x=>`<div class="h2s-row"><span class="pxbadge sm" style="background:${x.o.color}22">${pxTag(x.o.id,'std')}</span>
+    <span class="h2s-name">${x.o.short}</span>
+    <span class="h2s-bar"><span style="width:${x.w/16*100}%;background:${x.w>=8?'var(--win)':'var(--loss)'}"></span></span>
+    <span class="mono h2s-rec ${x.w>=8?'diff-pos':'diff-neg'}">${x.w}-${x.l}</span></div>`).join("");
+
+  document.getElementById("dashContent").innerHTML=`
+    <div class="dash-hero" style="--tc:${t.color}">
+      <div class="crest" style="background:${t.color}">${pxTag(id,'big')}</div>
+      <div class="dh-main">
+        <div class="dh-name">${t.name} <span class="trend trend-${m.cls}"><span>${m.ic}</span>${m.k}</span></div>
+        <div class="dh-sub">${t.city} · ${pos}위 · ${t.w}승 ${t.l}패 ${t.t}무 · 최근 ${t.l10} (${t.strk})</div>
+      </div>
+      <div class="dh-rank mono">${pos}<span>위</span></div>
+    </div>
+
+    <div class="dtiles">${tileHtml}</div>
+
+    <div class="dash-grid">
+      <div class="dcard">
+        <h3>전력 프로필 <span class="hinttag">리그 내 상대 위치(0~100)</span></h3>
+        <canvas id="radarCv" height="260"></canvas>
+        <div class="radar-legend"><span><i class="ri-team" style="background:${t.color}"></i>${t.short}</span><span><i class="ri-lg"></i>리그 평균</span></div>
+      </div>
+      <div class="dcard">
+        <h3>기대 승률 vs 실제</h3>
+        <div class="pyth-row"><span>피타고리안 기대</span><div class="pbar"><span style="width:${(pyw*100).toFixed(0)}%;background:var(--accent)"></span></div><b class="mono">${(pyw*100).toFixed(1)}%</b></div>
+        <div class="pyth-row"><span>실제 승률</span><div class="pbar"><span style="width:${(pct*100).toFixed(0)}%;background:var(--ink-soft)"></span></div><b class="mono">${(pct*100).toFixed(1)}%</b></div>
+        <div class="pyth-note">${pct>=pyw?"실제 성적이 기대치를 상회 — 접전·클러치에 강함 💪":"기대치 대비 저조 — 반등 여지 있음 📈"}</div>
+        <div class="diff-tiles">
+          <div><span>시즌 득점</span><b class="mono">${rs}</b></div>
+          <div><span>시즌 실점</span><b class="mono">${ra}</b></div>
+          <div><span>득실차</span><b class="mono ${diff>=0?'diff-pos':'diff-neg'}">${diff>=0?'+':''}${diff}</b></div>
+        </div>
+        <div class="sw-box">
+          ${strong.length?`<div class="sw good"><b>강점</b> ${strong.map(x=>`${x.mm.label} ${x.rk}위`).join(" · ")}</div>`:""}
+          ${weak.length?`<div class="sw bad"><b>취약</b> ${weak.map(x=>`${x.mm.label} ${x.rk}위`).join(" · ")}</div>`:`<div class="sw">균형형 — 뚜렷한 약점 없음</div>`}
+        </div>
+      </div>
+    </div>
+
+    <div class="dash-grid">
+      <div class="dcard">
+        <h3>핵심 선수</h3>
+        <div class="kp-row">
+          ${kp("간판 타자",topBat,"OPS "+topBat.ops.toFixed(3).replace(/^0/,""))}
+          ${kp("에이스",ace,"ERA "+ace.era.toFixed(2))}
+          ${kp("마무리",closer,(closer.sv||0)+"S")}
+        </div>
+        <div class="kp-more">전체 로스터는 <b>구단·선수</b> 탭에서 · 뉴스는 <b>뉴스</b> 탭에서</div>
+      </div>
+      <div class="dcard">
+        <h3>향후 5경기 <span class="hinttag">예상 승률</span></h3>
+        <div class="upc">${upc}</div>
+      </div>
+    </div>
+
+    <div class="dcard">
+      <h3>상대 전적 (16경기 기준 추정)</h3>
+      <div class="h2s">${h2hHtml}</div>
+    </div>`;
+  drawRadar("radarCv", id);
+}
+function drawRadar(cvId, teamId){
+  const cv=document.getElementById(cvId); if(!cv) return;
+  const W=cv.clientWidth||320; if(!W) return;
+  const H=260, dpr=window.devicePixelRatio||1;
+  cv.width=W*dpr; cv.height=H*dpr; const ctx=cv.getContext("2d"); ctx.scale(dpr,dpr);
+  const css=getComputedStyle(document.documentElement);
+  const ink=(css.getPropertyValue("--ink-soft")||"#888").trim();
+  const line=(css.getPropertyValue("--line")||"#ccc").trim();
+  const color=byId[teamId].color, N=RADAR.length;
+  const cx=W/2, cy=H/2+4, Rr=Math.min(W,H)/2-40;
+  const fns=RADAR.map(m=>radarNorm(m.key,m.hi));
+  const tv=fns.map(f=>f(teamId));
+  const lv=fns.map(f=>DATA.reduce((s,t)=>s+f(t.id),0)/DATA.length);
+  const ang=i=>-Math.PI/2+i*2*Math.PI/N;
+  const pt=(i,r)=>[cx+Math.cos(ang(i))*Rr*(r/100), cy+Math.sin(ang(i))*Rr*(r/100)];
+  ctx.lineWidth=1;
+  for(let gg=1;gg<=4;gg++){ ctx.strokeStyle=line; ctx.globalAlpha=.55; ctx.beginPath();
+    for(let i=0;i<=N;i++){ const [x,y]=pt(i%N,gg*25); i?ctx.lineTo(x,y):ctx.moveTo(x,y);} ctx.closePath(); ctx.stroke(); }
+  ctx.globalAlpha=.4; ctx.strokeStyle=ink;
+  for(let i=0;i<N;i++){ const [x,y]=pt(i,100); ctx.beginPath(); ctx.moveTo(cx,cy); ctx.lineTo(x,y); ctx.stroke(); }
+  ctx.globalAlpha=1;
+  ctx.fillStyle=ink; ctx.font="11px "+((css.getPropertyValue("--font-sans")||"sans-serif").trim()); ctx.textAlign="center"; ctx.textBaseline="middle";
+  for(let i=0;i<N;i++){ const [lx,ly]=pt(i,120); ctx.fillText(RADAR[i].label, lx, ly); }
+  // league (dashed)
+  ctx.setLineDash([4,3]); ctx.strokeStyle=ink; ctx.globalAlpha=.7; ctx.lineWidth=1.5; ctx.beginPath();
+  lv.forEach((v,i)=>{ const [x,y]=pt(i,v); i?ctx.lineTo(x,y):ctx.moveTo(x,y); }); ctx.closePath(); ctx.stroke();
+  ctx.setLineDash([]); ctx.globalAlpha=1;
+  // team
+  ctx.beginPath(); tv.forEach((v,i)=>{ const [x,y]=pt(i,v); i?ctx.lineTo(x,y):ctx.moveTo(x,y); }); ctx.closePath();
+  ctx.fillStyle=color+"38"; ctx.fill(); ctx.strokeStyle=color; ctx.lineWidth=2; ctx.stroke();
+  tv.forEach((v,i)=>{ const [x,y]=pt(i,v); ctx.fillStyle=color; ctx.beginPath(); ctx.arc(x,y,3.4,0,7); ctx.fill(); });
+}
+
 /* ============================ FAN BOARD (팬 게시판) ============================ */
 let API_OK=false, bSort="new", boardIsAdmin=false;
 let adminToken=(function(){ try{ return localStorage.getItem("kbo_admin_token")||""; }catch(e){ return ""; } })();
@@ -2589,6 +2798,8 @@ function initTabs(){
     tabs.forEach(t=>t.setAttribute("aria-selected", t===tab?"true":"false"));
     document.querySelectorAll(".panel").forEach(p=>p.classList.remove("active"));
     document.getElementById("panel-"+tab.dataset.tab).classList.add("active");
+    if(tab.dataset.tab==="dash") renderDashboard(document.getElementById("dashTeam").value||curDashTeam);
+    if(tab.dataset.tab==="board") renderBoard();
   }));
 }
 function initTheme(){
@@ -2599,13 +2810,14 @@ function initTheme(){
     const next = cur ? (cur==="dark"?"light":"dark") : (sysDark?"light":"dark");
     document.documentElement.setAttribute("data-theme",next);
     if(document.getElementById("distChart") && window._lastR) drawDist(window._lastR);
+    if(document.getElementById("radarCv")) drawRadar("radarCv",curDashTeam);
   });
 }
 
 // keep last result for redraw on theme/resize
 const _origRender=renderResults;
 renderResults=function(R){ window._lastR=R; _origRender(R); };
-window.addEventListener("resize",()=>{ if(document.getElementById("distChart") && window._lastR) drawDist(window._lastR); });
+window.addEventListener("resize",()=>{ if(document.getElementById("distChart") && window._lastR) drawDist(window._lastR); if(document.getElementById("radarCv")) drawRadar("radarCv",curDashTeam); });
 
 document.addEventListener("DOMContentLoaded",()=>{
   const saved=lsGet();
@@ -2618,6 +2830,7 @@ document.addEventListener("DOMContentLoaded",()=>{
   renderNews();
   renderDataMgr();
   document.getElementById("schedFilter").addEventListener("change",renderSchedule);
+  document.getElementById("dashTeam").addEventListener("change",e=>renderDashboard(e.target.value));
   document.getElementById("newsFilter").addEventListener("change",renderNews);
   document.getElementById("scrapAdd").addEventListener("click",addScrap);
   document.getElementById("editTeamSel").addEventListener("change",()=>{ commitVisiblePlayers(); renderEditPlayers(); });
