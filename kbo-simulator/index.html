@@ -394,6 +394,21 @@
     background:var(--surface-2);border:1px solid var(--line);border-radius:8px;padding:7px}
   .egc-links a:hover{border-color:var(--accent);color:var(--accent)}
 
+  /* Glossary */
+  #glossarySearch{width:100%;font-family:inherit;font-size:14px;padding:11px 14px;border-radius:10px;
+    border:1px solid var(--line);background:var(--surface-2);color:var(--ink)}
+  #glossarySearch:focus-visible{outline:2px solid var(--accent);outline-offset:1px}
+  .gloss-cat{margin-bottom:18px}
+  .gc-head{display:flex;align-items:center;gap:9px;font-size:14px;font-weight:800;margin-bottom:10px;
+    padding-bottom:7px;border-bottom:2px solid var(--line)}
+  .gc-ic{font-size:17px}
+  .gc-n{margin-left:auto;font-size:11px;font-weight:800;color:var(--ink-faint);background:var(--surface-2);
+    border-radius:20px;padding:2px 9px}
+  .gc-items{display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:8px}
+  .gterm{background:var(--surface);border:1px solid var(--line);border-radius:var(--radius-sm);padding:11px 13px;box-shadow:var(--shadow)}
+  .gterm b{display:block;font-size:13.5px;font-weight:800;color:var(--accent);margin-bottom:3px}
+  .gterm span{font-size:12.5px;color:var(--ink-soft);line-height:1.5}
+
   /* Fan board */
   .bannerrow{display:flex;align-items:center;gap:10px;justify-content:space-between;margin-bottom:14px;flex-wrap:wrap}
   .bmode{font-size:12px;font-weight:700;border-radius:9px;padding:8px 12px}
@@ -578,6 +593,7 @@
   <div class="wrap">
     <div class="tabrow" role="tablist">
       <button class="tab" role="tab" aria-selected="false" data-tab="entry"><span class="n">★</span>초보팬 가이드</button>
+      <button class="tab" role="tab" aria-selected="false" data-tab="glossary"><span class="n">📖</span>야구 용어사전</button>
       <button class="tab" role="tab" aria-selected="true" data-tab="stand"><span class="n">01</span>순위·전력</button>
       <button class="tab" role="tab" aria-selected="false" data-tab="teams"><span class="n">02</span>구단·선수</button>
       <button class="tab" role="tab" aria-selected="false" data-tab="h2h"><span class="n">03</span>상대전적</button>
@@ -595,6 +611,18 @@
   <!-- ENTRY (초보팬 가이드) -->
   <section class="panel" id="panel-entry" role="tabpanel">
     <div id="entryContent"></div>
+  </section>
+
+  <!-- GLOSSARY (야구 용어사전) -->
+  <section class="panel" id="panel-glossary" role="tabpanel">
+    <div class="sec-head">
+      <h2>야구 용어사전 📖</h2>
+      <p>타격·투구·수비·세이버·작전·문화까지 — 검색으로 바로 찾기</p>
+    </div>
+    <div class="sched-controls">
+      <input id="glossarySearch" type="search" placeholder="🔍 용어 검색 (예: OPS, 세이브, 끝내기, 유광점퍼)" autocomplete="off">
+    </div>
+    <div id="glossaryList"></div>
   </section>
 
   <!-- STANDINGS -->
@@ -2175,6 +2203,107 @@ function renderEntry(){
     <div class="egallery">${gallery}</div>`;
 }
 
+/* ============================ GLOSSARY (야구 용어사전) ============================ */
+const GLOSSARY=[
+  {cat:"타격", ic:"🏏", items:[
+    ["타율 (AVG)","안타 ÷ 타수. 3할(.300)이면 우수한 타자."],
+    ["출루율 (OBP)","타석에서 살아나간 비율(안타+볼넷+사구). .360 이상이면 좋음."],
+    ["장타율 (SLG)","총 루타 ÷ 타수. 한 번 칠 때 얼마나 멀리 가느냐."],
+    ["OPS","출루율+장타율. 타자 종합 지표 — .800↑ 준수, .900↑ 특급, 1.000↑ 리그 최정상."],
+    ["타점 (RBI)","내 타격으로 주자를 홈으로 불러들여 낸 점수."],
+    ["볼넷 (BB)","볼 4개를 골라 1루 출루."],
+    ["고의사구 (IBB)","강타자를 피해 일부러 볼넷으로 내보내기."],
+    ["사구 (HBP)","몸에 맞는 공으로 출루."],
+    ["삼진 (SO·K)","스트라이크 3개로 아웃. 헛스윙/루킹(선 채로) 삼진."],
+    ["병살타 (GIDP)","한 타구로 두 명 이상 아웃되는 최악의 결과."],
+    ["희생번트","아웃을 감수하고 번트로 주자를 진루시키는 작전."],
+    ["희생플라이","뜬공 아웃과 맞바꿔 3루 주자를 홈으로."],
+    ["도루 (SB)","투구 사이 다음 루를 훔치는 주루 플레이."],
+    ["멀티히트","한 경기 2안타 이상."],
+    ["사이클링히트","한 경기에서 1·2·3루타와 홈런을 모두 기록."],
+    ["풀카운트","3볼 2스트라이크의 팽팽한 승부."],
+    ["밀어치기 / 당겨치기","공을 반대 방향으로 / 자기 쪽 방향으로 치는 타격."],
+  ]},
+  {cat:"투구", ic:"⚾", items:[
+    ["방어율 (ERA)","9이닝당 내준 자책점. 낮을수록 좋은 투수(3점대 준수, 2점대 특급)."],
+    ["WHIP","이닝당 출루 허용(안타+볼넷). 1.2 이하면 특급."],
+    ["탈삼진 (K)","투수가 잡아낸 삼진 수."],
+    ["세이브 (SV)","리드를 지키고 경기를 끝낸 마무리 투수 기록."],
+    ["홀드 (HLD)","리드를 지키며 다음 투수에게 넘긴 중간계투 기록."],
+    ["퀄리티스타트 (QS)","선발이 6이닝 이상 3자책점 이하로 막은 호투."],
+    ["완투 / 완봉","혼자 끝까지 던짐 / 무실점으로 끝까지 던짐."],
+    ["노히트노런","안타를 하나도 안 맞고 무실점 완투한 대기록."],
+    ["퍼펙트게임","27명 타자 전원을 출루 없이 처리한 완벽투구."],
+    ["구종","직구(포심)·투심·슬라이더·커브·체인지업·포크(스플리터)·커터 등 공의 종류."],
+    ["제구 (command)","원하는 코스에 던지는 능력. '제구가 좋다'."],
+    ["위닝샷","승부를 결정짓는 결정구."],
+    ["이닝 이터","많은 이닝을 꾸준히 소화해주는 투수."],
+  ]},
+  {cat:"수비 · 주루", ic:"🧤", items:[
+    ["실책 (E)","수비 실수로 주자를 살려주는 것."],
+    ["병살 (DP)","더블 플레이 — 한 번의 수비로 2아웃."],
+    ["태그아웃 / 포스아웃","주자 몸에 태그 / 베이스를 밟아 잡는 아웃."],
+    ["견제","주자를 묶기 위해 투수가 베이스로 던지는 것."],
+    ["도루저지 (CS)","도루를 시도한 주자를 포수가 잡아내는 것."],
+    ["수비 시프트","타자 성향에 맞춰 수비 위치를 이동."],
+    ["중계 플레이","외야에서 내야로 이어 던지는 송구 연결."],
+    ["호수비","환상적인 수비. 다이빙 캐치 등."],
+  ]},
+  {cat:"세이버메트릭스 (심화)", ic:"📈", items:[
+    ["WAR","대체 선수 대비 승리기여도. 시즌 5 이상이면 MVP급."],
+    ["wRC+","리그 평균(100) 대비 득점 생산력. 150이면 평균보다 50% 우수."],
+    ["FIP","수비를 배제한 투수 본연의 능력(삼진·볼넷·홈런 기반)."],
+    ["BABIP","인플레이 타구의 안타 비율. 운·실력을 가늠."],
+    ["ISO","순수 장타력(장타율−타율)."],
+    ["OPS+ / ERA+","구장·리그 보정 지표. 100이 평균."],
+  ]},
+  {cat:"상황 · 작전", ic:"🎯", items:[
+    ["득점권","주자가 2·3루에 있어 안타 하나로 득점 가능한 상황."],
+    ["만루","1·2·3루가 주자로 가득 찬 상황."],
+    ["끝내기 (워크오프)","마지막 공격에서 역전·결승점을 내며 경기를 끝냄."],
+    ["리드오프","1번 타자. 출루·발이 중요."],
+    ["클린업","3·4·5번 중심 타선."],
+    ["대타 / 대주자 / 대수비","상황에 맞춰 교체 투입하는 선수."],
+    ["히트앤런","주자는 뛰고 타자는 무조건 공을 맞히는 작전."],
+    ["스퀴즈","3루 주자가 홈으로 뛰고 타자가 번트로 득점."],
+    ["고의4구 후 승부","강타자를 거르고 다음 타자와 승부."],
+  ]},
+  {cat:"경기 운영", ic:"📋", items:[
+    ["선발 / 불펜 / 마무리","경기를 시작 / 중간 / 끝내는 투수 보직."],
+    ["셋업맨","마무리 직전 8회를 책임지는 필승조."],
+    ["필승조 / 추격조","이기고 있을 때 / 지고 있을 때 나오는 불펜 그룹."],
+    ["연장","9회 동점 시 추가 이닝(KBO 정규시즌 최대 12회, 이후 무승부)."],
+    ["더블헤더","같은 팀이 하루에 두 경기."],
+    ["서스펜디드 / 우천취소","경기 중단 후 재개 / 비로 경기 취소."],
+  ]},
+  {cat:"KBO 문화 · 속어", ic:"🎉", items:[
+    ["직관 / 집관","경기장 현장 관람 / 집에서 중계 관람."],
+    ["가을야구","포스트시즌. 정규시즌 1~5위만 진출."],
+    ["와일드카드","정규시즌 4·5위가 겨루는 포스트시즌 첫 단계."],
+    ["스윕","시리즈에서 상대에게 전 경기 승리."],
+    ["대포","홈런을 뜻하는 표현."],
+    ["유광점퍼","LG 트윈스 팬이 가을야구를 염원하며 입는 상징적 점퍼(문화)."],
+    ["자동문","점수를 잘 내주는 불펜을 비꼬는 속어."],
+    ["스토브리그","시즌이 끝난 겨울, 전력 보강이 이뤄지는 비시즌."],
+    ["FA (자유계약)","일정 기간을 채워 자유롭게 계약할 수 있는 선수."],
+    ["트레이드 / 방출 / 웨이버","선수를 맞교환 / 방출 / 공시하는 이적 방식."],
+  ]},
+];
+function renderGlossary(){
+  const q=(document.getElementById("glossarySearch").value||"").trim().toLowerCase();
+  const box=document.getElementById("glossaryList");
+  let html="", hits=0;
+  GLOSSARY.forEach(g=>{
+    const items=g.items.filter(([t,d])=> !q || t.toLowerCase().includes(q) || d.toLowerCase().includes(q));
+    if(!items.length) return;
+    hits+=items.length;
+    html+=`<div class="gloss-cat"><div class="gc-head"><span class="gc-ic">${g.ic}</span>${g.cat} <span class="gc-n">${items.length}</span></div>
+      <div class="gc-items">${items.map(([t,d])=>`<div class="gterm"><b>${escHtml(t)}</b><span>${escHtml(d)}</span></div>`).join("")}</div></div>`;
+  });
+  box.innerHTML = hits ? html
+    : `<div class="empty"><div class="big">🔍</div><div><b>"${escHtml(q)}" 검색 결과가 없어요</b></div><div style="font-size:12.5px">다른 키워드로 찾아보세요.</div></div>`;
+}
+
 /* ============================ FAN BOARD (팬 게시판) ============================ */
 let API_OK=false, bSort="new", boardIsAdmin=false;
 let adminToken=(function(){ try{ return localStorage.getItem("kbo_admin_token")||""; }catch(e){ return ""; } })();
@@ -2385,6 +2514,8 @@ document.addEventListener("DOMContentLoaded",()=>{
     document.getElementById("saveNote").textContent=`✔ JSON을 가져와 적용했습니다 (${updatedAt})`;
   });
   renderEntry();
+  renderGlossary();
+  document.getElementById("glossarySearch").addEventListener("input",renderGlossary);
   demoSeed();
   detectAPI().then(renderBoard);
   document.getElementById("boardTeam").addEventListener("change",renderBoard);
