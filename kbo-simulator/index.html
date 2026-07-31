@@ -116,8 +116,11 @@
   /* Tabs */
   nav.tabs{position:sticky;top:0;z-index:20;background:color-mix(in srgb,var(--bg) 86%,transparent);
     backdrop-filter:blur(10px);border-bottom:1px solid var(--line)}
-  .tabrow{display:flex;gap:4px;overflow-x:auto;scrollbar-width:none}
+  /* 데스크톱: 전 항목을 줄바꿈으로 노출(가로 스크롤 금지) */
+  .tabrow{display:flex;flex-wrap:wrap;gap:0 2px;scrollbar-width:none}
   .tabrow::-webkit-scrollbar{display:none}
+  .menubtn{display:none}
+  .menuscrim{display:none}
   .tab{appearance:none;background:none;border:none;font-family:inherit;font-size:14px;font-weight:600;
     color:var(--ink-soft);padding:15px 16px 13px;cursor:pointer;white-space:nowrap;
     border-bottom:2.5px solid transparent;margin-bottom:-1px;letter-spacing:-.005em}
@@ -738,13 +741,40 @@
     .themebtn{padding:6px 9px;font-size:11.5px;white-space:nowrap;min-height:36px}
     .subline{font-size:12px;padding-bottom:12px}
 
-    /* 탭: 스와이프 + 오른쪽 페이드 힌트 */
-    nav.tabs{position:relative}
-    nav.tabs::after{content:"";position:absolute;right:0;top:0;bottom:1px;width:26px;pointer-events:none;
-      background:linear-gradient(90deg,transparent,var(--bg))}
-    .tabrow{scroll-snap-type:x proximity;-webkit-overflow-scrolling:touch}
-    .tab{padding:13px 12px 11px;font-size:13.5px;scroll-snap-align:start;min-height:44px}
-    .tab .n{margin-right:5px;font-size:10px}
+    /* 탭 → 전체 메뉴 시트 (가로 스크롤에 항목이 갇히지 않도록)
+       backdrop-filter는 fixed 자식의 컨테이닝 블록이 되므로 모바일에선 해제 */
+    nav.tabs{position:sticky;padding:7px 0;z-index:40;
+      backdrop-filter:none;-webkit-backdrop-filter:none;background:var(--bg)}
+    .menubtn{display:flex;align-items:center;gap:9px;width:100%;min-height:46px;
+      background:var(--surface);border:1px solid var(--line);border-radius:11px;
+      padding:0 13px;font-family:inherit;font-size:14.5px;font-weight:700;color:var(--ink);
+      cursor:pointer;box-shadow:var(--shadow);text-align:left}
+    .menubtn .mb-ico{font-size:15px;line-height:1}
+    .menubtn .mb-cur{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+    .menubtn .mb-caret{font-size:11px;color:var(--ink-faint);transition:transform .18s}
+    body.menu-open .menubtn .mb-caret{transform:rotate(180deg)}
+
+    .menuscrim{display:block;position:fixed;inset:0;z-index:38;background:rgba(0,0,0,.44);
+      opacity:0;pointer-events:none;transition:opacity .18s}
+    body.menu-open .menuscrim{opacity:1;pointer-events:auto}
+
+    /* 전체 항목을 2열 그리드 바텀시트로 — 숨겨지는 메뉴 없음 */
+    .tabrow{position:fixed;left:0;right:0;bottom:0;z-index:39;
+      display:grid;grid-template-columns:1fr 1fr;gap:6px;
+      max-height:74vh;overflow-y:auto;-webkit-overflow-scrolling:touch;
+      background:var(--surface);border-top:1px solid var(--line);
+      border-radius:16px 16px 0 0;padding:14px 12px calc(14px + env(safe-area-inset-bottom));
+      box-shadow:0 -12px 32px rgba(0,0,0,.22);
+      transform:translateY(102%);transition:transform .22s cubic-bezier(.2,.8,.3,1);
+      visibility:hidden}
+    body.menu-open .tabrow{transform:none;visibility:visible}
+    .tab{display:flex;align-items:center;gap:8px;min-height:48px;
+      padding:10px 12px;font-size:13.5px;white-space:normal;text-align:left;
+      border:1px solid var(--line);border-radius:10px;background:var(--surface-2);
+      margin-bottom:0;border-bottom:1px solid var(--line)}
+    .tab .n{margin-right:0;font-size:13px;flex:none}
+    .tab[aria-selected="true"]{background:var(--accent-ghost);color:var(--accent);
+      border-color:color-mix(in srgb,var(--accent) 45%,transparent);font-weight:800}
 
     /* 섹션 */
     .sec-head{flex-direction:column;gap:3px;margin-bottom:13px}
@@ -817,7 +847,7 @@
     .ptip{left:8px!important;right:8px!important;top:auto!important;bottom:12px!important;width:auto;max-width:none}
   }
   @media (max-width:400px){
-    .tab{padding:12px 9px 10px;font-size:12.5px}
+    .tab{padding:9px 10px;font-size:12.5px}
     table.stand th:nth-child(11),table.stand td:nth-child(11){display:none} /* 최근10 */
     .brand h1{font-size:16px}
     .brand .kr{display:none}
@@ -855,7 +885,12 @@
 
 <nav class="tabs">
   <div class="wrap">
-    <div class="tabrow" role="tablist">
+    <button class="menubtn" id="menuBtn" type="button" aria-expanded="false" aria-controls="tabrow">
+      <span class="mb-ico" aria-hidden="true">☰</span>
+      <span class="mb-cur" id="menuCur">순위·전력</span>
+      <span class="mb-caret" aria-hidden="true">▼</span>
+    </button>
+    <div class="tabrow" id="tabrow" role="tablist">
       <button class="tab" role="tab" aria-selected="false" data-tab="entry"><span class="n">★</span>초보팬 가이드</button>
       <button class="tab" role="tab" aria-selected="false" data-tab="glossary"><span class="n">📖</span>야구 용어사전</button>
       <button class="tab" role="tab" aria-selected="false" data-tab="hof"><span class="n">🏆</span>명예의 전당</button>
@@ -874,6 +909,7 @@
     </div>
   </div>
 </nav>
+<div class="menuscrim" id="menuScrim"></div>
 
 <main class="wrap">
 
@@ -3333,16 +3369,34 @@ async function submitPost(){
 }
 
 /* ============================ TABS + INIT ============================ */
+function setMenuOpen(open){
+  document.body.classList.toggle("menu-open",open);
+  const b=document.getElementById("menuBtn");
+  if(b) b.setAttribute("aria-expanded",open?"true":"false");
+}
+function syncMenuLabel(tab){
+  const el=document.getElementById("menuCur");
+  if(!el||!tab) return;
+  const n=tab.querySelector(".n");
+  el.textContent=[...tab.childNodes].filter(c=>c!==n).map(c=>c.textContent).join("").trim();
+}
 function initTabs(){
   const tabs=[...document.querySelectorAll(".tab")];
   tabs.forEach(tab=>tab.addEventListener("click",()=>{
     tabs.forEach(t=>t.setAttribute("aria-selected", t===tab?"true":"false"));
     document.querySelectorAll(".panel").forEach(p=>p.classList.remove("active"));
     document.getElementById("panel-"+tab.dataset.tab).classList.add("active");
+    syncMenuLabel(tab); setMenuOpen(false);
+    window.scrollTo({top:0,behavior:"smooth"});
     if(tab.dataset.tab==="dash") renderDashboard(document.getElementById("dashTeam").value||curDashTeam);
     if(tab.dataset.tab==="board") renderBoard();
     if(tab.dataset.tab==="issues") renderIssues();
   }));
+  const btn=document.getElementById("menuBtn"), scrim=document.getElementById("menuScrim");
+  if(btn) btn.addEventListener("click",()=>setMenuOpen(!document.body.classList.contains("menu-open")));
+  if(scrim) scrim.addEventListener("click",()=>setMenuOpen(false));
+  document.addEventListener("keydown",e=>{ if(e.key==="Escape") setMenuOpen(false); });
+  syncMenuLabel(document.querySelector('.tab[aria-selected="true"]'));
 }
 function initTheme(){
   const btn=document.getElementById("themebtn");
@@ -3394,6 +3448,7 @@ function applyLang(){
   document.querySelectorAll(".tab").forEach(tab=>{ const lab=TAB_LABEL[tab.dataset.tab]; if(!lab) return;
     const n=tab.querySelector(".n"); const icon=n?n.textContent:"";
     tab.innerHTML=`<span class="n">${icon}</span>${L(lab[0],lab[1])}`; });
+  if(typeof syncMenuLabel==="function") syncMenuLabel(document.querySelector('.tab[aria-selected="true"]'));
   for(const pid in SEC){ const s=SEC[pid]; const h=document.querySelector("#"+pid+" .sec-head h2"), p=document.querySelector("#"+pid+" .sec-head p");
     if(h) h.textContent=L(s[0],s[1]); if(p&&s[2]!=null) p.textContent=L(s[2],s[3]); }
   for(const id in BTN){ const el=document.getElementById(id); if(el) el.textContent=L(BTN[id][0],BTN[id][1]); }
