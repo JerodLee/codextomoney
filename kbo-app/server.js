@@ -5,6 +5,7 @@ import fs from "fs";
 import path from "path";
 import crypto from "crypto";
 import { fileURLToPath } from "url";
+import { validateStandings, formatReport } from "./scripts/lib/validate-standings.mjs";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const PORT = process.env.PORT || 3000;
@@ -217,12 +218,39 @@ app.post("/api/issues", async (req, res) => {
 });
 
 // ---------- 데이터셋 동기화 (관리자 토큰) ----------
+// 검증을 통과하지 못한 순위 데이터는 저장하지 않는다. 스크레이퍼가 깨진 채로
+// 돌더라도 앱에는 마지막 정상 데이터가 남는다 — 틀린 기록보다 옛 기록이 낫다.
 app.get("/api/data", (_req, res) => res.json(readJSON(DATASET_FILE, null) || {}));
+
+let lastRejected = null; // 운영 중 원인 파악용 (관리자만 조회)
+app.get("/api/data/status", (req, res) => {
+  const cur = readJSON(DATASET_FILE, null);
+  res.json({
+    updatedAt: cur?.updatedAt || null,
+    source: cur?.source || null,
+    teams: cur?.teams ? Object.keys(cur.teams).length : 0,
+    lastRejected: isAdmin(req) ? lastRejected : (lastRejected ? { at: lastRejected.at } : null),
+  });
+});
+
 app.post("/api/data", async (req, res) => {
   if (!ADMIN_TOKEN || req.headers["x-admin-token"] !== ADMIN_TOKEN)
     return res.status(401).json({ error: "unauthorized" });
-  await writeJSON(DATASET_FILE, req.body || {});
-  res.json({ ok: true });
+
+  const body = req.body || {};
+  // teams 가 실린 요청만 순위 검증 대상 (다른 필드만 갱신하는 경우는 통과)
+  if (body.teams) {
+    const v = validateStandings(body, { partial: !!body.partial });
+    if (!v.ok) {
+      lastRejected = { at: Date.now(), errors: v.errors, warnings: v.warnings, stats: v.stats };
+      console.warn("[data] 반영 거부:\n" + formatReport(v));
+      return res.status(422).json({ error: "validation_failed", errors: v.errors, warnings: v.warnings });
+    }
+    if (v.warnings.length) console.warn("[data] 경고:\n" + formatReport(v));
+  }
+
+  await writeJSON(DATASET_FILE, body);
+  res.json({ ok: true, validated: !!body.teams });
 });
 
 app.listen(PORT, () => console.log(`⚾ KBO 팬 앱: http://localhost:${PORT}  (data: ${DATA_DIR})`));

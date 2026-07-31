@@ -8,6 +8,8 @@ Type=oneshot
 WorkingDirectory=/opt/kbo-app
 Environment=BASE_URL=http://127.0.0.1:3000
 Environment=ADMIN_TOKEN=change-me
-# 실제 데이터 피드가 있으면 아래 주석을 해제하고 URL 지정:
-# Environment=DATA_SOURCE_URL=https://your-feed.example.com/kbo.json
-ExecStart=/usr/bin/node scripts/update-data.mjs
+# 순위: KBO 공식 기록실에서 수집 → 검증 통과 시에만 /api/data 반영.
+# 검증 실패 시 exit 3 으로 끝나며 앱에는 직전 정상 데이터가 그대로 남는다.
+ExecStart=/usr/bin/node scripts/scrape-kbo-official.mjs --post
+# 선수 이슈(부상·선발·라인업)도 함께 갱신하려면 아래 줄의 주석을 해제:
+# ExecStart=/usr/bin/node scripts/scrape-issues.mjs --post

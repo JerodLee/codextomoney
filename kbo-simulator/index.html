@@ -121,6 +121,14 @@
   .tabrow::-webkit-scrollbar{display:none}
   .menubtn{display:none}
   .menuscrim{display:none}
+  /* 코어 외 항목은 '더보기'로 접어둔다 (제거가 아니라 노출 축소) */
+  .tabrow:not(.show-more) .tab[data-more]{display:none}
+  .tabmore{appearance:none;background:none;border:none;font-family:inherit;font-size:13px;font-weight:700;
+    color:var(--ink-faint);padding:15px 14px 13px;cursor:pointer;white-space:nowrap;
+    border-bottom:2.5px solid transparent;margin-bottom:-1px}
+  .tabmore:hover{color:var(--ink)}
+  .tabmore .mc{font-size:10px;transition:transform .18s;display:inline-block}
+  .tabrow.show-more .tabmore .mc{transform:rotate(180deg)}
   .tab{appearance:none;background:none;border:none;font-family:inherit;font-size:14px;font-weight:600;
     color:var(--ink-soft);padding:15px 16px 13px;cursor:pointer;white-space:nowrap;
     border-bottom:2.5px solid transparent;margin-bottom:-1px;letter-spacing:-.005em}
@@ -775,6 +783,10 @@
     .tab .n{margin-right:0;font-size:13px;flex:none}
     .tab[aria-selected="true"]{background:var(--accent-ghost);color:var(--accent);
       border-color:color-mix(in srgb,var(--accent) 45%,transparent);font-weight:800}
+    /* '더보기'는 시트에서 두 칸을 가로지르는 구분선 역할 */
+    .tabmore{grid-column:1/-1;display:flex;align-items:center;justify-content:center;gap:6px;
+      min-height:42px;margin:4px 0 0;padding:8px;border:1px dashed var(--line);border-radius:10px;
+      font-size:12.5px;color:var(--ink-soft);background:none}
 
     /* 섹션 */
     .sec-head{flex-direction:column;gap:3px;margin-bottom:13px}
@@ -891,21 +903,24 @@
       <span class="mb-caret" aria-hidden="true">▼</span>
     </button>
     <div class="tabrow" id="tabrow" role="tablist">
-      <button class="tab" role="tab" aria-selected="false" data-tab="entry"><span class="n">★</span>초보팬 가이드</button>
-      <button class="tab" role="tab" aria-selected="false" data-tab="glossary"><span class="n">📖</span>야구 용어사전</button>
-      <button class="tab" role="tab" aria-selected="false" data-tab="hof"><span class="n">🏆</span>명예의 전당</button>
-      <button class="tab" role="tab" aria-selected="false" data-tab="shame"><span class="n">😱</span>굴욕의 전당</button>
-      <button class="tab" role="tab" aria-selected="false" data-tab="history"><span class="n">📜</span>KBO 연표</button>
+      <!-- 코어 5개: 항상 노출 -->
       <button class="tab" role="tab" aria-selected="true" data-tab="stand"><span class="n">01</span>순위·전력</button>
       <button class="tab" role="tab" aria-selected="false" data-tab="dash"><span class="n">📊</span>구단 대시보드</button>
-      <button class="tab" role="tab" aria-selected="false" data-tab="teams"><span class="n">02</span>구단·선수</button>
-      <button class="tab" role="tab" aria-selected="false" data-tab="h2h"><span class="n">03</span>상대전적</button>
-      <button class="tab" role="tab" aria-selected="false" data-tab="sched"><span class="n">04</span>남은 일정</button>
+      <button class="tab" role="tab" aria-selected="false" data-tab="sim"><span class="n">⚾</span>경기 시뮬레이션</button>
       <button class="tab" role="tab" aria-selected="false" data-tab="issues"><span class="n">🚨</span>선수 이슈</button>
-      <button class="tab" role="tab" aria-selected="false" data-tab="news"><span class="n">05</span>뉴스</button>
-      <button class="tab" role="tab" aria-selected="false" data-tab="sim"><span class="n">06</span>경기 시뮬레이션</button>
-      <button class="tab" role="tab" aria-selected="false" data-tab="data"><span class="n">07</span>데이터 관리</button>
-      <button class="tab" role="tab" aria-selected="false" data-tab="board"><span class="n">🔥</span>팬 게시판</button>
+      <button class="tab" role="tab" aria-selected="false" data-tab="teams"><span class="n">02</span>구단·선수</button>
+      <!-- 나머지는 '더보기' 안으로 (제거 아님 — 기능·데이터 그대로) -->
+      <button class="tabmore" id="moreBtn" type="button" aria-expanded="false">더보기 <span class="mc">▾</span></button>
+      <button class="tab" role="tab" aria-selected="false" data-more data-tab="h2h"><span class="n">03</span>상대전적</button>
+      <button class="tab" role="tab" aria-selected="false" data-more data-tab="sched"><span class="n">04</span>남은 일정</button>
+      <button class="tab" role="tab" aria-selected="false" data-more data-tab="entry"><span class="n">★</span>초보팬 가이드</button>
+      <button class="tab" role="tab" aria-selected="false" data-more data-tab="glossary"><span class="n">📖</span>야구 용어사전</button>
+      <button class="tab" role="tab" aria-selected="false" data-more data-tab="hof"><span class="n">🏆</span>명예의 전당</button>
+      <button class="tab" role="tab" aria-selected="false" data-more data-tab="shame"><span class="n">😱</span>굴욕의 전당</button>
+      <button class="tab" role="tab" aria-selected="false" data-more data-tab="history"><span class="n">📜</span>KBO 연표</button>
+      <button class="tab" role="tab" aria-selected="false" data-more data-tab="news"><span class="n">05</span>뉴스</button>
+      <button class="tab" role="tab" aria-selected="false" data-more data-tab="board"><span class="n">🔥</span>팬 게시판</button>
+      <button class="tab" role="tab" aria-selected="false" data-more data-tab="data"><span class="n">07</span>데이터 관리</button>
     </div>
   </div>
 </nav>
@@ -3392,6 +3407,16 @@ function initTabs(){
     if(tab.dataset.tab==="board") renderBoard();
     if(tab.dataset.tab==="issues") renderIssues();
   }));
+  // '더보기' — 코어 5개 외 항목 펼치기/접기
+  const row=document.getElementById("tabrow"), more=document.getElementById("moreBtn");
+  if(more) more.addEventListener("click",()=>{
+    const on=row.classList.toggle("show-more");
+    more.setAttribute("aria-expanded",on?"true":"false");
+  });
+  // 접힌 항목이 현재 탭이면 펼친 채로 시작 (새로고침 시 사라져 보이지 않도록)
+  const cur=document.querySelector('.tab[aria-selected="true"]');
+  if(cur&&cur.hasAttribute("data-more")){ row.classList.add("show-more"); more?.setAttribute("aria-expanded","true"); }
+
   const btn=document.getElementById("menuBtn"), scrim=document.getElementById("menuScrim");
   if(btn) btn.addEventListener("click",()=>setMenuOpen(!document.body.classList.contains("menu-open")));
   if(scrim) scrim.addEventListener("click",()=>setMenuOpen(false));
@@ -3469,6 +3494,20 @@ window.addEventListener("resize",()=>{ if(document.getElementById("distChart") &
 
 /* 서버(EC2) 배포 시: /api/data 의 공용 데이터셋을 불러와 적용 — 스크레이퍼 결과가 전원에게 반영된다.
    로컬 편집(localStorage)이 더 최신이면 로컬을 유지한다. */
+/* 출처를 항상 눈에 보이게 둔다 — 기록 신뢰도는 출처를 밝히는 데서 시작한다.
+   공식 출처면 링크까지 걸어 팬이 직접 대조할 수 있게 한다. */
+function renderSourceChip(d,ts){
+  const chip=document.querySelector(".datachip"); if(!chip) return;
+  const official=/koreabaseball|KBO 공식/i.test((d.source||"")+(d.sourceUrl||""));
+  const when=ts? new Date(ts).toLocaleString("ko-KR",{month:"2-digit",day:"2-digit",hour:"2-digit",minute:"2-digit"}) : "";
+  const label=`${official?"KBO 공식":escHtml(d.source||"서버 데이터")}${when?` · ${when}`:""}`;
+  chip.innerHTML = d.sourceUrl
+    ? `<a href="${escHtml(d.sourceUrl)}" target="_blank" rel="noopener noreferrer"
+         style="color:inherit;text-decoration:none">${label} ↗</a>`
+    : label;
+  chip.title = d.source ? `출처: ${d.source}` : "서버 동기화 데이터";
+}
+
 async function loadServerData(){
   try{
     const r=await fetch("/api/data",{cache:"no-store"}); if(!r.ok) return false;
@@ -3480,6 +3519,7 @@ async function loadServerData(){
     applyState(d,{keepScraps:true});
     updatedAt = (d.updatedAt? new Date(serverTs||Date.now()).toLocaleString("ko-KR") : "서버 데이터")
       + (d.source? ` · ${d.source}` : " · 서버 동기화");
+    renderSourceChip(d, serverTs);
     renderAll();
     return true;
   }catch(e){ return false; }

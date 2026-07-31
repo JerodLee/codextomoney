@@ -1,4 +1,9 @@
 #!/usr/bin/env node
+// ⚠️ DEPRECATED — scripts/scrape-kbo-official.mjs (KBO 공식 기록실)를 사용하세요.
+// 위키피디아는 갱신이 늦고 표 레이아웃이 시즌마다 바뀌어, 팬이 공식 기록과 대조하면
+// 어긋나는 순간이 옵니다. 이 스크립트는 공식 사이트 접근이 막혔을 때의 대체 경로로만 남깁니다.
+// (검증은 공통 규칙을 그대로 사용하므로, 틀린 값은 서버에서 거부됩니다.)
+//
 // KBO 순위 스크레이퍼 (소스: Wikipedia · 사실 데이터 · CC BY-SA)
 // - MediaWiki API로 "YYYY KBO League season" 문서의 위키텍스트를 받아 순위표를 파싱.
 // - 결과를 앱 데이터셋 형태 {teams:{id:{w,l,t}}, updatedAt} 로 만들어
@@ -14,6 +19,7 @@
 import fs from "fs";
 import path from "path";
 import { fileURLToPath } from "url";
+import { validateStandings, formatReport } from "./lib/validate-standings.mjs";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const args = Object.fromEntries(process.argv.slice(2).reduce((a, x, i, arr) => {
@@ -110,6 +116,10 @@ async function main() {
   if (!rows.length) { console.error("[scrape] 순위 행을 못 찾음 — COLS 열 위치를 조정하세요."); process.exit(2); }
   console.log("[scrape] 파싱된 구단:", rows.length, "→", rows.map(r => `${r.id}:${r.w}-${r.l}-${r.t}`).join(" "));
   const dataset = toDataset(rows);
+
+  const v = validateStandings(dataset);
+  console.log(formatReport(v));
+  if (!v.ok) { console.error("[scrape] 검증 실패 — 반영하지 않고 종료합니다."); process.exit(3); }
 
   if (args.post) {
     if (!ADMIN_TOKEN) throw new Error("--post 에는 ADMIN_TOKEN 이 필요합니다");
