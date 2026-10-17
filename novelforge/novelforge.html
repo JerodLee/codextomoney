@@ -1,0 +1,1397 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>NovelForge — 소설 · 게임북 집필 플랫폼</title>
+  <style>
+:root {
+  --bg: #f4f1ea;
+  --bg-panel: #fffdf8;
+  --ink: #2b2622;
+  --ink-soft: #6b6157;
+  --line: #e2dccf;
+  --accent: #b5623a;
+  --accent-soft: #d99b73;
+  --accent-ink: #fff;
+  --ok: #3f7d5a;
+  --danger: #b23b3b;
+  --shadow: 0 2px 10px rgba(60, 45, 30, 0.08);
+  --radius: 10px;
+  font-size: 15px;
+}
+
+* { box-sizing: border-box; }
+[hidden] { display: none !important; }
+
+body {
+  margin: 0;
+  font-family: "Pretendard", "Apple SD Gothic Neo", "Noto Sans KR", "Malgun Gothic", system-ui, sans-serif;
+  background: var(--bg);
+  color: var(--ink);
+  line-height: 1.55;
+}
+
+h1, h2, h3, h4 { font-family: "Georgia", "Nanum Myeongjo", serif; margin: 0 0 .4em; }
+
+/* ===== 상단 바 ===== */
+.topbar {
+  display: flex; align-items: center; justify-content: space-between;
+  gap: 1rem; padding: .7rem 1.2rem;
+  background: var(--bg-panel); border-bottom: 1px solid var(--line);
+  position: sticky; top: 0; z-index: 40;
+}
+.brand { display: flex; align-items: center; gap: .7rem; }
+.brand .logo { font-size: 1.8rem; }
+.brand h1 { font-size: 1.25rem; margin: 0; }
+.tagline { margin: 0; font-size: .78rem; color: var(--ink-soft); }
+
+.project-controls { display: flex; align-items: center; gap: .4rem; flex-wrap: wrap; }
+#projectSelect {
+  padding: .4rem .6rem; border: 1px solid var(--line); border-radius: 8px;
+  background: #fff; font-size: .9rem; min-width: 150px; max-width: 240px;
+}
+
+/* ===== 버튼 ===== */
+.btn {
+  border: 1px solid var(--line); background: #fff; color: var(--ink);
+  padding: .45rem .8rem; border-radius: 8px; cursor: pointer; font-size: .88rem;
+  transition: .15s; font-family: inherit;
+}
+.btn:hover { border-color: var(--accent-soft); background: #fff8f2; }
+.btn.primary { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); }
+.btn.primary:hover { background: #a1542f; }
+.btn.ghost { background: transparent; }
+.btn.small { padding: .3rem .55rem; font-size: .8rem; }
+.btn.danger:hover { border-color: var(--danger); color: var(--danger); }
+.btn:disabled { opacity: .5; cursor: not-allowed; }
+
+/* ===== 탭 ===== */
+.tabs {
+  display: flex; gap: .3rem; padding: 0 1.2rem; background: var(--bg-panel);
+  border-bottom: 1px solid var(--line); overflow-x: auto;
+}
+.tab {
+  border: none; background: none; padding: .8rem .9rem; cursor: pointer;
+  font-size: .9rem; color: var(--ink-soft); border-bottom: 3px solid transparent;
+  white-space: nowrap; font-family: inherit;
+}
+.tab:hover { color: var(--ink); }
+.tab.active { color: var(--accent); border-bottom-color: var(--accent); font-weight: 600; }
+
+/* ===== 뷰 ===== */
+#main { padding: 1.2rem; max-width: 1200px; margin: 0 auto; }
+.view { display: none; }
+.view.active { display: block; }
+
+.panel {
+  background: var(--bg-panel); border: 1px solid var(--line);
+  border-radius: var(--radius); padding: 1.4rem; box-shadow: var(--shadow);
+}
+.hint { color: var(--ink-soft); font-size: .85rem; margin: .2rem 0 1rem; }
+.mini { color: var(--ink-soft); font-size: .78rem; font-weight: 400; }
+
+/* ===== 폼 ===== */
+.form-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 1rem; }
+label { display: block; font-size: .82rem; color: var(--ink-soft); font-weight: 600; }
+label.block { margin-top: 1rem; }
+input[type=text], input[type=number], input[type=password], select, textarea {
+  width: 100%; margin-top: .3rem; padding: .55rem .7rem;
+  border: 1px solid var(--line); border-radius: 8px; font-family: inherit;
+  font-size: .92rem; background: #fff; color: var(--ink);
+}
+textarea { resize: vertical; line-height: 1.6; }
+input:focus, textarea:focus, select:focus { outline: none; border-color: var(--accent-soft); box-shadow: 0 0 0 3px rgba(181,98,58,.12); }
+
+.stat-row { display: flex; gap: 1.5rem; margin-top: 1.2rem; flex-wrap: wrap; }
+.stat-row .stat { font-size: .85rem; color: var(--ink-soft); }
+.stat-row .stat b { color: var(--accent); font-size: 1.1rem; }
+
+.subhead { display: flex; align-items: center; justify-content: space-between; margin: 1.4rem 0 .6rem; }
+.subhead.compact { margin: 0 0 .6rem; }
+.subhead h2, .subhead h3 { margin: 0; }
+
+/* ===== 캔버스 ===== */
+.canvas-toolbar {
+  display: flex; align-items: center; justify-content: space-between; gap: 1rem;
+  flex-wrap: wrap; margin-bottom: .8rem;
+}
+.linkmode-toggle { font-weight: 500; color: var(--ink-soft); font-size: .85rem; display: flex; align-items: center; gap: .3rem; }
+.canvas-wrap {
+  border: 1px solid var(--line); border-radius: var(--radius); overflow: auto;
+  background: var(--bg-panel); box-shadow: var(--shadow);
+  height: calc(100vh - 240px); min-height: 420px;
+}
+.canvas {
+  position: relative; width: 2400px; height: 1600px;
+  background-image: radial-gradient(var(--line) 1px, transparent 1px);
+  background-size: 26px 26px;
+}
+.link-layer { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; }
+.card {
+  position: absolute; width: 210px; background: #fff; border: 1px solid var(--line);
+  border-radius: 10px; box-shadow: var(--shadow); user-select: none;
+}
+.card.event { border-top: 4px solid var(--accent); }
+.card.character { border-top: 4px solid #4a7a9c; }
+.card-head {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: .45rem .6rem; cursor: grab; border-bottom: 1px solid var(--line);
+  background: #fbf8f2; border-radius: 10px 10px 0 0;
+}
+.card-head:active { cursor: grabbing; }
+.card-tag { font-size: .68rem; font-weight: 700; text-transform: uppercase; letter-spacing: .04em; }
+.card.event .card-tag { color: var(--accent); }
+.card.character .card-tag { color: #4a7a9c; }
+.card-del { border: none; background: none; cursor: pointer; color: var(--ink-soft); font-size: .9rem; padding: 0 .2rem; }
+.card-del:hover { color: var(--danger); }
+.card-body { padding: .55rem .6rem; }
+.card-body input.card-title { border: none; padding: .1rem 0; font-weight: 600; font-size: .9rem; margin: 0; background: transparent; }
+.card-body textarea.card-note { border: none; padding: .2rem 0; font-size: .8rem; margin: 0; resize: vertical; min-height: 40px; background: transparent; }
+.card-body input.card-title:focus, .card-body textarea.card-note:focus { box-shadow: none; }
+.card .link-select { margin-top: .4rem; }
+.card .link-select summary { font-size: .74rem; color: var(--ink-soft); cursor: pointer; }
+.card .link-select .link-opts { max-height: 120px; overflow: auto; margin-top: .3rem; }
+.card .link-opts label { display: flex; align-items: center; gap: .3rem; font-weight: 400; font-size: .78rem; margin: .15rem 0; }
+.card .link-opts input { width: auto; margin: 0; }
+
+/* ===== 갈등 ===== */
+.conflict-list, .structure-list { display: flex; flex-direction: column; gap: .7rem; }
+.conflict-item {
+  border: 1px solid var(--line); border-radius: 8px; padding: .7rem; background: #fff;
+  display: grid; grid-template-columns: 1fr 1fr 2fr auto; gap: .5rem; align-items: start;
+}
+.conflict-item .row-del { align-self: center; }
+
+/* ===== 부/장 구조 ===== */
+.part-block { border: 1px solid var(--line); border-radius: 10px; background: #fff; overflow: hidden; }
+.part-head { display: flex; gap: .5rem; align-items: center; padding: .6rem .8rem; background: #fbf6ee; }
+.part-head input.part-title { font-weight: 700; font-family: Georgia, serif; }
+.part-body { padding: .6rem .8rem; }
+.part-body > label { margin-bottom: .5rem; }
+.chapter-block { border: 1px dashed var(--line); border-radius: 8px; padding: .6rem; margin: .6rem 0; background: #fdfbf7; }
+.chapter-head { display: flex; gap: .5rem; align-items: center; margin-bottom: .4rem; }
+.chapter-head input { font-weight: 600; }
+.row-del { border: none; background: none; cursor: pointer; color: var(--ink-soft); font-size: 1rem; }
+.row-del:hover { color: var(--danger); }
+.inline-actions { display: flex; gap: .4rem; margin-top: .5rem; flex-wrap: wrap; }
+.ep-assign { display: flex; flex-wrap: wrap; gap: .3rem; margin-top: .5rem; }
+.ep-chip {
+  font-size: .74rem; padding: .2rem .5rem; border: 1px solid var(--line); border-radius: 20px;
+  background: #fff; cursor: pointer; color: var(--ink-soft);
+}
+.ep-chip.assigned { background: var(--accent); color: #fff; border-color: var(--accent); }
+
+/* ===== 회차 집필 ===== */
+.episodes-layout { display: grid; grid-template-columns: 260px 1fr; gap: 1rem; align-items: start; }
+.episode-list-pane {
+  background: var(--bg-panel); border: 1px solid var(--line); border-radius: var(--radius);
+  padding: .8rem; box-shadow: var(--shadow); position: sticky; top: 110px;
+  max-height: calc(100vh - 130px); overflow: auto;
+}
+.episode-list { display: flex; flex-direction: column; gap: .35rem; margin-top: .3rem; }
+.ep-item {
+  border: 1px solid var(--line); border-radius: 8px; padding: .5rem .6rem; cursor: pointer;
+  background: #fff; font-size: .85rem;
+}
+.ep-item:hover { border-color: var(--accent-soft); }
+.ep-item.active { border-color: var(--accent); background: #fff6ef; }
+.ep-item .ep-item-title { font-weight: 600; display: flex; justify-content: space-between; gap: .4rem; }
+.ep-item .ep-item-meta { font-size: .72rem; color: var(--ink-soft); margin-top: .2rem; display: flex; justify-content: space-between; }
+.ep-item .score-pill { background: var(--ok); color: #fff; border-radius: 10px; padding: 0 .4rem; font-size: .68rem; }
+
+.episode-editor {
+  background: var(--bg-panel); border: 1px solid var(--line); border-radius: var(--radius);
+  padding: 1.2rem; box-shadow: var(--shadow); min-height: 400px;
+}
+.empty-state { color: var(--ink-soft); text-align: center; padding: 4rem 1rem; }
+.editor-head { display: flex; align-items: center; gap: .8rem; margin-bottom: 1rem; }
+.ep-title-input { font-size: 1.15rem; font-weight: 600; font-family: Georgia, serif; }
+.ep-num { background: #efe7d9; color: var(--ink-soft); padding: .2rem .6rem; border-radius: 20px; font-size: .78rem; white-space: nowrap; }
+.field-block { margin-bottom: 1rem; }
+.field-block > label { margin-bottom: .3rem; }
+
+.gen-bar {
+  display: flex; align-items: center; justify-content: space-between; gap: 1rem;
+  padding: .7rem .8rem; background: #fbf6ee; border: 1px solid var(--line); border-radius: 8px;
+  margin-bottom: 1rem; flex-wrap: wrap;
+}
+.target-controls { display: flex; align-items: center; gap: 1rem; }
+.target-controls label { display: flex; align-items: center; gap: .3rem; }
+.target-controls input { width: 90px; }
+.count-badge { font-size: .85rem; color: var(--ink-soft); }
+.gen-actions { display: flex; gap: .5rem; }
+
+.body-area { font-family: "Nanum Myeongjo", Georgia, serif; font-size: 1rem; line-height: 1.85; }
+.body-meta { display: flex; align-items: center; gap: 1rem; margin-top: .4rem; font-size: .8rem; color: var(--ink-soft); }
+.progress-wrap { flex: 1; height: 7px; background: var(--line); border-radius: 4px; overflow: hidden; }
+.progress-bar { height: 100%; width: 0; background: var(--accent-soft); transition: width .3s; }
+.progress-bar.over { background: var(--ok); }
+
+.save-bar { display: flex; align-items: center; gap: .7rem; margin-top: 1rem; flex-wrap: wrap; }
+.save-status { font-size: .82rem; color: var(--ok); }
+
+/* ===== 평가 카드 ===== */
+.rating-card { margin-top: 1.4rem; border: 1px solid var(--line); border-radius: 10px; padding: 1.1rem; background: #fbf8f2; }
+.rating-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); gap: .7rem; margin: .6rem 0 1rem; }
+.rating-item { text-align: center; background: #fff; border: 1px solid var(--line); border-radius: 8px; padding: .6rem; }
+.rating-item .r-label { font-size: .76rem; color: var(--ink-soft); }
+.rating-item .r-score { font-size: 1.5rem; font-weight: 700; font-family: Georgia, serif; color: var(--accent); }
+.rating-item .r-bar { height: 5px; background: var(--line); border-radius: 3px; margin-top: .35rem; overflow: hidden; }
+.rating-item .r-bar > div { height: 100%; background: var(--accent-soft); }
+.feedback-block h4 { margin: .8rem 0 .3rem; font-size: .9rem; }
+.feedback-text { font-size: .9rem; margin: 0; }
+.improvement-list { margin: .3rem 0; padding-left: 1.2rem; font-size: .88rem; }
+.improvement-list li { margin: .2rem 0; }
+.user-feedback { margin-top: .8rem; }
+
+/* ===== 모달 · 토스트 ===== */
+.modal-overlay {
+  position: fixed; inset: 0; background: rgba(40,30,20,.4); display: flex;
+  align-items: center; justify-content: center; z-index: 60; padding: 1rem;
+}
+.modal { background: var(--bg-panel); border-radius: 12px; padding: 1.6rem; width: 100%; max-width: 440px; box-shadow: 0 10px 40px rgba(0,0,0,.2); }
+.modal-actions { display: flex; justify-content: flex-end; gap: .6rem; margin-top: 1.2rem; }
+.warn { font-size: .8rem; color: var(--danger); background: #fdeee9; padding: .5rem .7rem; border-radius: 6px; margin-top: 1rem; }
+
+.toast {
+  position: fixed; bottom: 1.5rem; left: 50%; transform: translateX(-50%);
+  background: var(--ink); color: #fff; padding: .7rem 1.2rem; border-radius: 8px;
+  font-size: .88rem; z-index: 80; box-shadow: 0 4px 16px rgba(0,0,0,.25);
+}
+
+@media (max-width: 760px) {
+  .episodes-layout { grid-template-columns: 1fr; }
+  .episode-list-pane { position: static; max-height: 260px; }
+  .conflict-item { grid-template-columns: 1fr; }
+}
+
+</style>
+</head>
+<body>
+  <!-- ===== 상단 바 ===== -->
+  <header class="topbar">
+    <div class="brand">
+      <span class="logo">✒️</span>
+      <div>
+        <h1>NovelForge</h1>
+        <p class="tagline">소설 · 게임북 집필 플랫폼</p>
+      </div>
+    </div>
+
+    <div class="project-controls">
+      <select id="projectSelect" title="작품 선택"></select>
+      <button id="newProjectBtn" class="btn ghost" title="새 작품">＋ 새 작품</button>
+      <button id="renameProjectBtn" class="btn ghost" title="이름 변경">✎</button>
+      <button id="deleteProjectBtn" class="btn ghost danger" title="작품 삭제">🗑</button>
+      <button id="exportBtn" class="btn ghost" title="JSON 내보내기">⬇ 백업</button>
+      <button id="importBtn" class="btn ghost" title="JSON 불러오기">⬆ 복원</button>
+      <input type="file" id="importFile" accept="application/json" hidden />
+      <button id="settingsBtn" class="btn ghost" title="API 설정">⚙️</button>
+    </div>
+  </header>
+
+  <!-- ===== 탭 내비게이션 ===== -->
+  <nav class="tabs" id="tabs">
+    <button class="tab active" data-view="setup">1 · 작품 설정</button>
+    <button class="tab" data-view="canvas">2 · 사건·인물 캔버스</button>
+    <button class="tab" data-view="theme">3 · 주제 · 갈등</button>
+    <button class="tab" data-view="structure">4 · 부 · 장 구성</button>
+    <button class="tab" data-view="episodes">5 · 회차 집필</button>
+  </nav>
+
+  <main id="main">
+    <!-- ========== 1. 작품 설정 ========== -->
+    <section class="view active" id="view-setup">
+      <div class="panel">
+        <h2>작품 설정</h2>
+        <p class="hint">소설 제목과 전체 회차 수, 회차당 권장 분량, 큰 줄거리를 정리합니다.</p>
+        <div class="form-grid">
+          <label>소설 제목
+            <input type="text" id="metaTitle" placeholder="예) 천산비록(天山秘錄)" />
+          </label>
+          <label>총 회차 수 (스토리라인 전체 횟수)
+            <input type="number" id="metaTotalEpisodes" min="1" placeholder="예) 120" />
+          </label>
+          <label>회차당 권장 분량 (자)
+            <input type="number" id="metaCharsPerEp" min="500" step="100" placeholder="예) 5500" />
+          </label>
+          <label>장르 / 톤
+            <input type="text" id="metaGenre" placeholder="예) 동양 무협 / 성장 · 복수" />
+          </label>
+        </div>
+        <label class="block">한 줄 로그라인
+          <input type="text" id="metaLogline" placeholder="예) 가문에서 쫓겨난 소년이 천산에서 절세무공을 얻어 돌아온다." />
+        </label>
+        <label class="block">전체 줄거리 (시놉시스)
+          <textarea id="metaSynopsis" rows="6" placeholder="작품 전체의 큰 흐름을 자유롭게 정리하세요. 생성 AI가 각 회차를 쓸 때 이 내용을 참고합니다."></textarea>
+        </label>
+        <div class="stat-row" id="setupStats"></div>
+      </div>
+    </section>
+
+    <!-- ========== 2. 사건·인물 캔버스 ========== -->
+    <section class="view" id="view-canvas">
+      <div class="canvas-toolbar">
+        <div>
+          <button class="btn" id="addEventBtn">＋ 사건 추가</button>
+          <button class="btn" id="addCharBtn">＋ 인물 추가</button>
+        </div>
+        <p class="hint">카드를 <b>드래그</b>해서 배치하세요. 먼저 주요 <b>사건</b>을 놓고, 그 사건과 연관된 <b>인물</b>을 구상해 연결합니다.</p>
+        <label class="linkmode-toggle">
+          <input type="checkbox" id="showLinks" checked /> 연결선 표시
+        </label>
+      </div>
+      <div class="canvas-wrap">
+        <div class="canvas" id="canvas">
+          <svg class="link-layer" id="linkLayer"></svg>
+          <!-- 카드가 여기에 렌더링됩니다 -->
+        </div>
+      </div>
+    </section>
+
+    <!-- ========== 3. 주제 · 갈등 ========== -->
+    <section class="view" id="view-theme">
+      <div class="panel">
+        <h2>주제와 갈등의 축</h2>
+        <p class="hint">주인공의 근본적 문제, 세계관의 화두, 인물 간 목적의 충돌을 정리합니다. 이야기의 척추가 됩니다.</p>
+        <label class="block">주인공의 근본적 문제 (내적 결핍 · 상처 · 욕망)
+          <textarea id="themeProtagonist" rows="3" placeholder="예) 인정받지 못한 서자로서의 열등감. 강해지고 싶으나 힘을 두려워한다."></textarea>
+        </label>
+        <label class="block">세계관의 기본 화두 (이 세계가 던지는 질문)
+          <textarea id="themeWorld" rows="3" placeholder="예) 힘의 정당성은 무엇으로 증명되는가? 무림에서 협(俠)은 가능한가?"></textarea>
+        </label>
+        <div class="subhead">
+          <h3>인물 간 목적의 갈등 관계</h3>
+          <button class="btn" id="addConflictBtn">＋ 갈등 추가</button>
+        </div>
+        <div id="conflictList" class="conflict-list"></div>
+      </div>
+    </section>
+
+    <!-- ========== 4. 부 · 장 구성 ========== -->
+    <section class="view" id="view-structure">
+      <div class="panel">
+        <div class="subhead">
+          <h2>부 · 장 구성</h2>
+          <button class="btn" id="addPartBtn">＋ 부 추가</button>
+        </div>
+        <p class="hint">각 부와 장별로 스토리 진행을 간단히 정리하고, 그 아래에 회차를 배분합니다.</p>
+        <div id="structureList" class="structure-list"></div>
+      </div>
+    </section>
+
+    <!-- ========== 5. 회차 집필 ========== -->
+    <section class="view" id="view-episodes">
+      <div class="episodes-layout">
+        <!-- 회차 목록 -->
+        <aside class="episode-list-pane">
+          <div class="subhead compact">
+            <h3>회차 목록</h3>
+            <button class="btn small" id="addEpisodeBtn">＋ 회차</button>
+          </div>
+          <div id="episodeList" class="episode-list"></div>
+        </aside>
+
+        <!-- 회차 편집기 -->
+        <div class="episode-editor" id="episodeEditor">
+          <div class="empty-state" id="episodeEmpty">
+            <p>왼쪽에서 회차를 선택하거나 새 회차를 추가하세요.</p>
+          </div>
+
+          <div class="editor-body" id="editorBody" hidden>
+            <div class="editor-head">
+              <input type="text" id="epTitle" class="ep-title-input" placeholder="회차 제목" />
+              <span class="ep-num" id="epNumBadge"></span>
+            </div>
+
+            <div class="field-block">
+              <label>① 회차 요약 <span class="mini">— 이번 화의 뼈대 (예: 주인공은 집에서 쫓겨나 천산으로 떠난다…)</span></label>
+              <textarea id="epSummary" rows="3" placeholder="이번 회차의 핵심 사건을 3~5문장으로."></textarea>
+            </div>
+
+            <div class="field-block">
+              <label>② 회차 상세 정리 <span class="mini">— 가능한 한 상세하게 장면·대사·전개를 설계</span></label>
+              <textarea id="epDetail" rows="7" placeholder="장면 순서, 등장 인물의 행동, 감정선, 반전 등을 구체적으로 적으세요. AI 생성의 설계도가 됩니다."></textarea>
+            </div>
+
+            <div class="field-block">
+              <label>③ 보조 메모 <span class="mini">— 주요 등장인물 · 사건 · 새 아이디어 · 복선</span></label>
+              <textarea id="epMemo" rows="4" placeholder="이번 화에 꼭 넣을 요소, 복선, 설정 메모 등."></textarea>
+            </div>
+
+            <div class="gen-bar">
+              <div class="target-controls">
+                <label>권장 분량
+                  <input type="number" id="epTarget" min="500" step="100" />자
+                </label>
+                <span class="count-badge" id="epCountBadge">현재 0자</span>
+              </div>
+              <div class="gen-actions">
+                <button class="btn primary" id="generateBtn">✨ 생성하기</button>
+                <button class="btn" id="stopGenBtn" hidden>■ 중지</button>
+              </div>
+            </div>
+
+            <div class="field-block">
+              <label>④ 회차분 본문 <span class="mini">— 생성된 내용을 확인·수정 후 저장</span></label>
+              <textarea id="epBody" rows="18" class="body-area" placeholder="생성하기를 누르면 여기에 1회분 소설이 채워집니다. 자유롭게 수정하세요."></textarea>
+              <div class="body-meta">
+                <span id="bodyCounter">0자 (공백 제외 0자)</span>
+                <div class="progress-wrap"><div class="progress-bar" id="bodyProgress"></div></div>
+              </div>
+            </div>
+
+            <div class="save-bar">
+              <button class="btn" id="saveEpisodeBtn">💾 저장</button>
+              <button class="btn primary" id="finalizeBtn">✅ 최종 저장 및 평가</button>
+              <span class="save-status" id="saveStatus"></span>
+            </div>
+
+            <!-- 평가 · 피드백 -->
+            <div class="rating-card" id="ratingCard" hidden>
+              <h3>가상 평점 & 피드백</h3>
+              <div class="rating-grid" id="ratingGrid"></div>
+              <div class="feedback-block">
+                <h4>총평</h4>
+                <p id="feedbackText" class="feedback-text"></p>
+                <h4>개선점</h4>
+                <ul id="improvementList" class="improvement-list"></ul>
+              </div>
+              <textarea id="userFeedback" rows="3" class="user-feedback" placeholder="나의 메모 / 피드백을 여기에 자유롭게 남기세요 (자동 저장)."></textarea>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <!-- ===== 설정 모달 ===== -->
+  <div class="modal-overlay" id="settingsModal" hidden>
+    <div class="modal">
+      <h2>API 설정</h2>
+      <p class="hint">본문 생성과 평점 산출에 Claude API를 사용합니다. 키는 이 브라우저에만(localStorage) 저장됩니다.</p>
+      <label class="block">Anthropic API Key
+        <input type="password" id="apiKeyInput" placeholder="sk-ant-..." />
+      </label>
+      <label class="block">모델
+        <select id="modelSelect">
+          <option value="claude-opus-4-8">claude-opus-4-8 (권장)</option>
+          <option value="claude-sonnet-5">claude-sonnet-5 (빠름/저렴)</option>
+          <option value="claude-haiku-4-5">claude-haiku-4-5 (초경량)</option>
+        </select>
+      </label>
+      <p class="warn">⚠️ 브라우저에서 직접 API를 호출합니다. 개인 PC에서만 본인 키로 사용하세요.</p>
+      <div class="modal-actions">
+        <button class="btn" id="settingsCancel">닫기</button>
+        <button class="btn primary" id="settingsSave">저장</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="toast" id="toast" hidden></div>
+
+  <script>
+/* =========================================================================
+ * NovelForge — 소설 · 게임북 집필 플랫폼
+ * 순수 바닐라 JS. localStorage 저장, Claude API 직접 호출.
+ * ========================================================================= */
+
+(function () {
+  "use strict";
+
+  const LS_KEY = "novelforge_state_v1";
+  const API_URL = "https://api.anthropic.com/v1/messages";
+  const $ = (sel, root = document) => root.querySelector(sel);
+  const $$ = (sel, root = document) => Array.from(root.querySelectorAll(sel));
+  const uid = () => Math.random().toString(36).slice(2, 10);
+  const clamp = (n, lo, hi) => Math.max(lo, Math.min(hi, n));
+
+  /* ---------- 상태 ---------- */
+  let store = loadStore();
+  let genController = null; // 진행 중인 생성 중단용
+  let currentEpisodeId = null;
+
+  function blankProject(name) {
+    return {
+      id: uid(),
+      name: name || "새 작품",
+      meta: { title: "", totalEpisodes: 0, charsPerEp: 5500, genre: "", logline: "", synopsis: "" },
+      theme: { protagonist: "", world: "", conflicts: [] },
+      canvas: { events: [], characters: [] },
+      structure: { parts: [] },
+      episodes: [],
+      showLinks: true,
+    };
+  }
+
+  function loadStore() {
+    try {
+      const raw = localStorage.getItem(LS_KEY);
+      if (raw) {
+        const s = JSON.parse(raw);
+        if (s && s.projects && s.activeId) return s;
+      }
+    } catch (e) { /* ignore */ }
+    const p = blankProject("나의 첫 작품");
+    return {
+      projects: { [p.id]: p },
+      activeId: p.id,
+      settings: { apiKey: "", model: "claude-opus-4-8" },
+    };
+  }
+
+  function save() {
+    try { localStorage.setItem(LS_KEY, JSON.stringify(store)); }
+    catch (e) { toast("저장 실패: 저장 공간이 부족할 수 있습니다."); }
+  }
+
+  const project = () => store.projects[store.activeId];
+
+  /* ---------- 유틸: 글자수 ---------- */
+  const countChars = (s) => (s || "").length;
+  const countNoSpace = (s) => (s || "").replace(/\s/g, "").length;
+
+  /* ---------- 토스트 ---------- */
+  let toastTimer = null;
+  function toast(msg) {
+    const el = $("#toast");
+    el.textContent = msg;
+    el.hidden = false;
+    clearTimeout(toastTimer);
+    toastTimer = setTimeout(() => (el.hidden = true), 2600);
+  }
+
+  /* ===================================================================
+   * 렌더링 진입점
+   * =================================================================== */
+  function renderAll() {
+    renderProjectSelect();
+    renderSetup();
+    renderCanvas();
+    renderTheme();
+    renderStructure();
+    renderEpisodeList();
+    renderEpisodeEditor();
+  }
+
+  /* ---------- 프로젝트 선택 ---------- */
+  function renderProjectSelect() {
+    const sel = $("#projectSelect");
+    sel.innerHTML = "";
+    Object.values(store.projects).forEach((p) => {
+      const o = document.createElement("option");
+      o.value = p.id;
+      o.textContent = p.name + (p.meta.title ? ` — ${p.meta.title}` : "");
+      if (p.id === store.activeId) o.selected = true;
+      sel.appendChild(o);
+    });
+  }
+
+  /* ===================================================================
+   * 1. 작품 설정
+   * =================================================================== */
+  function renderSetup() {
+    const m = project().meta;
+    $("#metaTitle").value = m.title || "";
+    $("#metaTotalEpisodes").value = m.totalEpisodes || "";
+    $("#metaCharsPerEp").value = m.charsPerEp || 5500;
+    $("#metaGenre").value = m.genre || "";
+    $("#metaLogline").value = m.logline || "";
+    $("#metaSynopsis").value = m.synopsis || "";
+    renderSetupStats();
+  }
+
+  function renderSetupStats() {
+    const p = project();
+    const total = p.meta.totalEpisodes || 0;
+    const written = p.episodes.filter((e) => (e.body || "").trim().length > 0).length;
+    const totalChars = p.episodes.reduce((s, e) => s + countChars(e.body), 0);
+    $("#setupStats").innerHTML = `
+      <div class="stat">총 회차 <b>${total || "—"}</b></div>
+      <div class="stat">생성된 회차 <b>${written}</b></div>
+      <div class="stat">작성된 회차 카드 <b>${p.episodes.length}</b></div>
+      <div class="stat">누적 분량 <b>${totalChars.toLocaleString()}</b> 자</div>`;
+  }
+
+  function bindSetup() {
+    const map = {
+      "#metaTitle": "title", "#metaGenre": "genre",
+      "#metaLogline": "logline", "#metaSynopsis": "synopsis",
+    };
+    Object.entries(map).forEach(([sel, key]) => {
+      $(sel).addEventListener("input", (e) => {
+        project().meta[key] = e.target.value;
+        if (key === "title") renderProjectSelect();
+        debouncedSave();
+      });
+    });
+    $("#metaTotalEpisodes").addEventListener("input", (e) => {
+      project().meta.totalEpisodes = parseInt(e.target.value) || 0;
+      renderSetupStats(); debouncedSave();
+    });
+    $("#metaCharsPerEp").addEventListener("input", (e) => {
+      project().meta.charsPerEp = parseInt(e.target.value) || 5500;
+      debouncedSave();
+    });
+  }
+
+  /* ===================================================================
+   * 2. 사건 · 인물 캔버스 (드래그 앤 드롭)
+   * =================================================================== */
+  function renderCanvas() {
+    const canvas = $("#canvas");
+    // 카드 제거 (svg 레이어는 유지)
+    $$(".card", canvas).forEach((c) => c.remove());
+    const p = project();
+
+    p.canvas.events.forEach((ev) => canvas.appendChild(makeEventCard(ev)));
+    p.canvas.characters.forEach((ch) => canvas.appendChild(makeCharCard(ch)));
+    $("#showLinks").checked = p.showLinks !== false;
+    drawLinks();
+  }
+
+  function makeCardShell(cls, item) {
+    const card = document.createElement("div");
+    card.className = "card " + cls;
+    card.style.left = (item.x || 40) + "px";
+    card.style.top = (item.y || 40) + "px";
+    card.dataset.id = item.id;
+    return card;
+  }
+
+  function makeEventCard(ev) {
+    const card = makeCardShell("event", ev);
+    card.innerHTML = `
+      <div class="card-head" data-drag>
+        <span class="card-tag">사건</span>
+        <button class="card-del" title="삭제">✕</button>
+      </div>
+      <div class="card-body">
+        <input class="card-title" value="${escapeAttr(ev.title)}" placeholder="사건 이름" />
+        <textarea class="card-note" placeholder="사건 설명">${escapeHtml(ev.note || "")}</textarea>
+      </div>`;
+    $(".card-title", card).addEventListener("input", (e) => { ev.title = e.target.value; debouncedSave(); drawLinks(); });
+    $(".card-note", card).addEventListener("input", (e) => { ev.note = e.target.value; debouncedSave(); });
+    $(".card-del", card).addEventListener("click", () => {
+      project().canvas.events = project().canvas.events.filter((x) => x.id !== ev.id);
+      // 연관 인물의 링크에서 제거
+      project().canvas.characters.forEach((c) => { c.links = (c.links || []).filter((id) => id !== ev.id); });
+      save(); renderCanvas();
+    });
+    enableDrag(card, ev);
+    return card;
+  }
+
+  function makeCharCard(ch) {
+    const card = makeCardShell("character", ch);
+    const events = project().canvas.events;
+    const opts = events.map((ev) => `
+      <label><input type="checkbox" value="${ev.id}" ${(ch.links || []).includes(ev.id) ? "checked" : ""}/> ${escapeHtml(ev.title || "(제목없음)")}</label>`).join("");
+    card.innerHTML = `
+      <div class="card-head" data-drag>
+        <span class="card-tag">인물</span>
+        <button class="card-del" title="삭제">✕</button>
+      </div>
+      <div class="card-body">
+        <input class="card-title" value="${escapeAttr(ch.name)}" placeholder="인물 이름" />
+        <input class="card-role" value="${escapeAttr(ch.role || "")}" placeholder="역할 (주인공/적/조력자…)" style="font-size:.78rem;margin-top:.2rem;color:var(--ink-soft)"/>
+        <textarea class="card-note" placeholder="인물 설명 · 목적">${escapeHtml(ch.desc || "")}</textarea>
+        <details class="link-select">
+          <summary>연관 사건 (${(ch.links || []).length})</summary>
+          <div class="link-opts">${opts || '<span class="mini">먼저 사건을 추가하세요.</span>'}</div>
+        </details>
+      </div>`;
+    $(".card-title", card).addEventListener("input", (e) => { ch.name = e.target.value; debouncedSave(); drawLinks(); });
+    $(".card-role", card).addEventListener("input", (e) => { ch.role = e.target.value; debouncedSave(); });
+    $(".card-note", card).addEventListener("input", (e) => { ch.desc = e.target.value; debouncedSave(); });
+    $$(".link-opts input", card).forEach((chk) => {
+      chk.addEventListener("change", () => {
+        const set = new Set(ch.links || []);
+        chk.checked ? set.add(chk.value) : set.delete(chk.value);
+        ch.links = Array.from(set);
+        $("summary", $(".link-select", card)).textContent = `연관 사건 (${ch.links.length})`;
+        save(); drawLinks();
+      });
+    });
+    $(".card-del", card).addEventListener("click", () => {
+      project().canvas.characters = project().canvas.characters.filter((x) => x.id !== ch.id);
+      save(); renderCanvas();
+    });
+    enableDrag(card, ch);
+    return card;
+  }
+
+  function enableDrag(card, item) {
+    const handle = $("[data-drag]", card);
+    let startX, startY, origX, origY, dragging = false;
+    handle.addEventListener("pointerdown", (e) => {
+      if (e.target.classList.contains("card-del")) return;
+      dragging = true;
+      handle.setPointerCapture(e.pointerId);
+      startX = e.clientX; startY = e.clientY;
+      origX = item.x || 40; origY = item.y || 40;
+      card.style.zIndex = 20;
+    });
+    handle.addEventListener("pointermove", (e) => {
+      if (!dragging) return;
+      item.x = clamp(origX + (e.clientX - startX), 0, 2400 - 210);
+      item.y = clamp(origY + (e.clientY - startY), 0, 1600 - 80);
+      card.style.left = item.x + "px";
+      card.style.top = item.y + "px";
+      drawLinks();
+    });
+    const end = (e) => {
+      if (!dragging) return;
+      dragging = false;
+      card.style.zIndex = "";
+      try { handle.releasePointerCapture(e.pointerId); } catch (_) {}
+      save();
+    };
+    handle.addEventListener("pointerup", end);
+    handle.addEventListener("pointercancel", end);
+  }
+
+  function drawLinks() {
+    const svg = $("#linkLayer");
+    svg.innerHTML = "";
+    const p = project();
+    if (p.showLinks === false) return;
+    const centers = {};
+    $$(".card").forEach((c) => {
+      const x = parseFloat(c.style.left) + c.offsetWidth / 2;
+      const y = parseFloat(c.style.top) + 24;
+      centers[c.dataset.id] = { x, y };
+    });
+    p.canvas.characters.forEach((ch) => {
+      (ch.links || []).forEach((evId) => {
+        const a = centers[ch.id], b = centers[evId];
+        if (!a || !b) return;
+        const line = document.createElementNS("http://www.w3.org/2000/svg", "line");
+        line.setAttribute("x1", a.x); line.setAttribute("y1", a.y);
+        line.setAttribute("x2", b.x); line.setAttribute("y2", b.y);
+        line.setAttribute("stroke", "#c9a689");
+        line.setAttribute("stroke-width", "2");
+        line.setAttribute("stroke-dasharray", "5 4");
+        svg.appendChild(line);
+      });
+    });
+  }
+
+  function bindCanvas() {
+    $("#addEventBtn").addEventListener("click", () => {
+      const n = project().canvas.events.length;
+      project().canvas.events.push({ id: uid(), title: "", note: "", x: 60 + (n % 4) * 40, y: 60 + (n % 6) * 40 });
+      save(); renderCanvas();
+    });
+    $("#addCharBtn").addEventListener("click", () => {
+      const n = project().canvas.characters.length;
+      project().canvas.characters.push({ id: uid(), name: "", role: "", desc: "", links: [], x: 560 + (n % 4) * 40, y: 60 + (n % 6) * 40 });
+      save(); renderCanvas();
+    });
+    $("#showLinks").addEventListener("change", (e) => {
+      project().showLinks = e.target.checked; save(); drawLinks();
+    });
+  }
+
+  /* ===================================================================
+   * 3. 주제 · 갈등
+   * =================================================================== */
+  function renderTheme() {
+    const t = project().theme;
+    $("#themeProtagonist").value = t.protagonist || "";
+    $("#themeWorld").value = t.world || "";
+    renderConflicts();
+  }
+
+  function renderConflicts() {
+    const box = $("#conflictList");
+    box.innerHTML = "";
+    const conflicts = project().theme.conflicts;
+    if (!conflicts.length) box.innerHTML = '<p class="mini">아직 갈등이 없습니다. “＋ 갈등 추가”를 누르세요.</p>';
+    conflicts.forEach((c) => {
+      const row = document.createElement("div");
+      row.className = "conflict-item";
+      row.innerHTML = `
+        <input class="c-a" placeholder="인물 A" value="${escapeAttr(c.a)}" />
+        <input class="c-b" placeholder="인물 B" value="${escapeAttr(c.b)}" />
+        <input class="c-desc" placeholder="목적의 충돌 내용" value="${escapeAttr(c.desc)}" />
+        <button class="row-del" title="삭제">🗑</button>`;
+      $(".c-a", row).addEventListener("input", (e) => { c.a = e.target.value; debouncedSave(); });
+      $(".c-b", row).addEventListener("input", (e) => { c.b = e.target.value; debouncedSave(); });
+      $(".c-desc", row).addEventListener("input", (e) => { c.desc = e.target.value; debouncedSave(); });
+      $(".row-del", row).addEventListener("click", () => {
+        project().theme.conflicts = conflicts.filter((x) => x !== c); save(); renderConflicts();
+      });
+      box.appendChild(row);
+    });
+  }
+
+  function bindTheme() {
+    $("#themeProtagonist").addEventListener("input", (e) => { project().theme.protagonist = e.target.value; debouncedSave(); });
+    $("#themeWorld").addEventListener("input", (e) => { project().theme.world = e.target.value; debouncedSave(); });
+    $("#addConflictBtn").addEventListener("click", () => {
+      project().theme.conflicts.push({ a: "", b: "", desc: "" }); save(); renderConflicts();
+    });
+  }
+
+  /* ===================================================================
+   * 4. 부 · 장 구성
+   * =================================================================== */
+  function renderStructure() {
+    const box = $("#structureList");
+    box.innerHTML = "";
+    const parts = project().structure.parts;
+    if (!parts.length) box.innerHTML = '<p class="mini">아직 부가 없습니다. “＋ 부 추가”를 누르세요.</p>';
+    parts.forEach((part, pi) => box.appendChild(makePartBlock(part, pi)));
+  }
+
+  function makePartBlock(part, pi) {
+    const el = document.createElement("div");
+    el.className = "part-block";
+    el.innerHTML = `
+      <div class="part-head">
+        <input class="part-title" value="${escapeAttr(part.title)}" placeholder="제 ${pi + 1} 부 제목" />
+        <button class="btn small add-chapter">＋ 장</button>
+        <button class="row-del" title="부 삭제">🗑</button>
+      </div>
+      <div class="part-body">
+        <label>이 부의 스토리 진행 요약
+          <textarea class="part-summary" rows="2" placeholder="이 부에서 일어나는 큰 흐름">${escapeHtml(part.summary || "")}</textarea>
+        </label>
+        <div class="chapters"></div>
+      </div>`;
+    $(".part-title", el).addEventListener("input", (e) => { part.title = e.target.value; debouncedSave(); });
+    $(".part-summary", el).addEventListener("input", (e) => { part.summary = e.target.value; debouncedSave(); });
+    $(".add-chapter", el).addEventListener("click", () => {
+      part.chapters.push({ id: uid(), title: "", summary: "", episodeIds: [] }); save(); renderStructure();
+    });
+    $(".row-del", el).addEventListener("click", () => {
+      project().structure.parts = project().structure.parts.filter((x) => x !== part); save(); renderStructure();
+    });
+    const chBox = $(".chapters", el);
+    part.chapters.forEach((ch, ci) => chBox.appendChild(makeChapterBlock(part, ch, ci)));
+    return el;
+  }
+
+  function makeChapterBlock(part, ch, ci) {
+    const el = document.createElement("div");
+    el.className = "chapter-block";
+    el.innerHTML = `
+      <div class="chapter-head">
+        <input class="ch-title" value="${escapeAttr(ch.title)}" placeholder="제 ${ci + 1} 장 제목" />
+        <button class="row-del" title="장 삭제">🗑</button>
+      </div>
+      <textarea class="ch-summary" rows="2" placeholder="이 장의 스토리 진행 요약">${escapeHtml(ch.summary || "")}</textarea>
+      <div class="ep-assign"></div>`;
+    $(".ch-title", el).addEventListener("input", (e) => { ch.title = e.target.value; debouncedSave(); });
+    $(".ch-summary", el).addEventListener("input", (e) => { ch.summary = e.target.value; debouncedSave(); });
+    $(".row-del", el).addEventListener("click", () => {
+      part.chapters = part.chapters.filter((x) => x !== ch); save(); renderStructure();
+    });
+    // 회차 배분 칩
+    const assign = $(".ep-assign", el);
+    project().episodes.forEach((ep) => {
+      const chip = document.createElement("span");
+      const assigned = (ch.episodeIds || []).includes(ep.id);
+      chip.className = "ep-chip" + (assigned ? " assigned" : "");
+      chip.textContent = `${ep.number}화`;
+      chip.title = ep.title || "";
+      chip.addEventListener("click", () => {
+        // 한 회차는 한 장에만 속하도록: 다른 장에서 제거
+        project().structure.parts.forEach((pp) => pp.chapters.forEach((cc) => {
+          cc.episodeIds = (cc.episodeIds || []).filter((id) => id !== ep.id);
+        }));
+        if (!assigned) ch.episodeIds.push(ep.id);
+        save(); renderStructure();
+      });
+      assign.appendChild(chip);
+    });
+    if (!project().episodes.length) assign.innerHTML = '<span class="mini">회차 탭에서 회차를 먼저 추가하면 여기에 배분할 수 있습니다.</span>';
+    return el;
+  }
+
+  function bindStructure() {
+    $("#addPartBtn").addEventListener("click", () => {
+      project().structure.parts.push({ id: uid(), title: "", summary: "", chapters: [] }); save(); renderStructure();
+    });
+  }
+
+  /* ===================================================================
+   * 5. 회차 집필
+   * =================================================================== */
+  function nextEpisodeNumber() {
+    const nums = project().episodes.map((e) => e.number || 0);
+    return (nums.length ? Math.max(...nums) : 0) + 1;
+  }
+
+  function renderEpisodeList() {
+    const box = $("#episodeList");
+    box.innerHTML = "";
+    const eps = project().episodes.slice().sort((a, b) => a.number - b.number);
+    if (!eps.length) { box.innerHTML = '<p class="mini">회차가 없습니다.</p>'; return; }
+    eps.forEach((ep) => {
+      const item = document.createElement("div");
+      item.className = "ep-item" + (ep.id === currentEpisodeId ? " active" : "");
+      const chars = countChars(ep.body);
+      const score = ep.rating && ep.rating.overall != null ? `<span class="score-pill">★${ep.rating.overall}</span>` : "";
+      item.innerHTML = `
+        <div class="ep-item-title"><span>제 ${ep.number} 화</span>${score}</div>
+        <div class="ep-item-meta"><span>${escapeHtml((ep.title || "(제목없음)").slice(0, 16))}</span><span>${chars.toLocaleString()}자</span></div>`;
+      item.addEventListener("click", () => { currentEpisodeId = ep.id; renderEpisodeList(); renderEpisodeEditor(); });
+      box.appendChild(item);
+    });
+  }
+
+  function currentEpisode() {
+    return project().episodes.find((e) => e.id === currentEpisodeId) || null;
+  }
+
+  function renderEpisodeEditor() {
+    const ep = currentEpisode();
+    const empty = $("#episodeEmpty"), body = $("#editorBody");
+    if (!ep) { empty.hidden = false; body.hidden = true; return; }
+    empty.hidden = true; body.hidden = false;
+
+    $("#epTitle").value = ep.title || "";
+    $("#epNumBadge").textContent = `제 ${ep.number} 화`;
+    $("#epSummary").value = ep.summary || "";
+    $("#epDetail").value = ep.detail || "";
+    $("#epMemo").value = ep.memo || "";
+    $("#epBody").value = ep.body || "";
+    $("#epTarget").value = ep.targetChars || project().meta.charsPerEp || 5500;
+    updateBodyCounter();
+
+    // 평가 카드
+    if (ep.rating && ep.rating.overall != null) {
+      renderRating(ep.rating);
+      $("#ratingCard").hidden = false;
+    } else {
+      $("#ratingCard").hidden = true;
+    }
+    $("#userFeedback").value = (ep.rating && ep.rating.userNote) || "";
+    $("#saveStatus").textContent = "";
+  }
+
+  function updateBodyCounter() {
+    const ep = currentEpisode();
+    if (!ep) return;
+    const body = $("#epBody").value;
+    const chars = countChars(body);
+    const noSpace = countNoSpace(body);
+    const target = parseInt($("#epTarget").value) || 5500;
+    $("#bodyCounter").textContent = `${chars.toLocaleString()}자 (공백 제외 ${noSpace.toLocaleString()}자)`;
+    $("#epCountBadge").textContent = `${target.toLocaleString()}자 / 현재 ${chars.toLocaleString()}자`;
+    const bar = $("#bodyProgress");
+    const pct = clamp((chars / target) * 100, 0, 100);
+    bar.style.width = pct + "%";
+    bar.classList.toggle("over", chars >= target);
+  }
+
+  function bindEpisodes() {
+    $("#addEpisodeBtn").addEventListener("click", () => {
+      const ep = {
+        id: uid(), number: nextEpisodeNumber(), title: "",
+        summary: "", detail: "", memo: "", body: "",
+        targetChars: project().meta.charsPerEp || 5500, rating: null,
+      };
+      project().episodes.push(ep);
+      currentEpisodeId = ep.id;
+      save(); renderEpisodeList(); renderEpisodeEditor(); renderStructure();
+    });
+
+    const bindField = (sel, key, extra) => $(sel).addEventListener("input", (e) => {
+      const ep = currentEpisode(); if (!ep) return;
+      ep[key] = e.target.value; debouncedSave(); if (extra) extra();
+    });
+    bindField("#epTitle", "title", () => renderEpisodeList());
+    bindField("#epSummary", "summary");
+    bindField("#epDetail", "detail");
+    bindField("#epMemo", "memo");
+    $("#epBody").addEventListener("input", (e) => {
+      const ep = currentEpisode(); if (!ep) return;
+      ep.body = e.target.value; updateBodyCounter(); debouncedSave(); renderEpisodeList();
+    });
+    $("#epTarget").addEventListener("input", (e) => {
+      const ep = currentEpisode(); if (!ep) return;
+      ep.targetChars = parseInt(e.target.value) || 5500; updateBodyCounter(); debouncedSave();
+    });
+    $("#userFeedback").addEventListener("input", (e) => {
+      const ep = currentEpisode(); if (!ep) return;
+      ep.rating = ep.rating || {}; ep.rating.userNote = e.target.value; debouncedSave();
+    });
+
+    $("#saveEpisodeBtn").addEventListener("click", () => { save(); flashSave("저장되었습니다."); });
+    $("#generateBtn").addEventListener("click", onGenerate);
+    $("#stopGenBtn").addEventListener("click", () => { if (genController) genController.abort(); });
+    $("#finalizeBtn").addEventListener("click", onFinalize);
+  }
+
+  function flashSave(msg) {
+    const el = $("#saveStatus"); el.textContent = msg;
+    setTimeout(() => (el.textContent = ""), 2000);
+  }
+
+  /* ---------- 평가 렌더 ---------- */
+  const RATING_DIMS = [
+    { key: "pace", label: "진행 속도" },
+    { key: "tension", label: "박진감" },
+    { key: "importance", label: "중요도" },
+    { key: "humor", label: "개그 요소" },
+    { key: "overall", label: "종합" },
+  ];
+  function renderRating(r) {
+    const grid = $("#ratingGrid");
+    grid.innerHTML = RATING_DIMS.map((d) => {
+      const v = r[d.key];
+      const pct = v != null ? (v / 10) * 100 : 0;
+      return `<div class="rating-item">
+        <div class="r-label">${d.label}</div>
+        <div class="r-score">${v != null ? v : "—"}</div>
+        <div class="r-bar"><div style="width:${pct}%"></div></div>
+      </div>`;
+    }).join("");
+    $("#feedbackText").textContent = r.feedback || "";
+    const ul = $("#improvementList");
+    ul.innerHTML = (r.improvements || []).map((s) => `<li>${escapeHtml(s)}</li>`).join("") || "<li>—</li>";
+  }
+
+  /* ===================================================================
+   * Claude API
+   * =================================================================== */
+  function apiHeaders() {
+    return {
+      "content-type": "application/json",
+      "x-api-key": store.settings.apiKey,
+      "anthropic-version": "2023-06-01",
+      "anthropic-dangerous-direct-browser-access": "true",
+    };
+  }
+
+  function ensureKey() {
+    if (!store.settings.apiKey) {
+      toast("먼저 ⚙️ 설정에서 API 키를 입력하세요.");
+      openSettings();
+      return false;
+    }
+    return true;
+  }
+
+  /** 컨텍스트 문자열 구성 */
+  function buildContext(ep) {
+    const p = project();
+    const m = p.meta;
+    const t = p.theme;
+    const lines = [];
+    if (m.title) lines.push(`제목: ${m.title}`);
+    if (m.genre) lines.push(`장르/톤: ${m.genre}`);
+    if (m.logline) lines.push(`로그라인: ${m.logline}`);
+    if (m.synopsis) lines.push(`전체 줄거리:\n${m.synopsis}`);
+    if (t.protagonist) lines.push(`주인공의 근본적 문제: ${t.protagonist}`);
+    if (t.world) lines.push(`세계관의 화두: ${t.world}`);
+    if (t.conflicts.length) lines.push("인물 간 갈등:\n" + t.conflicts.map((c) => `- ${c.a} vs ${c.b}: ${c.desc}`).join("\n"));
+
+    // 주요 사건 · 인물
+    if (p.canvas.events.length) lines.push("주요 사건:\n" + p.canvas.events.map((e) => `- ${e.title}: ${e.note || ""}`).join("\n"));
+    if (p.canvas.characters.length) lines.push("주요 인물:\n" + p.canvas.characters.map((c) => `- ${c.name}(${c.role || "역할미정"}): ${c.desc || ""}`).join("\n"));
+
+    // 이 회차가 속한 부/장
+    p.structure.parts.forEach((part, pi) => part.chapters.forEach((ch, ci) => {
+      if ((ch.episodeIds || []).includes(ep.id)) {
+        lines.push(`위치: 제${pi + 1}부 "${part.title}" / 제${ci + 1}장 "${ch.title}"`);
+        if (part.summary) lines.push(`부 요약: ${part.summary}`);
+        if (ch.summary) lines.push(`장 요약: ${ch.summary}`);
+      }
+    }));
+
+    // 직전 회차 요약 (연속성)
+    const prev = p.episodes.filter((e) => e.number < ep.number).sort((a, b) => b.number - a.number).slice(0, 3).reverse();
+    if (prev.length) {
+      lines.push("직전 회차들의 요약:\n" + prev.map((e) => `- 제${e.number}화: ${e.summary || "(요약없음)"}`).join("\n"));
+    }
+    return lines.join("\n\n");
+  }
+
+  /* ---------- 생성하기 (스트리밍) ---------- */
+  async function onGenerate() {
+    if (!ensureKey()) return;
+    const ep = currentEpisode(); if (!ep) return;
+    if (!ep.summary && !ep.detail) { toast("최소한 회차 요약 또는 상세 정리를 입력하세요."); return; }
+
+    const target = parseInt($("#epTarget").value) || 5500;
+    const context = buildContext(ep);
+
+    const system = `당신은 한국어 장편 소설/게임북을 집필하는 숙련된 작가입니다.
+주어진 작품 설정과 회차 설계를 바탕으로 완성도 높은 1회분 소설 본문을 씁니다.
+
+규칙:
+- 순수한 소설 본문만 출력합니다. 해설, 머리말, "다음은..." 같은 메타 문장, 마크다운 제목을 쓰지 마세요.
+- 목표 분량은 약 ${target}자입니다. ±15% 범위를 지키세요.
+- 장면 묘사, 대사, 인물의 내면을 균형 있게 배치하고 몰입감 있게 씁니다.
+- 앞 회차와의 연속성을 유지하고, 이번 회차 요약/상세정리의 사건을 반드시 다룹니다.
+- 회차 마지막은 다음 화가 궁금해지도록 여운이나 훅으로 맺습니다.`;
+
+    const userMsg = `# 작품 컨텍스트
+${context}
+
+# 이번 회차 (제 ${ep.number} 화) 설계
+## 회차 요약
+${ep.summary || "(없음)"}
+
+## 회차 상세 정리
+${ep.detail || "(없음)"}
+
+## 보조 메모 (등장인물·복선·아이디어)
+${ep.memo || "(없음)"}
+
+위 설계에 따라 제 ${ep.number} 화의 소설 본문을 약 ${target}자로 집필하세요.`;
+
+    const btn = $("#generateBtn"), stop = $("#stopGenBtn"), area = $("#epBody");
+    btn.disabled = true; stop.hidden = false;
+    const prevBody = area.value;
+    area.value = "";
+    ep.body = "";
+    let acc = "";
+
+    genController = new AbortController();
+    try {
+      const res = await fetch(API_URL, {
+        method: "POST",
+        headers: apiHeaders(),
+        signal: genController.signal,
+        body: JSON.stringify({
+          model: store.settings.model || "claude-opus-4-8",
+          max_tokens: 24000,
+          stream: true,
+          system,
+          messages: [{ role: "user", content: userMsg }],
+        }),
+      });
+      if (!res.ok) {
+        const errText = await res.text();
+        throw new Error(`API ${res.status}: ${errText.slice(0, 300)}`);
+      }
+      await readSSE(res, (delta) => {
+        acc += delta;
+        area.value = acc;
+        area.scrollTop = area.scrollHeight;
+        ep.body = acc;
+        updateBodyCounter();
+      });
+      ep.body = acc || prevBody;
+      if (!acc) { area.value = prevBody; ep.body = prevBody; }
+      save(); updateBodyCounter(); renderEpisodeList();
+      flashSave("생성 완료 — 확인 후 저장하세요.");
+    } catch (err) {
+      if (err.name === "AbortError") {
+        // 중지: 지금까지 생성분 유지
+        ep.body = acc; save(); flashSave("생성을 중지했습니다.");
+      } else {
+        console.error(err);
+        area.value = prevBody; ep.body = prevBody;
+        toast("생성 실패: " + err.message);
+      }
+    } finally {
+      btn.disabled = false; stop.hidden = true; genController = null;
+    }
+  }
+
+  /** SSE 스트림 파서 */
+  async function readSSE(res, onDelta) {
+    const reader = res.body.getReader();
+    const decoder = new TextDecoder();
+    let buffer = "";
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      buffer += decoder.decode(value, { stream: true });
+      let idx;
+      while ((idx = buffer.indexOf("\n")) >= 0) {
+        const line = buffer.slice(0, idx).trim();
+        buffer = buffer.slice(idx + 1);
+        if (!line.startsWith("data:")) continue;
+        const data = line.slice(5).trim();
+        if (data === "[DONE]") return;
+        try {
+          const ev = JSON.parse(data);
+          if (ev.type === "content_block_delta" && ev.delta && ev.delta.type === "text_delta") {
+            onDelta(ev.delta.text);
+          } else if (ev.type === "error") {
+            throw new Error(ev.error ? ev.error.message : "stream error");
+          }
+        } catch (e) { if (e.message && e.message !== "Unexpected end of JSON input") { /* ignore parse noise */ } }
+      }
+    }
+  }
+
+  /* ---------- 최종 저장 및 평가 ---------- */
+  async function onFinalize() {
+    const ep = currentEpisode(); if (!ep) return;
+    save();
+    if (!ensureKey()) { flashSave("본문은 저장되었습니다 (평가는 API 키 필요)."); return; }
+    if (!(ep.body || "").trim()) { toast("평가할 본문이 없습니다."); return; }
+
+    const btn = $("#finalizeBtn");
+    btn.disabled = true; btn.textContent = "평가 중…";
+
+    const schema = {
+      type: "object",
+      properties: {
+        pace: { type: "integer" }, tension: { type: "integer" },
+        importance: { type: "integer" }, humor: { type: "integer" },
+        overall: { type: "integer" },
+        feedback: { type: "string" },
+        improvements: { type: "array", items: { type: "string" } },
+      },
+      required: ["pace", "tension", "importance", "humor", "overall", "feedback", "improvements"],
+      additionalProperties: false,
+    };
+
+    const system = `당신은 냉정하면서도 건설적인 소설 편집자입니다. 주어진 회차 본문을 평가합니다.
+각 항목은 0~10 정수로 채점합니다: pace(진행 속도), tension(박진감), importance(전체 서사에서의 중요도), humor(개그·유머 요소), overall(종합 평점).
+feedback은 2~4문장의 총평, improvements는 구체적 개선점 3~5개를 한국어로 작성합니다.`;
+
+    const user = `작품: ${project().meta.title || "무제"} / 제 ${ep.number} 화
+회차 요약: ${ep.summary || "(없음)"}
+
+[본문]
+${(ep.body || "").slice(0, 12000)}
+
+위 회차를 평가해 주세요.`;
+
+    try {
+      const res = await fetch(API_URL, {
+        method: "POST",
+        headers: apiHeaders(),
+        body: JSON.stringify({
+          model: store.settings.model || "claude-opus-4-8",
+          max_tokens: 2000,
+          system,
+          messages: [{ role: "user", content: user }],
+          output_config: { format: { type: "json_schema", schema } },
+        }),
+      });
+      if (!res.ok) throw new Error(`API ${res.status}: ${(await res.text()).slice(0, 300)}`);
+      const data = await res.json();
+      const textBlock = (data.content || []).find((b) => b.type === "text");
+      if (!textBlock) throw new Error("응답에 텍스트가 없습니다.");
+      const rating = JSON.parse(textBlock.text);
+      rating.userNote = (ep.rating && ep.rating.userNote) || "";
+      ep.rating = rating;
+      save();
+      renderRating(rating);
+      $("#ratingCard").hidden = false;
+      renderEpisodeList();
+      flashSave("최종 저장 및 평가 완료!");
+    } catch (err) {
+      console.error(err);
+      toast("평가 실패: " + err.message);
+    } finally {
+      btn.disabled = false; btn.textContent = "✅ 최종 저장 및 평가";
+    }
+  }
+
+  /* ===================================================================
+   * 탭 / 프로젝트 / 설정 / 백업
+   * =================================================================== */
+  function bindTabs() {
+    $$(".tab").forEach((tab) => {
+      tab.addEventListener("click", () => {
+        $$(".tab").forEach((t) => t.classList.remove("active"));
+        $$(".view").forEach((v) => v.classList.remove("active"));
+        tab.classList.add("active");
+        $("#view-" + tab.dataset.view).classList.add("active");
+        if (tab.dataset.view === "canvas") requestAnimationFrame(drawLinks);
+      });
+    });
+  }
+
+  function bindProjectControls() {
+    $("#projectSelect").addEventListener("change", (e) => {
+      store.activeId = e.target.value; currentEpisodeId = null; save(); renderAll();
+    });
+    $("#newProjectBtn").addEventListener("click", () => {
+      const name = prompt("새 작품 이름:", "새 작품");
+      if (name == null) return;
+      const p = blankProject(name.trim() || "새 작품");
+      store.projects[p.id] = p; store.activeId = p.id; currentEpisodeId = null;
+      save(); renderAll();
+    });
+    $("#renameProjectBtn").addEventListener("click", () => {
+      const name = prompt("작품 이름 변경:", project().name);
+      if (name == null) return;
+      project().name = name.trim() || project().name; save(); renderProjectSelect();
+    });
+    $("#deleteProjectBtn").addEventListener("click", () => {
+      if (Object.keys(store.projects).length <= 1) { toast("마지막 작품은 삭제할 수 없습니다."); return; }
+      if (!confirm(`"${project().name}" 작품을 삭제할까요? 되돌릴 수 없습니다.`)) return;
+      delete store.projects[store.activeId];
+      store.activeId = Object.keys(store.projects)[0];
+      currentEpisodeId = null; save(); renderAll();
+    });
+    $("#exportBtn").addEventListener("click", () => {
+      const blob = new Blob([JSON.stringify(project(), null, 2)], { type: "application/json" });
+      const a = document.createElement("a");
+      a.href = URL.createObjectURL(blob);
+      a.download = (project().meta.title || project().name || "novelforge") + ".json";
+      a.click(); URL.revokeObjectURL(a.href);
+    });
+    $("#importBtn").addEventListener("click", () => $("#importFile").click());
+    $("#importFile").addEventListener("change", (e) => {
+      const file = e.target.files[0]; if (!file) return;
+      const reader = new FileReader();
+      reader.onload = () => {
+        try {
+          const obj = JSON.parse(reader.result);
+          if (!obj.meta || !obj.episodes) throw new Error("형식이 올바르지 않습니다.");
+          obj.id = uid();
+          if (!obj.name) obj.name = obj.meta.title || "가져온 작품";
+          store.projects[obj.id] = obj; store.activeId = obj.id; currentEpisodeId = null;
+          save(); renderAll(); toast("작품을 불러왔습니다.");
+        } catch (err) { toast("불러오기 실패: " + err.message); }
+      };
+      reader.readAsText(file);
+      e.target.value = "";
+    });
+  }
+
+  function openSettings() {
+    $("#apiKeyInput").value = store.settings.apiKey || "";
+    $("#modelSelect").value = store.settings.model || "claude-opus-4-8";
+    $("#settingsModal").hidden = false;
+  }
+  function bindSettings() {
+    $("#settingsBtn").addEventListener("click", openSettings);
+    $("#settingsCancel").addEventListener("click", () => ($("#settingsModal").hidden = true));
+    $("#settingsSave").addEventListener("click", () => {
+      store.settings.apiKey = $("#apiKeyInput").value.trim();
+      store.settings.model = $("#modelSelect").value;
+      save(); $("#settingsModal").hidden = true; toast("설정을 저장했습니다.");
+    });
+  }
+
+  /* ---------- 유틸 ---------- */
+  let saveTimer = null;
+  function debouncedSave() { clearTimeout(saveTimer); saveTimer = setTimeout(save, 400); }
+  function escapeHtml(s) { return (s || "").replace(/[&<>]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;" }[c])); }
+  function escapeAttr(s) { return (s || "").replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c])); }
+
+  /* ---------- 초기화 ---------- */
+  function init() {
+    bindTabs();
+    bindProjectControls();
+    bindSettings();
+    bindSetup();
+    bindCanvas();
+    bindTheme();
+    bindStructure();
+    bindEpisodes();
+    renderAll();
+  }
+
+  document.addEventListener("DOMContentLoaded", init);
+})();
+
+</script>
+</body>
+</html>
