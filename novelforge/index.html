@@ -1,0 +1,234 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>NovelForge — 소설 · 게임북 집필 플랫폼</title>
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <!-- ===== 상단 바 ===== -->
+  <header class="topbar">
+    <div class="brand">
+      <span class="logo">✒️</span>
+      <div>
+        <h1>NovelForge</h1>
+        <p class="tagline">소설 · 게임북 집필 플랫폼</p>
+      </div>
+    </div>
+
+    <div class="project-controls">
+      <select id="projectSelect" title="작품 선택"></select>
+      <button id="newProjectBtn" class="btn ghost" title="새 작품">＋ 새 작품</button>
+      <button id="renameProjectBtn" class="btn ghost" title="이름 변경">✎</button>
+      <button id="deleteProjectBtn" class="btn ghost danger" title="작품 삭제">🗑</button>
+      <button id="exportBtn" class="btn ghost" title="JSON 내보내기">⬇ 백업</button>
+      <button id="importBtn" class="btn ghost" title="JSON 불러오기">⬆ 복원</button>
+      <input type="file" id="importFile" accept="application/json" hidden />
+      <button id="settingsBtn" class="btn ghost" title="API 설정">⚙️</button>
+    </div>
+  </header>
+
+  <!-- ===== 탭 내비게이션 ===== -->
+  <nav class="tabs" id="tabs">
+    <button class="tab active" data-view="setup">1 · 작품 설정</button>
+    <button class="tab" data-view="canvas">2 · 사건·인물 캔버스</button>
+    <button class="tab" data-view="theme">3 · 주제 · 갈등</button>
+    <button class="tab" data-view="structure">4 · 부 · 장 구성</button>
+    <button class="tab" data-view="episodes">5 · 회차 집필</button>
+  </nav>
+
+  <main id="main">
+    <!-- ========== 1. 작품 설정 ========== -->
+    <section class="view active" id="view-setup">
+      <div class="panel">
+        <h2>작품 설정</h2>
+        <p class="hint">소설 제목과 전체 회차 수, 회차당 권장 분량, 큰 줄거리를 정리합니다.</p>
+        <div class="form-grid">
+          <label>소설 제목
+            <input type="text" id="metaTitle" placeholder="예) 천산비록(天山秘錄)" />
+          </label>
+          <label>총 회차 수 (스토리라인 전체 횟수)
+            <input type="number" id="metaTotalEpisodes" min="1" placeholder="예) 120" />
+          </label>
+          <label>회차당 권장 분량 (자)
+            <input type="number" id="metaCharsPerEp" min="500" step="100" placeholder="예) 5500" />
+          </label>
+          <label>장르 / 톤
+            <input type="text" id="metaGenre" placeholder="예) 동양 무협 / 성장 · 복수" />
+          </label>
+        </div>
+        <label class="block">한 줄 로그라인
+          <input type="text" id="metaLogline" placeholder="예) 가문에서 쫓겨난 소년이 천산에서 절세무공을 얻어 돌아온다." />
+        </label>
+        <label class="block">전체 줄거리 (시놉시스)
+          <textarea id="metaSynopsis" rows="6" placeholder="작품 전체의 큰 흐름을 자유롭게 정리하세요. 생성 AI가 각 회차를 쓸 때 이 내용을 참고합니다."></textarea>
+        </label>
+        <div class="stat-row" id="setupStats"></div>
+      </div>
+    </section>
+
+    <!-- ========== 2. 사건·인물 캔버스 ========== -->
+    <section class="view" id="view-canvas">
+      <div class="canvas-toolbar">
+        <div>
+          <button class="btn" id="addEventBtn">＋ 사건 추가</button>
+          <button class="btn" id="addCharBtn">＋ 인물 추가</button>
+        </div>
+        <p class="hint">카드를 <b>드래그</b>해서 배치하세요. 먼저 주요 <b>사건</b>을 놓고, 그 사건과 연관된 <b>인물</b>을 구상해 연결합니다.</p>
+        <label class="linkmode-toggle">
+          <input type="checkbox" id="showLinks" checked /> 연결선 표시
+        </label>
+      </div>
+      <div class="canvas-wrap">
+        <div class="canvas" id="canvas">
+          <svg class="link-layer" id="linkLayer"></svg>
+          <!-- 카드가 여기에 렌더링됩니다 -->
+        </div>
+      </div>
+    </section>
+
+    <!-- ========== 3. 주제 · 갈등 ========== -->
+    <section class="view" id="view-theme">
+      <div class="panel">
+        <h2>주제와 갈등의 축</h2>
+        <p class="hint">주인공의 근본적 문제, 세계관의 화두, 인물 간 목적의 충돌을 정리합니다. 이야기의 척추가 됩니다.</p>
+        <label class="block">주인공의 근본적 문제 (내적 결핍 · 상처 · 욕망)
+          <textarea id="themeProtagonist" rows="3" placeholder="예) 인정받지 못한 서자로서의 열등감. 강해지고 싶으나 힘을 두려워한다."></textarea>
+        </label>
+        <label class="block">세계관의 기본 화두 (이 세계가 던지는 질문)
+          <textarea id="themeWorld" rows="3" placeholder="예) 힘의 정당성은 무엇으로 증명되는가? 무림에서 협(俠)은 가능한가?"></textarea>
+        </label>
+        <div class="subhead">
+          <h3>인물 간 목적의 갈등 관계</h3>
+          <button class="btn" id="addConflictBtn">＋ 갈등 추가</button>
+        </div>
+        <div id="conflictList" class="conflict-list"></div>
+      </div>
+    </section>
+
+    <!-- ========== 4. 부 · 장 구성 ========== -->
+    <section class="view" id="view-structure">
+      <div class="panel">
+        <div class="subhead">
+          <h2>부 · 장 구성</h2>
+          <button class="btn" id="addPartBtn">＋ 부 추가</button>
+        </div>
+        <p class="hint">각 부와 장별로 스토리 진행을 간단히 정리하고, 그 아래에 회차를 배분합니다.</p>
+        <div id="structureList" class="structure-list"></div>
+      </div>
+    </section>
+
+    <!-- ========== 5. 회차 집필 ========== -->
+    <section class="view" id="view-episodes">
+      <div class="episodes-layout">
+        <!-- 회차 목록 -->
+        <aside class="episode-list-pane">
+          <div class="subhead compact">
+            <h3>회차 목록</h3>
+            <button class="btn small" id="addEpisodeBtn">＋ 회차</button>
+          </div>
+          <div id="episodeList" class="episode-list"></div>
+        </aside>
+
+        <!-- 회차 편집기 -->
+        <div class="episode-editor" id="episodeEditor">
+          <div class="empty-state" id="episodeEmpty">
+            <p>왼쪽에서 회차를 선택하거나 새 회차를 추가하세요.</p>
+          </div>
+
+          <div class="editor-body" id="editorBody" hidden>
+            <div class="editor-head">
+              <input type="text" id="epTitle" class="ep-title-input" placeholder="회차 제목" />
+              <span class="ep-num" id="epNumBadge"></span>
+            </div>
+
+            <div class="field-block">
+              <label>① 회차 요약 <span class="mini">— 이번 화의 뼈대 (예: 주인공은 집에서 쫓겨나 천산으로 떠난다…)</span></label>
+              <textarea id="epSummary" rows="3" placeholder="이번 회차의 핵심 사건을 3~5문장으로."></textarea>
+            </div>
+
+            <div class="field-block">
+              <label>② 회차 상세 정리 <span class="mini">— 가능한 한 상세하게 장면·대사·전개를 설계</span></label>
+              <textarea id="epDetail" rows="7" placeholder="장면 순서, 등장 인물의 행동, 감정선, 반전 등을 구체적으로 적으세요. AI 생성의 설계도가 됩니다."></textarea>
+            </div>
+
+            <div class="field-block">
+              <label>③ 보조 메모 <span class="mini">— 주요 등장인물 · 사건 · 새 아이디어 · 복선</span></label>
+              <textarea id="epMemo" rows="4" placeholder="이번 화에 꼭 넣을 요소, 복선, 설정 메모 등."></textarea>
+            </div>
+
+            <div class="gen-bar">
+              <div class="target-controls">
+                <label>권장 분량
+                  <input type="number" id="epTarget" min="500" step="100" />자
+                </label>
+                <span class="count-badge" id="epCountBadge">현재 0자</span>
+              </div>
+              <div class="gen-actions">
+                <button class="btn primary" id="generateBtn">✨ 생성하기</button>
+                <button class="btn" id="stopGenBtn" hidden>■ 중지</button>
+              </div>
+            </div>
+
+            <div class="field-block">
+              <label>④ 회차분 본문 <span class="mini">— 생성된 내용을 확인·수정 후 저장</span></label>
+              <textarea id="epBody" rows="18" class="body-area" placeholder="생성하기를 누르면 여기에 1회분 소설이 채워집니다. 자유롭게 수정하세요."></textarea>
+              <div class="body-meta">
+                <span id="bodyCounter">0자 (공백 제외 0자)</span>
+                <div class="progress-wrap"><div class="progress-bar" id="bodyProgress"></div></div>
+              </div>
+            </div>
+
+            <div class="save-bar">
+              <button class="btn" id="saveEpisodeBtn">💾 저장</button>
+              <button class="btn primary" id="finalizeBtn">✅ 최종 저장 및 평가</button>
+              <span class="save-status" id="saveStatus"></span>
+            </div>
+
+            <!-- 평가 · 피드백 -->
+            <div class="rating-card" id="ratingCard" hidden>
+              <h3>가상 평점 & 피드백</h3>
+              <div class="rating-grid" id="ratingGrid"></div>
+              <div class="feedback-block">
+                <h4>총평</h4>
+                <p id="feedbackText" class="feedback-text"></p>
+                <h4>개선점</h4>
+                <ul id="improvementList" class="improvement-list"></ul>
+              </div>
+              <textarea id="userFeedback" rows="3" class="user-feedback" placeholder="나의 메모 / 피드백을 여기에 자유롭게 남기세요 (자동 저장)."></textarea>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <!-- ===== 설정 모달 ===== -->
+  <div class="modal-overlay" id="settingsModal" hidden>
+    <div class="modal">
+      <h2>API 설정</h2>
+      <p class="hint">본문 생성과 평점 산출에 Claude API를 사용합니다. 키는 이 브라우저에만(localStorage) 저장됩니다.</p>
+      <label class="block">Anthropic API Key
+        <input type="password" id="apiKeyInput" placeholder="sk-ant-..." />
+      </label>
+      <label class="block">모델
+        <select id="modelSelect">
+          <option value="claude-opus-4-8">claude-opus-4-8 (권장)</option>
+          <option value="claude-sonnet-5">claude-sonnet-5 (빠름/저렴)</option>
+          <option value="claude-haiku-4-5">claude-haiku-4-5 (초경량)</option>
+        </select>
+      </label>
+      <p class="warn">⚠️ 브라우저에서 직접 API를 호출합니다. 개인 PC에서만 본인 키로 사용하세요.</p>
+      <div class="modal-actions">
+        <button class="btn" id="settingsCancel">닫기</button>
+        <button class="btn primary" id="settingsSave">저장</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="toast" id="toast" hidden></div>
+
+  <script src="app.js"></script>
+</body>
+</html>
